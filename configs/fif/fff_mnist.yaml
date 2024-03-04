@@ -1,0 +1,33 @@
+model: fff.FreeFormInjectiveFlow
+
+noise: 0.01
+data_set:
+  name: mnist_ae
+  root: data
+  conditional: true
+
+loss_weights:
+  nll: 1
+  noisy_reconstruction: 10000
+  masked_reconstruction: 100
+  #c_reconstruction: 10000
+max_epochs: 500
+
+models:
+  - name: fff.model.ConvolutionalNeuralNetwork
+    latent_dim: &latent_dim 54
+    ch_factor: 32
+  - name: fff.model.ResNet
+    latent_dim: *latent_dim
+    layers_spec:
+      - [256, 256]
+      - [256, 256]
+      - [256, 256]
+
+
+lr_scheduler: "onecyclelr"
+optimizer:
+  name: adam
+  lr: 0.001
+
+batch_size: 512
