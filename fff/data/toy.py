@@ -6,22 +6,54 @@ from scipy.stats import vonmises
 from sklearn.datasets import make_moons
 from torch.nn.functional import one_hot
 from torch.utils.data import TensorDataset
+import pandas as pd
 
 from fff.data.manifold import ManifoldDataset
 from fff.data.utils import TrainValTest
 
+def get_saved_MOONS_dataset():
+    """Returns a 2D dataset of two moons conditioned on distance and angle"""
+    # load data from 2moons_conditional_data.pkl into pandas dataframe
+    df = pd.read_pickle("AE1_data")
+    # read targets and conditions from dataframe
+    train_data, shift, scale, train_targets = (
+        torch.from_numpy(df["train_x"]),
+        torch.tensor([0., 0.]),
+        torch.tensor([1., 1.]),
+        torch.from_numpy(df["train_y"]),
+    )
 
-def make_toy_data(kind: str, N_train=100_000, N_val=1_000, N_test=5_000, random_state=12479, center=True,
+    center = torch.mean(train_targets)
+    std = torch.std(train_targets)
+
+    train_targets = (train_targets - center) / std
+    val_data = torch.from_numpy(df["val_x"])
+    val_targets = (torch.from_numpy(df["val_y"]) - center) / std
+    test_data = torch.from_numpy(df["test_x"])
+    test_targets = (torch.from_numpy(df["test_y"]) - center) / std
+
+    data = torch.cat((train_data,val_data,test_data), 0)
+    targets = torch.cat((train_targets,val_targets,test_targets), 0)
+
+    return data, targets
+
+
+def make_toy_data(kind: str, N_train=60_000, N_val=1_000, N_test=5_000, random_state=12479, center=True,
                   noise: float = 0.0, **kwargs) -> TrainValTest:
     N = N_train + N_val + N_test
 
     conditions = []
     manifold = None
+    print(kind)
     if kind == "2moons":
         data, labels = make_moons(n_samples=N, random_state=random_state)
         if kwargs.pop("conditional", False):
             conditions.append(one_hot(torch.from_numpy(labels)))
         data = torch.Tensor(data)
+    elif kind == "saved_moons":
+        data, labels = get_saved_MOONS_dataset()
+        if kwargs.pop("conditional", False):
+            conditions.append(labels)
     elif kind == "von-mises-circle":
         theta = vonmises.rvs(1, size=N, loc=np.pi / 2, random_state=random_state)
         mode_count = kwargs.pop("mode_count", 1)

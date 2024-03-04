@@ -1,5 +1,12 @@
 lightning_logs*/
 benchmark/pythae_benchmarks
+logs_FFF
+logs_fff_small
+
+# data
+AE1_data
+Mnist_AE_data
+data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -174,3 +181,6 @@ _run*
 # Slurm outputs
 slurm-*.out
 
+# vim-files
+*.swp
+*.swo

@@ -20,6 +20,13 @@ class FreeFormInjectiveFlow(FreeFormBase):
         if not isinstance(hparams, FreeFormInjectiveFlowHParams):
             hparams = FreeFormInjectiveFlowHParams(**hparams)
         super().__init__(hparams)
+        if "masked_reconstruction" in self.hparams.loss_weights:
+            self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
+                    "lightning_logs/downsampled/version_5/checkpoints/last.ckpt"
+            )
+            self.Teacher.eval()
+            for param in self.Teacher.parameters():
+                param.require_grad = False
         if self.data_dim <= self.latent_dim:
             raise ValueError("Latent dimension must be less than data dimension "
                              "for a FreeFormInjectiveFlow.")

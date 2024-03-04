@@ -57,7 +57,9 @@ class ResNet(nn.Module):
     def build_model(self) -> nn.Module:
         data_dim = self.hparams.data_dim
         cond_dim = self.hparams.cond_dim
+        print("cond_dim: ", cond_dim)
         latent_dim = self.hparams.latent_dim
+        print("latent_dim: ", latent_dim)
 
         # ResNet in data space + projection to latent space
         activation = self.hparams.activation

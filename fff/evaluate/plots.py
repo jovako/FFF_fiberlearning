@@ -317,6 +317,28 @@ def plot_manifold(rectangular_flow, condition=None):
 
     plt.xlim(-3, 3)
     plt.ylim(-3, 3)
+    plt.legend()
+    plt.show()
+    plt.close()
+
+    plt.xlim(-3, 3)
+    plt.ylim(-3, 3)
+    plt.scatter(*z_train, s=1, label="Samples")
+    plt.show()
+
+
+def plot_latent_codes_2d(model, condition=None, extent=2, cmap="twilight", data_cmap="twilight_shifted", normalize=True, repeat=False, fill=True, levels=20, **kwargs):
+        
+        train_samples, *_ = get_n_samples_from_dataloader(model.val_dataloader(), 1000, condition=condition)
+        plt.scatter(*train_samples.T, s=1, cmap=data_cmap)
+
+        # plt.plot(*x_full.T.detach(), "w-", zorder=1)
+        z = model.encode(train_samples, condition)
+        plt.scatter(z, s=1, cmap=data_cmap)
+
+
+        plt.xlim(-extent, extent)
+        plt.ylim(-extent, extent)
 
 
 def plot_latent_codes_2d_1d(model, condition=None, extent=2, cmap="twilight", data_cmap="twilight_shifted", normalize=True, repeat=False, fill=True, levels=20, **kwargs):

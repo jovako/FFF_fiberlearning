@@ -6,11 +6,15 @@ def load_dataset(name: str, **kwargs) -> TrainValTest:
         # note that the given train/val/test split is ignored and a fixed split is performed
         from .tabular import get_tabular_datasets
         return get_tabular_datasets(name=name, **kwargs)
-    elif name in ["mnist", "cifar10", "celeba"]:
+    elif name in ["mnist_ds", "mnist", "mnist_ae", "cifar10", "celeba"]:
         from .image import (get_celeba_datasets, get_cifar10_datasets,
-                            get_mnist_datasets)
+                            get_mnist_datasets, get_mnist_downsampled, get_AElabeled_mnist)
         if name == "mnist":
             return get_mnist_datasets(**kwargs)
+        elif name == "mnist_ds":
+            return get_mnist_downsampled(**kwargs)
+        elif name == "mnist_ae":
+            return get_AElabeled_mnist(**kwargs)
         elif name == "cifar10":
             return get_cifar10_datasets(**kwargs)
         elif name == "celeba":

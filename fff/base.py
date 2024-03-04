@@ -81,6 +81,7 @@ class FreeFormBase(Trainable):
 
         # Build model
         self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
+        print(self.models)
 
         # Learnt latent distribution
         self.latents = {}
@@ -215,6 +216,11 @@ class FreeFormBase(Trainable):
         return x
 
     def decode(self, z, c):
+        """
+        latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
+        latent_mask[:, 0] = 1
+        z = z * latent_mask
+        """
         for model in self.models[::-1]:
             z = model.decode(z, c)
         return z
@@ -417,6 +423,11 @@ class FreeFormBase(Trainable):
             z = self.encode(x, c)
         if x1 is None:
             x1 = self.decode(z, c)
+        
+        latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
+        latent_mask[:, 0] = 1
+        z_masked = z * latent_mask
+        x_masked = self.decode(z_masked, c)
 
         # Wasserstein distance of marginal to Gaussian
         with torch.no_grad():
@@ -432,13 +443,16 @@ class FreeFormBase(Trainable):
         # Reconstruction
         if not self.training or check_keys("reconstruction", "noisy_reconstruction"):
             loss_values["reconstruction"] = self._reconstruction_loss(x0, x1)
+            #loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
             loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
+            loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_masked)
 
         # Cyclic consistency of latent code
-        if not self.training or check_keys("z_reconstruction"):
+        if not self.training or check_keys("c_reconstruction"):
             # Not reusing x1 from above, as it does not detach z
-            z1 = self.encode(x1, c)
-            loss_values["z_reconstruction"] = self._reconstruction_loss(z, z1)
+            cT = torch.empty(x1.shape[0],0).to(self.Teacher.device)
+            c1 = self.Teacher.encode(x1, cT)
+            loss_values["c_reconstruction"] = self._reconstruction_loss(c, c1)
 
         # Cyclic consistency of latent code -- gradient only to encoder
         if not self.training or check_keys("z_reconstruction_encoder"):

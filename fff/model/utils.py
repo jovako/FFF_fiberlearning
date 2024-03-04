@@ -39,7 +39,7 @@ def make_dense(widths: list[int], activation: str, dropout: float = None, batch_
     """ Make a Dense Network from given layer widths and activation function """
     if len(widths) < 2:
         raise ValueError("Need at least Input and Output Layer.")
-
+    print(widths)
     Activation = get_module(activation)
 
     network = nn.Sequential()

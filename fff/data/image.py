@@ -5,8 +5,10 @@ from torch.nn import Flatten
 from torch.nn.functional import one_hot
 from torch.utils.data import TensorDataset, DataLoader, Dataset
 from torchvision.datasets import MNIST, CIFAR10, CelebA
-from torchvision.transforms import ToTensor, Resize, Compose, CenterCrop
+from torchvision.transforms import ToTensor, Resize, Compose, CenterCrop, Grayscale
 from tqdm import tqdm
+from PIL import Image, ImageFilter  # install 'pillow' to get PIL
+import pandas as pd
 
 from fff.data.utils import TrainValTest
 
@@ -26,6 +28,72 @@ def get_mnist_datasets(root: str, digit: int = None, conditional: bool = False) 
 
     return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional)
 
+def get_AElabeled_mnist(root: str, digit: int = None, conditional: bool = False):
+    df = pd.read_pickle("Mnist_AE_data")
+    # read targets and conditions from dataframe
+    train_data, train_targets = (
+        torch.from_numpy(df["train_x"]),
+        torch.from_numpy(df["train_y"]),
+    )
+
+    center = torch.mean(train_targets)
+    std = torch.std(train_targets)
+
+    train_targets = (train_targets - center) / std
+    val_data = torch.from_numpy(df["val_x"])
+    val_targets = (torch.from_numpy(df["val_y"]) - center) / std
+    test_data = torch.from_numpy(df["test_x"])
+    test_targets = (torch.from_numpy(df["test_y"]) - center) / std
+    
+    # Collect tensors for TensorDatasets
+    train_data = [train_data]
+    val_data = [val_data]
+    test_data = [test_data]
+
+    # Conditions
+    if conditional:
+        train_data.append(train_targets)
+        val_data.append(val_targets)
+        test_data.append(test_targets)
+
+    return TensorDataset(
+        *train_data
+    ), TensorDataset(
+        *val_data
+    ), TensorDataset(
+        *test_data
+    )
+
+def get_mnist_downsampled(root: str, digit: int = None, conditional: bool = False) -> TrainValTest:
+    class DownsampleTransform:
+        def __init__(self, target_shape, algorithm=Image.Resampling.LANCZOS):
+            self.width, self.height = target_shape
+            self.algorithm = algorithm
+
+        def __call__(self, img):
+            img = img.resize((self.width+2, self.height+2), self.algorithm)
+            img = img.crop((1, 1, self.width+1, self.height+1))
+            return img
+
+    # concatenate a few transforms
+    transform = Compose([
+        DownsampleTransform(target_shape=(8,8)),
+        Grayscale(num_output_channels=1),
+        ToTensor()
+    ])
+
+    # download MNIST
+    try:
+        train_dataset = MNIST(root=root, train=True, transform=transform)
+        test_dataset = MNIST(root=root, train=False, transform=transform)
+    except RuntimeError:
+        # Input with timeout
+        if input("Download dataset? [y/n] ").lower() != "y":
+            raise RuntimeError("Dataset not downloaded")
+        train_dataset = MNIST(root=root, train=True, transform=transform, download=True)
+        test_dataset = MNIST(root=root, train=False, transform=transform, download=True)
+
+    return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional)
 
 def get_cifar10_datasets(root: str, label: int = None, conditional: bool = False) -> TrainValTest:
     try:
@@ -111,7 +179,16 @@ def celeba_to_memory(root: str, split: str, image_size: None | int) -> MemoryCel
 
 def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, conditional: bool = False):
     # Data is (N, H, W, C)
-    train_data = train_dataset.data
+    #train_data = train_dataset.data
+    batch_size = train_dataset.data.shape[0]
+    dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size)
+    train_data, _ = next(iter(dataloader))
+    batch_size = test_dataset.data.shape[0]
+    dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size)
+    test_data, _ = next(iter(dataloader))
+
+    
+    print(train_data.shape)
     if val_dataset is None:
         if len(train_data) > 40000:
             val_data_split = 10000
@@ -121,7 +198,7 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
         val_data = train_data[-val_data_split:]
     else:
         val_data = val_dataset.data
-    test_data = test_dataset.data
+    #test_data = test_dataset.data
 
     # To PyTorch tensors
     if not torch.is_tensor(train_data):
