@@ -8,7 +8,7 @@ from lightning_trainable import Trainable, TrainableHParams
 from lightning_trainable.hparams import HParams
 from lightning_trainable.trainable.trainable import auto_pin_memory, SkipBatch
 from torch.distributions import Independent, Normal
-from torch.nn import Sequential
+from torch.nn import Sequential, CrossEntropyLoss
 from torch.utils.data import DataLoader, IterableDataset
 
 import fff.data
@@ -74,9 +74,12 @@ class FreeFormBase(Trainable):
             self._data_dim = prod(data_sample[0].shape)
             if len(data_sample) == 1:
                 self._data_cond_dim = 0
+            elif self.classification:
+                self._data_cond_dim = data_sample[1].shape[0]
+                self.cross_entropy = CrossEntropyLoss(reduction='none')
+            elif len(data_sample[1].shape) != 1:
+                raise NotImplementedError("More than one condition dimension is not supported.")
             else:
-                if len(data_sample[1].shape) != 1:
-                    raise NotImplementedError("More than one condition dimension is not supported.")
                 self._data_cond_dim = data_sample[1].shape[0]
 
         # Build model
@@ -192,13 +195,19 @@ class FreeFormBase(Trainable):
 
     @property
     def cond_dim(self):
-        soft_flow_cond_dim = 1 if isinstance(self.hparams.noise, list) else 0
-        hp_aware_cond_dim = sum(
-            1 if isinstance(weight, list) else 0
-            for weight in self.hparams.loss_weights.values()
-        )
+        if self.classification:
+            return 0
+        else:
+            soft_flow_cond_dim = 1 if isinstance(self.hparams.noise, list) else 0
+            hp_aware_cond_dim = sum(
+                1 if isinstance(weight, list) else 0
+                for weight in self.hparams.loss_weights.values()
+            )
+            return self._data_cond_dim + soft_flow_cond_dim + hp_aware_cond_dim
 
-        return self._data_cond_dim + soft_flow_cond_dim + hp_aware_cond_dim
+    @property
+    def classification(self):
+        return ("classification" in self.hparams.loss_weights)
 
     @property
     def data_dim(self):
@@ -372,6 +381,11 @@ class FreeFormBase(Trainable):
                 for loss_key in keys
             )
 
+        # For classification use c as targets
+        if self.classification:
+            target = c.clone()
+            c = torch.empty((x.shape[0], 0), device=x.device, dtype=x.dtype)
+
         # Empty until computed
         x1 = z = None
 
@@ -421,7 +435,7 @@ class FreeFormBase(Trainable):
         # In case they were skipped above
         if z is None:
             z = self.encode(x, c)
-        if x1 is None:
+        if x1 is None and not self.classification:
             x1 = self.decode(z, c)
         
         latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
@@ -440,6 +454,10 @@ class FreeFormBase(Trainable):
             metrics["z 1D-Wasserstein-1"] = (z_marginal_sorted - z_gauss_sorted).abs().mean()
             metrics["z std"] = torch.std(z_marginal)
 
+        # Classification
+        if check_keys("classification"):
+            loss_values["classification"] = self.cross_entropy(z,target.float())
+
         # Reconstruction
         if not self.training or check_keys("reconstruction", "noisy_reconstruction"):
             loss_values["reconstruction"] = self._reconstruction_loss(x0, x1)
@@ -448,7 +466,7 @@ class FreeFormBase(Trainable):
             loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_masked)
 
         # Cyclic consistency of latent code
-        if not self.training or check_keys("c_reconstruction"):
+        if check_keys("c_reconstruction"):
             # Not reusing x1 from above, as it does not detach z
             cT = torch.empty(x1.shape[0],0).to(self.Teacher.device)
             c1 = self.Teacher.encode(x1, cT)

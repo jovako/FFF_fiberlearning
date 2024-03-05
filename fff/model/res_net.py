@@ -9,6 +9,7 @@ from .utils import wrap_batch_norm1d, make_dense
 
 
 class ResNetHParams(ModelHParams):
+    classification: bool = False
     layers_spec: list
     activation: str = "silu"
     id_init: bool = False
@@ -74,6 +75,8 @@ class ResNet(nn.Module):
             ))
         if self.hparams.final_batch_norm is not False:
             encoder.append(wrap_batch_norm1d(self.hparams.final_batch_norm, latent_dim))
+        if self.hparams.classification == True:
+            encoder.append(nn.Softmax())
 
         decoder = nn.Sequential()
         if data_dim + cond_dim != latent_dim:
