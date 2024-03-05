@@ -2,7 +2,7 @@ model: fff.FreeFormInjectiveFlow
 
 noise: 0.01
 data_set:
-  name: mnist_ae
+  name: mnist_split
   root: data
   conditional: true
 

@@ -28,8 +28,8 @@ def get_mnist_datasets(root: str, digit: int = None, conditional: bool = False) 
 
     return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional)
 
-def get_AElabeled_mnist(root: str, digit: int = None, conditional: bool = False):
-    df = pd.read_pickle("Mnist_AE_data")
+def get_split_mnist(root: str, digit: int = None, conditional: bool = False):
+    df = pd.read_pickle("data/Mnist_Class")
     # read targets and conditions from dataframe
     train_data, train_targets = (
         torch.from_numpy(df["train_x"]),
