@@ -437,7 +437,7 @@ class FreeFormBase(Trainable):
             z = self.encode(x, c)
         if x1 is None and not self.classification:
             x1 = self.decode(z, c)
-        
+
         latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
         latent_mask[:, 0] = 1
         z_masked = z * latent_mask
@@ -466,10 +466,13 @@ class FreeFormBase(Trainable):
             loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_masked)
 
         # Cyclic consistency of latent code
-        if check_keys("c_reconstruction"):
+        if not self.training or check_keys("c_reconstruction"):
             # Not reusing x1 from above, as it does not detach z
-            cT = torch.empty(x1.shape[0],0).to(self.Teacher.device)
-            c1 = self.Teacher.encode(x1, cT)
+            #z_del = 2 * z
+            z_del = z + 0.1 * torch.randn(z.shape, device=z.device)
+            x_del = self.decode(z_del, c)
+            cT = torch.empty(x_del.shape[0],0).to(self.Teacher.device)
+            c1 = self.Teacher.encode(x_del, cT)
             loss_values["c_reconstruction"] = self._reconstruction_loss(c, c1)
 
         # Cyclic consistency of latent code -- gradient only to encoder

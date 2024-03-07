@@ -21,6 +21,13 @@ class FreeFormInjectiveFlow(FreeFormBase):
             hparams = FreeFormInjectiveFlowHParams(**hparams)
         super().__init__(hparams)
         if "masked_reconstruction" in self.hparams.loss_weights:
+            """
+            if self.classification:
+                Classifier = FreeFormInjectiveFlow.load_from_checkpoint(
+                        "lightning_logs/classifier/version_2/checkpoints/last.ckpt"
+                )
+            else:
+            """
             self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
                     "lightning_logs/downsampled/version_5/checkpoints/last.ckpt"
             )

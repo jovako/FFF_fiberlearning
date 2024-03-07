@@ -2,6 +2,7 @@ lightning_logs*/
 benchmark/pythae_benchmarks
 logs_FFF
 logs_fff_small
+plots/
 
 # data
 AE1_data
