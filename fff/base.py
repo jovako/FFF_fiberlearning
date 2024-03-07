@@ -471,7 +471,7 @@ class FreeFormBase(Trainable):
             #z_del = 2 * z
             z_del = z + 0.1 * torch.randn(z.shape, device=z.device)
             x_del = self.decode(z_del, c)
-            cT = torch.empty(x_del.shape[0],0).to(self.Teacher.device)
+            cT = torch.empty(x_del.shape[0],0).to(x_del.device)
             c1 = self.Teacher.encode(x_del, cT)
             loss_values["c_reconstruction"] = self._reconstruction_loss(c, c1)
 

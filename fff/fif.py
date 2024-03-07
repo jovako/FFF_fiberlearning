@@ -3,6 +3,7 @@ from math import prod
 import torch
 
 from fff.base import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult
+from fff.utils.truncate import Truncate
 
 
 class FreeFormInjectiveFlowHParams(FreeFormBaseHParams):
@@ -21,16 +22,15 @@ class FreeFormInjectiveFlow(FreeFormBase):
             hparams = FreeFormInjectiveFlowHParams(**hparams)
         super().__init__(hparams)
         if "masked_reconstruction" in self.hparams.loss_weights:
-            """
-            if self.classification:
+            if hparams["data_set"]["path"]=="Mnist_Class":
                 Classifier = FreeFormInjectiveFlow.load_from_checkpoint(
                         "lightning_logs/classifier/version_2/checkpoints/last.ckpt"
                 )
+                self.Teacher = Truncate(Classifier)
             else:
-            """
-            self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
-                    "lightning_logs/downsampled/version_5/checkpoints/last.ckpt"
-            )
+                self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
+                        "lightning_logs/downsampled/version_5/checkpoints/last.ckpt"
+                )
             self.Teacher.eval()
             for param in self.Teacher.parameters():
                 param.require_grad = False

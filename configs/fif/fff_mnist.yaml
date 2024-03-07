@@ -12,7 +12,7 @@ loss_weights:
   noisy_reconstruction: 10000
   masked_reconstruction: 100
   #c_reconstruction: 10000
-max_epochs: 1000
+max_epochs: 500
 
 models:
   - name: fff.model.ConvolutionalNeuralNetwork
@@ -29,6 +29,6 @@ models:
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.0005
+  lr: 0.0003
 
 batch_size: 512
