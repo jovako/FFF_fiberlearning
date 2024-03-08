@@ -62,7 +62,13 @@ class FreeFormBase(Trainable):
     hparams: FreeFormBaseHParams
 
     def __init__(self, hparams: FreeFormBaseHParams | dict):
-        train_data, val_data, test_data = fff.data.load_dataset(**hparams["data_set"])
+        dataset = fff.data.load_dataset(**hparams["data_set"])
+        try:
+            train_data, val_data, test_data, norm = dataset
+            self.data_shift = norm[0]
+            self.data_scale = norm[1]
+        except:
+            train_data, val_data, test_data = dataset
 
         super().__init__(hparams, train_data=train_data, val_data=val_data, test_data=test_data)
 
@@ -465,14 +471,15 @@ class FreeFormBase(Trainable):
             loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
             loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_masked)
 
-        # Cyclic consistency of latent code
+        # Loss for fiber
         if not self.training or check_keys("c_reconstruction"):
+        #if check_keys("c_reconstruction"):
             # Not reusing x1 from above, as it does not detach z
             #z_del = 2 * z
             z_del = z + 0.1 * torch.randn(z.shape, device=z.device)
             x_del = self.decode(z_del, c)
             cT = torch.empty(x_del.shape[0],0).to(x_del.device)
-            c1 = self.Teacher.encode(x_del, cT)
+            c1 = (self.Teacher.encode(x_del, cT) - self.data_shift) / self.data_scale
             loss_values["c_reconstruction"] = self._reconstruction_loss(c, c1)
 
         # Cyclic consistency of latent code -- gradient only to encoder

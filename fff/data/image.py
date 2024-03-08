@@ -33,7 +33,7 @@ def get_split_mnist(root: str, digit: int = None, conditional: bool = False, pat
     if path != None:
         df = pd.read_pickle(f"data/{path}")
     else:
-        df = pd.read_pickle("data/Mnist_Class")
+        df = pd.read_pickle("data/Mnist_Class_data")
     # read targets and conditions from dataframe
     train_data, train_targets = (
         torch.from_numpy(df["train_x"]),
@@ -66,7 +66,7 @@ def get_split_mnist(root: str, digit: int = None, conditional: bool = False, pat
         *val_data
     ), TensorDataset(
         *test_data
-    )
+    ), (center, std)
 
 # deprecated function
 def get_ae_mnist(root: str, digit: int = None, conditional: bool = False):
