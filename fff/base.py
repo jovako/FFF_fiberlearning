@@ -4,6 +4,7 @@ from importlib import import_module
 from math import prod, log10
 
 import torch
+import lightning_trainable
 from lightning_trainable import Trainable, TrainableHParams
 from lightning_trainable.hparams import HParams
 from lightning_trainable.trainable.trainable import auto_pin_memory, SkipBatch
@@ -351,7 +352,7 @@ class FreeFormBase(Trainable):
         )
 
     def _reconstruction_loss(self, a, b):
-        return torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)
+        return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1))/10
 
     def compute_metrics(self, batch, batch_idx) -> dict:
         """
@@ -476,7 +477,7 @@ class FreeFormBase(Trainable):
         #if check_keys("c_reconstruction"):
             # Not reusing x1 from above, as it does not detach z
             #z_del = 2 * z
-            z_del = z + 0.1 * torch.randn(z.shape, device=z.device)
+            z_del = torch.randn(z.shape, device=z.device)
             x_del = self.decode(z_del, c)
             cT = torch.empty(x_del.shape[0],0).to(x_del.device)
             c1 = (self.Teacher.encode(x_del, cT) - self.data_shift) / self.data_scale
@@ -644,6 +645,42 @@ class FreeFormBase(Trainable):
                 x = x0
             noise_conds = []
         return noise_conds, x, torch.zeros(x0.shape[0], device=device, dtype=dtype)
+
+    def configure_optimizers(self):
+        params = self.models.parameters()
+
+
+        kwargs = dict()
+
+        match self.hparams.optimizer:
+            case str() as name:
+                optimizer = lightning_trainable.utils.get_optimizer(name)(
+                    params, **kwargs
+                )
+            case dict() as kwargs:
+                name = kwargs.pop("name")
+                optimizer = lightning_trainable.utils.get_optimizer(name)(params, **kwargs)
+                self.hparams.optimizer["name"] = name
+            case type(torch.optim.Optimizer) as Optimizer:
+                optimizer = Optimizer(params, **kwargs)
+            case torch.optim.Optimizer() as optimizer:
+                pass
+            case None:
+                return None
+            case other:
+                raise NotImplementedError(f"Unrecognized Optimizer: {other}")
+
+        lr_scheduler = lightning_trainable.trainable.lr_schedulers.configure(
+                self, optimizer
+                )
+
+        if lr_scheduler is None:
+            return optimizer
+        
+        return dict(
+            optimizer=optimizer,
+            lr_scheduler=lr_scheduler,
+        )
 
 
 def build_model(models, data_dim: int, cond_dim: int):
