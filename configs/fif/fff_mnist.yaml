@@ -9,9 +9,10 @@ data_set:
 
 loss_weights:
   nll: 1
-  noisy_reconstruction: 10000
+  noisy_reconstruction: 100000
   masked_reconstruction: 100
-  c_reconstruction: 100
+  #cnew_reconstruction: 10000
+  #cdel_reconstruction: 10000
 max_epochs: 500
 
 models:

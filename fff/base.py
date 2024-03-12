@@ -91,7 +91,7 @@ class FreeFormBase(Trainable):
 
         # Build model
         self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
-        print(self.models)
+        #print(self.models)
 
         # Learnt latent distribution
         self.latents = {}
@@ -473,15 +473,22 @@ class FreeFormBase(Trainable):
             loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_masked)
 
         # Loss for fiber
-        if not self.training or check_keys("c_reconstruction"):
+        """
+        if not self.training or check_keys("cnew_reconstruction"):
         #if check_keys("c_reconstruction"):
-            # Not reusing x1 from above, as it does not detach z
-            #z_del = 2 * z
             z_del = torch.randn(z.shape, device=z.device)
             x_del = self.decode(z_del, c)
             cT = torch.empty(x_del.shape[0],0).to(x_del.device)
             c1 = (self.Teacher.encode(x_del, cT) - self.data_shift) / self.data_scale
-            loss_values["c_reconstruction"] = self._reconstruction_loss(c, c1)
+            loss_values["cnew_reconstruction"] = self._reconstruction_loss(c, c1)
+
+        if not self.training or check_keys("cdel_reconstruction"):
+            #z_del = 2 * z
+            z_del = z + 0.1 * torch.randn(z.shape, device=z.device)
+            x_del = self.decode(z_del, c)
+            cT = torch.empty(x_del.shape[0],0).to(x_del.device)
+            c1 = (self.Teacher.encode(x_del, cT) - self.data_shift) / self.data_scale
+            loss_values["cdel_reconstruction"] = self._reconstruction_loss(c, c1)
 
         # Cyclic consistency of latent code -- gradient only to encoder
         if not self.training or check_keys("z_reconstruction_encoder"):
@@ -503,6 +510,7 @@ class FreeFormBase(Trainable):
                 loss_values["z_sample_reconstruction"] = self._reconstruction_loss(z_random, z1_random)
             except:
                 loss_values["z_sample_reconstruction"] = float("nan") * torch.ones(z_random.shape[0])
+        """
 
         # Reconstruction of Gauss with double std -- for invertibility
         if not self.training or check_keys("x_sample_reconstruction"):
