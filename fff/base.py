@@ -473,7 +473,6 @@ class FreeFormBase(Trainable):
             loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_masked)
 
         # Loss for fiber
-        """
         if not self.training or check_keys("cnew_reconstruction"):
         #if check_keys("c_reconstruction"):
             z_del = torch.randn(z.shape, device=z.device)
@@ -510,7 +509,6 @@ class FreeFormBase(Trainable):
                 loss_values["z_sample_reconstruction"] = self._reconstruction_loss(z_random, z1_random)
             except:
                 loss_values["z_sample_reconstruction"] = float("nan") * torch.ones(z_random.shape[0])
-        """
 
         # Reconstruction of Gauss with double std -- for invertibility
         if not self.training or check_keys("x_sample_reconstruction"):

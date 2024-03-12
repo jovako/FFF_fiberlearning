@@ -5,7 +5,7 @@ data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "Mnist_AE_5"
+  path: "Mnist_Class_data"
 
 loss_weights:
   nll: 1
@@ -30,6 +30,6 @@ models:
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.0005
+  lr: 0.001
 
 batch_size: 512
