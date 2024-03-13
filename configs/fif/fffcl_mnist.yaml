@@ -9,11 +9,11 @@ data_set:
 
 loss_weights:
   nll: 1
-  noisy_reconstruction: 100000
-  masked_reconstruction: 100
+  noisy_reconstruction: 10000
+  masked_reconstruction: 1000
   cnew_reconstruction: 1000
   #cdel_reconstruction: 10000
-max_epochs: 1000
+max_epochs: 700
 
 models:
   - name: fff.model.ConvolutionalNeuralNetwork

@@ -30,9 +30,15 @@ class FreeFormInjectiveFlow(FreeFormBase):
                 self.Teacher = Truncate(Classifier)
             else:
                 print("Teacher is Autoencoder")
-                self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
-                        "lightning_logs/Autoencoder5/version_1/checkpoints/last.ckpt"
-                )
+                if hparams["data_set"]["path"]=="Mnist_AE_5":
+                    self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
+                            "lightning_logs/Autoencoder5/version_1/checkpoints/last.ckpt"
+                    )
+                else:
+                    self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
+                            "lightning_logs/downsampled/version_5/checkpoints/last.ckpt"
+                    )
+
             self.Teacher.eval()
             for param in self.Teacher.parameters():
                 param.require_grad = False
