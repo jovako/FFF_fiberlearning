@@ -445,11 +445,6 @@ class FreeFormBase(Trainable):
         if x1 is None and not self.classification:
             x1 = self.decode(z, c)
 
-        latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
-        latent_mask[:, 0] = 1
-        z_masked = z * latent_mask
-        x_masked = self.decode(z_masked, c)
-
         # Wasserstein distance of marginal to Gaussian
         with torch.no_grad():
             z_marginal = z.reshape(-1)
@@ -470,6 +465,12 @@ class FreeFormBase(Trainable):
             loss_values["reconstruction"] = self._reconstruction_loss(x0, x1)
             #loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
             loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
+
+        if not self.training or check_keys("masked_reconstruction"):
+            latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
+            latent_mask[:, 0] = 1
+            z_masked = z * latent_mask
+            x_masked = self.decode(z_masked, c)
             loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_masked)
 
         # Loss for fiber
@@ -488,7 +489,7 @@ class FreeFormBase(Trainable):
             cT = torch.empty(x_del.shape[0],0).to(x_del.device)
             c1 = (self.Teacher.encode(x_del, cT) - self.data_shift) / self.data_scale
             loss_values["cdel_reconstruction"] = self._reconstruction_loss(c, c1)
-
+        
         # Cyclic consistency of latent code -- gradient only to encoder
         if not self.training or check_keys("z_reconstruction_encoder"):
             # Not reusing x1 from above, as it does not detach z

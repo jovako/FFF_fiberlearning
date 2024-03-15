@@ -21,7 +21,7 @@ class FreeFormInjectiveFlow(FreeFormBase):
         if not isinstance(hparams, FreeFormInjectiveFlowHParams):
             hparams = FreeFormInjectiveFlowHParams(**hparams)
         super().__init__(hparams)
-        if "masked_reconstruction" in self.hparams.loss_weights:
+        if "cnew_reconstruction" in self.hparams.loss_weights:
             if hparams["data_set"]["path"]=="Mnist_Class_data":
                 print("Teacher is Classifier")
                 Classifier = FreeFormInjectiveFlow.load_from_checkpoint(
@@ -32,11 +32,15 @@ class FreeFormInjectiveFlow(FreeFormBase):
                 print("Teacher is Autoencoder")
                 if hparams["data_set"]["path"]=="Mnist_AE_5":
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
-                            "lightning_logs/Autoencoder5/version_1/checkpoints/last.ckpt"
+                            "8lightning_logs/Autoencoder5/version_1/checkpoints/last.ckpt"
                     )
-                else:
+                elif hparams["data_set"]["path"]=="28Mnist_AE":
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
-                            "lightning_logs/downsampled/version_5/checkpoints/last.ckpt"
+                            "lightning_logs/28x28/version_3/checkpoints/last.ckpt"
+                    )
+                elif hparams["data_set"]["path"]=="Mnist_AE_data":
+                    self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
+                            "8lightning_logs/downsampled/version_5/checkpoints/last.ckpt"
                     )
 
             self.Teacher.eval()

@@ -8,7 +8,7 @@ def load_dataset(name: str, **kwargs) -> TrainValTest:
         return get_tabular_datasets(name=name, **kwargs)
     elif name in ["mnist_ds", "mnist", "mnist_split", "cifar10", "celeba", "mnist_ae"]:
         from .image import (get_celeba_datasets, get_cifar10_datasets,
-                            get_mnist_datasets, get_mnist_downsampled, get_split_mnist, get_ae_mnist)
+                            get_mnist_datasets, get_mnist_downsampled, get_split_mnist)
         if name == "mnist":
             return get_mnist_datasets(**kwargs)
         elif name == "mnist_ds":

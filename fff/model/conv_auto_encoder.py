@@ -13,7 +13,6 @@ class ConvolutionalNeuralNetworkHParams(ModelHParams):
     skip_connection: bool = False
     ch_factor: int = 128
 
-    """
     encoder_spec: list = [
         [1, 4, 2, 1],
         [2, 4, 2, 1],
@@ -33,11 +32,11 @@ class ConvolutionalNeuralNetworkHParams(ModelHParams):
         [2, 3, 2, 1],
         [8, 3, 2, 1],
     ]
-    # This decodes MNIST to 1x28x28 -- other decoders must be specified
     decoder_spec: list = [
         [8, 4],
         [1, 3, 2, 1, 1],
     ]
+    """
     batch_norm: bool | str = False
     instance_norm: bool = False
 

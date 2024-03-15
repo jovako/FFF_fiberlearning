@@ -6,12 +6,13 @@ data_set:
   root: data
 
 loss_weights:
-  noisy_reconstruction: 1
-max_epochs: 1000
+  noisy_reconstruction: 1000
+  nll: 1
+max_epochs: 2000
 
 models:
   - name: fff.model.ConvolutionalNeuralNetwork
-    latent_dim: &latent_dim 3
+    latent_dim: &latent_dim 10
     ch_factor: 32
   - name: fff.model.ResNet
     latent_dim: *latent_dim
@@ -20,6 +21,7 @@ models:
       - [256, 256]
       - [256, 256]
 
+lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
   lr: 0.001

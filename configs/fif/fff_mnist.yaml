@@ -5,15 +5,15 @@ data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "Mnist_AE_5"
+  path: "Mnist_AE_data"
 
 loss_weights:
   nll: 1
   noisy_reconstruction: 10000
-  masked_reconstruction: 1000
+  #masked_reconstruction: 10000
   cnew_reconstruction: 1000
   #cdel_reconstruction: 10000
-max_epochs: 750
+max_epochs: 500
 
 models:
   - name: fff.model.ConvolutionalNeuralNetwork
