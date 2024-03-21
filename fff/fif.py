@@ -32,15 +32,27 @@ class FreeFormInjectiveFlow(FreeFormBase):
                 print("Teacher is Autoencoder")
                 if hparams["data_set"]["path"]=="Mnist_AE_5":
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
-                            "8lightning_logs/Autoencoder5/version_1/checkpoints/last.ckpt"
+                            "GTs/AE5/checkpoints/last.ckpt"
+                    )
+                elif hparams["data_set"]["path"]=="8Mnist_FIF5":
+                    self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
+                            "GTs/8Mnist_FIF5/checkpoints/last.ckpt"
                     )
                 elif hparams["data_set"]["path"]=="28Mnist_AE":
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
-                            "lightning_logs/28x28/version_3/checkpoints/last.ckpt"
+                            "GTs/28Mnist_AE/checkpoints/last.ckpt"
+                    )
+                elif hparams["data_set"]["path"]=="28Mnist_AE5":
+                    self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
+                            "GTs/28Mnist_AE5/checkpoints/last.ckpt"
+                    )
+                elif hparams["data_set"]["path"]=="28Mnist_AE7":
+                    self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
+                            "GTs/28Mnist_AE7/checkpoints/last.ckpt"
                     )
                 elif hparams["data_set"]["path"]=="Mnist_AE_data":
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
-                            "8lightning_logs/downsampled/version_5/checkpoints/last.ckpt"
+                            "GTs/28Mnist_AE/checkpoints/last.ckpt"
                     )
 
             self.Teacher.eval()

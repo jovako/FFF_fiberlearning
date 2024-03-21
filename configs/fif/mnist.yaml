@@ -11,7 +11,7 @@ max_epochs: 2000
 
 models:
   - name: fff.model.ConvolutionalNeuralNetwork
-    latent_dim: &latent_dim 7
+    latent_dim: &latent_dim 5
     ch_factor: 32
   - name: fff.model.ResNet
     latent_dim: *latent_dim

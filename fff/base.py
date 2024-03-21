@@ -482,14 +482,6 @@ class FreeFormBase(Trainable):
             c1 = (self.Teacher.encode(x_del, cT) - self.data_shift) / self.data_scale
             loss_values["cnew_reconstruction"] = self._reconstruction_loss(c, c1)
 
-        if not self.training or check_keys("cdel_reconstruction"):
-            #z_del = 2 * z
-            z_del = z + 0.1 * torch.randn(z.shape, device=z.device)
-            x_del = self.decode(z_del, c)
-            cT = torch.empty(x_del.shape[0],0).to(x_del.device)
-            c1 = (self.Teacher.encode(x_del, cT) - self.data_shift) / self.data_scale
-            loss_values["cdel_reconstruction"] = self._reconstruction_loss(c, c1)
-        
         # Cyclic consistency of latent code -- gradient only to encoder
         if not self.training or check_keys("z_reconstruction_encoder"):
             # Not reusing x1 from above, as it does not detach z

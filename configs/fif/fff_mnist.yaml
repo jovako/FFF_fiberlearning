@@ -5,19 +5,19 @@ data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "Mnist_AE_data"
+  path: "8Mnist_FIF5"
 
 loss_weights:
   nll: 1
   noisy_reconstruction: 10000
-  #masked_reconstruction: 10000
-  cnew_reconstruction: 1000
+  masked_reconstruction: 100
+  cnew_reconstruction: 100
   #cdel_reconstruction: 10000
-max_epochs: 500
+max_epochs: 750
 
 models:
   - name: fff.model.ConvolutionalNeuralNetwork
-    latent_dim: &latent_dim 54
+    latent_dim: &latent_dim 59
     ch_factor: 32
   - name: fff.model.ResNet
     latent_dim: *latent_dim
