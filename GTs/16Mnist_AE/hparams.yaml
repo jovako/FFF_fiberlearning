@@ -1,0 +1,66 @@
+accelerator: gpu
+accumulate_batches: 1
+batch_size: 512
+data_set: !!python/object/new:lightning_trainable.hparams.attribute_dict.AttributeDict
+  dictitems:
+    name: mnist_ds
+    root: data
+devices: 1
+early_stopping: null
+exact_chunk_size: null
+exact_train_nll_every: null
+gradient_clip: null
+latent_distribution: !!python/object/new:lightning_trainable.hparams.attribute_dict.AttributeDict
+  dictitems:
+    name: normal
+log_det_estimator: !!python/object/new:lightning_trainable.hparams.attribute_dict.AttributeDict
+  dictitems:
+    hutchinson_samples: 1
+    name: surrogate
+loss: loss
+loss_weights: !!python/object/new:lightning_trainable.hparams.attribute_dict.AttributeDict
+  dictitems:
+    nll: 1
+    noisy_reconstruction: 1000
+lr_scheduler: OneCycleLR
+max_epochs: 2000
+max_steps: -1
+model_checkpoint: !!python/object/new:lightning_trainable.hparams.attribute_dict.AttributeDict
+  dictitems:
+    every_n_epochs: 25
+    monitor: auto
+    save_last: true
+    save_top_k: 5
+models:
+- ch_factor: 32
+  encoder_spec: 
+    - [2,4,2,1]
+    - [4,4,2,1]
+    - [8,4,2,1]
+  decoder_spec:
+    - [8,4]
+    - [4,4,2,1]
+    - [2,3,2,1,1]
+  latent_dim: 8
+  name: fff.model.ConvolutionalNeuralNetwork
+- latent_dim: 8
+  layers_spec:
+  - - 512
+    - 512
+  - - 512
+    - 512
+  - - 512
+    - 512
+  name: fff.model.ResNet
+noise: 0.01
+num_workers: 4
+optimizer: !!python/object/new:lightning_trainable.hparams.attribute_dict.AttributeDict
+  dictitems:
+    lr: 0.001
+    name: Adam
+pin_memory: null
+profiler: null
+skip_val_nll: false
+track_grad_norm: null
+track_train_time: false
+warm_up_epochs: 0
