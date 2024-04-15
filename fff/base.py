@@ -18,7 +18,6 @@ from fff.loss import nll_surrogate
 from fff.model.utils import TrainWallClock
 from fff.utils.jacobian import compute_jacobian
 
-
 class ModelHParams(HParams):
     data_dim: int
     cond_dim: int
@@ -34,6 +33,7 @@ class FreeFormBaseHParams(TrainableHParams):
     track_train_time: bool = False
 
     models: list
+    transform: dict = {}
 
     loss_weights: dict
     log_det_estimator: dict = dict(
@@ -43,6 +43,7 @@ class FreeFormBaseHParams(TrainableHParams):
     skip_val_nll: bool | int = False
     exact_train_nll_every: int | None = None
 
+    warm_up_fiber: int | list = 0
     warm_up_epochs: int | list = 0
 
     exact_chunk_size: None | int = None
@@ -92,6 +93,10 @@ class FreeFormBase(Trainable):
         # Build model
         self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
         #print(self.models)
+
+        # Build model, transforming the distribution
+        if self.hparams.transform:
+            self.transform = build_model([self.hparams.transform],0,0)[0]
 
         # Learnt latent distribution
         self.latents = {}
@@ -190,6 +195,12 @@ class FreeFormBase(Trainable):
         elif name == "student_t":
             df = self.hparams.latent_distribution["df"] * torch.ones(1, device=device)
             return MultivariateStudentT(df, self.latent_dim)
+        elif name == "transformed_normal":
+            if not self.transform:
+                raise ValueError("You have to give a transform model")
+            else:
+                return TransformedDistribution(
+                    self.transform, self._make_latent("normal", device))
         else:
             raise ValueError(f"Unknown latent distribution: {name!r}")
 
@@ -274,7 +285,10 @@ class FreeFormBase(Trainable):
         """
         Sample via the decoder.
         """
-        z = self.get_latent(self.device).sample(sample_shape)
+        try:
+            z = self.get_latent(self.device).sample(sample_shape, condition)
+        except TypeError:
+            z = self.get_latent(self.device).sample(sample_shape)
         z = z.reshape(prod(sample_shape), *z.shape[len(sample_shape):])
         batch = [z]
         if condition is not None:
@@ -354,6 +368,10 @@ class FreeFormBase(Trainable):
     def _reconstruction_loss(self, a, b):
         return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1))/10
 
+    def _l1_loss(self, a, b):
+        return torch.sum(torch.abs(a - b).reshape(a.shape[0], -1), -1)/10
+
+
     def compute_metrics(self, batch, batch_idx) -> dict:
         """
         Computes the metrics for the given batch.
@@ -396,6 +414,7 @@ class FreeFormBase(Trainable):
         # Empty until computed
         x1 = z = None
 
+        """
         # Negative log-likelihood
         if not self.training or (
                 self.hparams.exact_train_nll_every is not None
@@ -419,6 +438,7 @@ class FreeFormBase(Trainable):
             warm_up = self.hparams.warm_up_epochs
             if isinstance(warm_up, int):
                 warm_up = warm_up, warm_up + 1
+            warm_up = map(lambda x: x * self.hparams.max_epochs // 100, warm_up)
             nll_start, warm_up_end = warm_up
             if nll_start == 0:
                 nll_warmup = 1
@@ -438,12 +458,19 @@ class FreeFormBase(Trainable):
                 x1 = log_prob_result.x1
                 loss_values["nll"] = -log_prob_result.log_prob - deq_vol_change
                 loss_values.update(log_prob_result.regularizations)
+        """
 
         # In case they were skipped above
         if z is None:
             z = self.encode(x, c)
         if x1 is None and not self.classification:
             x1 = self.decode(z, c)
+
+        #TODO: make if clause checking for injective flows
+        if check_keys("nll"):
+            z_detach = z.detach()
+            log_prob, log_det = self._latent_log_prob(z_detach, c)
+            loss_values["nll"] = -(log_prob + log_det)
 
         # Wasserstein distance of marginal to Gaussian
         with torch.no_grad():
@@ -463,8 +490,8 @@ class FreeFormBase(Trainable):
         # Reconstruction
         if not self.training or check_keys("reconstruction", "noisy_reconstruction"):
             loss_values["reconstruction"] = self._reconstruction_loss(x0, x1)
-            #loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
             loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
+            #loss_values["noisy_reconstruction"] = self._l1_loss(x, x1)
 
         if not self.training or check_keys("masked_reconstruction"):
             latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
@@ -472,15 +499,6 @@ class FreeFormBase(Trainable):
             z_masked = z * latent_mask
             x_masked = self.decode(z_masked, c)
             loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_masked)
-
-        # Loss for fiber
-        if not self.training or check_keys("cnew_reconstruction"):
-        #if check_keys("c_reconstruction"):
-            z_del = torch.randn(z.shape, device=z.device)
-            x_del = self.decode(z_del, c)
-            cT = torch.empty(x_del.shape[0],0).to(x_del.device)
-            c1 = (self.Teacher.encode(x_del, cT) - self.data_shift) / self.data_scale
-            loss_values["cnew_reconstruction"] = self._reconstruction_loss(c, c1)
 
         # Cyclic consistency of latent code -- gradient only to encoder
         if not self.training or check_keys("z_reconstruction_encoder"):
@@ -490,19 +508,53 @@ class FreeFormBase(Trainable):
             loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z1)
 
         # Cyclic consistency of latent code sampled from Gauss
-        if not self.training or check_keys("z_sample_reconstruction"):
-            z_random = self.get_latent(z.device).sample((z.shape[0],))
-            if isinstance(z_random, tuple):
-                z_random, c_random = z_random
+        if not self.training or check_keys(
+                "cnew_reconstruction", "z_sample_reconstruction"):
+            warm_up = self.hparams.warm_up_fiber
+            if isinstance(warm_up, int):
+                warm_up = warm_up, warm_up + 1
+            warm_up = map(lambda x: x * self.hparams.max_epochs // 100, warm_up)
+            nll_start, warm_up_end = warm_up
+            if nll_start == 0:
+                nll_warmup = 1
             else:
-                c_random = c
-            try:
-                # Sanity checks might fail for random data
-                z1_random = self.encode(self.decode(z_random, c_random), c_random)
-                loss_values["z_sample_reconstruction"] = self._reconstruction_loss(z_random, z1_random)
-            except:
-                loss_values["z_sample_reconstruction"] = float("nan") * torch.ones(z_random.shape[0])
+                nll_warmup = soft_heaviside(
+                    self.current_epoch + batch_idx / len(
+                        self.trainer.train_dataloader
+                        if self.training else
+                        self.trainer.val_dataloaders
+                    ),
+                    nll_start, warm_up_end
+                )
+            loss_weights["z_sample_reconstruction"] *= nll_warmup
+            loss_weights["cnew_reconstruction"] *= nll_warmup
+            if not self.training or check_keys(
+                    "cnew_reconstruction", "z_sample_reconstruction"):
+                try:
+                    z_random = self.get_latent(z.device).sample((z.shape[0],), c)
+                except TypeError:
+                    z_random = self.get_latent(z.device).sample((z.shape[0],))
+                if isinstance(z_random, tuple):
+                    z_random, c_random = z_random
+                else:
+                    c_random = c
+                x_random = self.decode(z_random, c_random)
+                cT = torch.empty(x_random.shape[0],0).to(x_random.device)
+                c1 = ((self.Teacher.encode(x_random, cT) - self.data_shift)
+                      / self.data_scale)
+                loss_values["cnew_reconstruction"] = self._reconstruction_loss(
+                    c_random, c1)
+                try:
+                    # Sanity checks might fail for random data
+                    z1_random = self.encode(x_random, c_random)
+                    loss_values["z_sample_reconstruction"] = self._reconstruction_loss(
+                        z_random, z1_random)
+                except:
+                    loss_values["z_sample_reconstruction"] = (
+                        float("nan") * torch.ones(z_random.shape[0]))
 
+            
+        """
         # Reconstruction of Gauss with double std -- for invertibility
         if not self.training or check_keys("x_sample_reconstruction"):
             # As we only care about the reconstruction, can ignore noise scale
@@ -525,7 +577,7 @@ class FreeFormBase(Trainable):
             z_shuffled = self.encode(x_shuffled, c)
             x_shuffled1 = self.decode(z_shuffled, c)
             loss_values["shuffled_reconstruction"] = self._reconstruction_loss(x_shuffled, x_shuffled1)
-
+        """
         # Compute loss as weighted loss
         metrics["loss"] = sum(
             (weight * loss_values[key]).mean(-1)
@@ -731,3 +783,19 @@ def wasserstein2_distance_gaussian_approximation(x1, x2):
     m_part = torch.sum((m1 - m2) ** 2)
     cov_part = torch.trace(cov1) + torch.trace(cov2) - 2 * torch.sum(torch.sqrt(eigenvalues_prod))
     return m_part + cov_part
+
+class TransformedDistribution():
+    def __init__(self, Transform, Distribution):
+        self.Trans = Transform
+        self.Dist = Distribution
+
+    def sample(self, shape=torch.Size(), c=None):
+        samples = self.Dist.sample(shape)
+        transformed_samples = self.Trans.latent_decode(samples, c)
+        return transformed_samples.detach()
+
+    def log_prob(self, z, c=None):
+        z_dense, jac = self.Trans.latent_encode(z, c)
+        log_prob = self.Dist.log_prob(z_dense)
+        return log_prob, jac
+        
