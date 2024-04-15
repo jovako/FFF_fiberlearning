@@ -44,8 +44,8 @@ def get_split_mnist(root: str, digit: int = None, conditional: bool = False, pat
     std = torch.std(train_targets)
 
     train_targets = (train_targets - center) / std
-    val_data = torch.from_numpy(df["val_x"])
-    val_targets = (torch.from_numpy(df["val_y"]) - center) / std
+    val_data = torch.from_numpy(df["val_x"])[:1000]
+    val_targets = ((torch.from_numpy(df["val_y"]) - center) / std)[:1000]
     test_data = torch.from_numpy(df["test_x"])
     test_targets = (torch.from_numpy(df["test_y"]) - center) / std
     
@@ -82,7 +82,7 @@ def get_mnist_downsampled(root: str, digit: int = None, conditional: bool = Fals
 
     # concatenate a few transforms
     transform = Compose([
-        DownsampleTransform(target_shape=(8,8)),
+        DownsampleTransform(target_shape=(16,16)),
         Grayscale(num_output_channels=1),
         ToTensor()
     ])
@@ -184,15 +184,13 @@ def celeba_to_memory(root: str, split: str, image_size: None | int) -> MemoryCel
 
 def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, conditional: bool = False):
     # Data is (N, H, W, C)
-    train_data = train_dataset.data
-    """
+    #train_data = train_dataset.data
     batch_size = train_dataset.data.shape[0]
     dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size)
     train_data, _ = next(iter(dataloader))
     batch_size = test_dataset.data.shape[0]
     dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size)
     test_data, _ = next(iter(dataloader))
-    """
     
     print(train_data.shape)
     if val_dataset is None:
@@ -204,7 +202,7 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
         val_data = train_data[-val_data_split:]
     else:
         val_data = val_dataset.data
-    test_data = test_dataset.data
+    #test_data = test_dataset.data
 
     # To PyTorch tensors
     if not torch.is_tensor(train_data):

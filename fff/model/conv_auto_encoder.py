@@ -12,9 +12,10 @@ from fff.base import ModelHParams
 class ConvolutionalNeuralNetworkHParams(ModelHParams):
     skip_connection: bool = False
     ch_factor: int = 128
+    density_inn: bool = False
 
     encoder_spec: list = [
-        [1, 4, 2, 1],
+    #    [1, 4, 2, 1],
         [2, 4, 2, 1],
         [4, 4, 2, 1],
         [8, 4, 2, 1],
@@ -22,8 +23,8 @@ class ConvolutionalNeuralNetworkHParams(ModelHParams):
     # This decodes MNIST to 1x28x28 -- other decoders must be specified
     decoder_spec: list = [
         [8, 4],
-        [4, 3, 2, 1],
-        [2, 3, 2, 1, 1],
+        [4, 4, 2, 1],
+    #    [2, 3, 2, 1, 1],
         [1, 3, 2, 1, 1],
     ]
     """
@@ -177,14 +178,23 @@ class ConvolutionalNeuralNetwork(nn.Module):
                              f"{input_shape} was expected: {decoder}")
         decoder.append(nn.Flatten(-3, -1))
 
-        modules = OrderedDict(
-            encoder=encoder,
-            decoder=decoder
-        )
+        if self.hparams.density_inn:
+            inn = VanillaINN(dims, dims_cond, )
+            modules = OrderedDict(
+                encoder=encoder,
+                inn=inn,
+                decoder=decoder
+            )
+        else:
+            modules = OrderedDict(
+                encoder=encoder,
+                decoder=decoder
+            )
         # Apply skip connections
         if self.hparams.skip_connection:
             new_modules = OrderedDict()
             for key, value in modules.items():
                 new_modules[key] = SkipConnection(value)
             modules = new_modules
+
         return nn.Sequential(modules)
