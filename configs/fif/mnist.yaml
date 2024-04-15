@@ -6,7 +6,8 @@ data_set:
   root: data
 
 loss_weights:
-  noisy_reconstruction: 1
+  nll: 1
+  noisy_reconstruction: 10
 max_epochs: 2000
 
 models:
