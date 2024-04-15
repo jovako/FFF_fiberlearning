@@ -26,24 +26,18 @@ class InjectiveFlow(nn.Module):
         self.hparams = hparams
         self.model = self.build_model()
 
-    @batch_wrap
-    def _encode(self, x):
-        return self.model(x, jac=False, rev=False)[0][..., :self.hparams.latent_dim]
+    def latent_encode(self, x, c):
+        return self.model(x, c, jac=True, rev=False)
 
-    def _latent_encode(self, u):
+    def encode(self, u, c=None):
         return u
 
-    @batch_wrap
-    def _decode(self, u):
-        u = torch.cat([
-            u,
-            torch.zeros(*u.shape[:-1], self.model.shapes[0][0] - self.hparams.latent_dim, device=u.device, dtype=u.dtype)
-        ], -1)
-        return self.model(u, jac=False, rev=True)[0]
+    def latent_decode(self, u, c):
+        return self.model(u, c, jac=False, rev=True)[0]
 
-    def _latent_decode(self, z):
+    def decode(self, z, c=None):
         return z
 
     def build_model(self) -> nn.Module:
-        data_dim = self.hparams.data_dim
-        return make_inn(self.hparams.inn_spec, data_dim, zero_init=self.hparams.zero_init)
+        dim = self.hparams.latent_dim
+        return make_inn(self.hparams.inn_spec, dim, zero_init=self.hparams.zero_init)

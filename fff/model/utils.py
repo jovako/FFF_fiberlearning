@@ -98,7 +98,7 @@ def make_inn(inn_spec, *data_dim, zero_init=True):
         module_name, module_args, subnet_widths = inn_layer
         module_class = getattr(FrEIA.modules, module_name)
         extra_module_args = dict()
-        if "subnet_constructor" not in module_args:
+        if "subnet_constructor" not in module_args and module_name!="PermuteRandom":
             extra_module_args["subnet_constructor"] = subnet_factory(subnet_widths, "silu", zero_init=zero_init)
         inn.append(module_class, **module_args, **extra_module_args)
     return inn
