@@ -21,7 +21,7 @@ class FreeFormInjectiveFlow(FreeFormBase):
         if not isinstance(hparams, FreeFormInjectiveFlowHParams):
             hparams = FreeFormInjectiveFlowHParams(**hparams)
         super().__init__(hparams)
-        if "cnew_reconstruction" in self.hparams.loss_weights:
+        if hparams["data_set"]["name"]=="mnist_split":
             if hparams["data_set"]["path"]=="Mnist_Class_data":
                 print("Teacher is Classifier")
                 Classifier = FreeFormInjectiveFlow.load_from_checkpoint(
