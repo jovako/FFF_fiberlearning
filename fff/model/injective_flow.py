@@ -27,13 +27,13 @@ class InjectiveFlow(nn.Module):
         self.model = self.build_model()
 
     def latent_encode(self, x, c):
-        return self.model(x, c, jac=True, rev=False)
+        return self.model(x, [c], jac=True, rev=False)
 
     def encode(self, u, c=None):
         return u
 
     def latent_decode(self, u, c):
-        return self.model(u, c, jac=False, rev=True)[0]
+        return self.model(u, [c], jac=False, rev=True)[0]
 
     def decode(self, z, c=None):
         return z
