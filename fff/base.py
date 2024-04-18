@@ -34,6 +34,10 @@ class FreeFormBaseHParams(TrainableHParams):
 
     models: list
     transform: dict = {}
+    load_models_path: bool | str = False
+    load_transform_path: bool | str = False
+    train_models: bool = True
+    train_transform: bool = True
 
     loss_weights: dict
     log_det_estimator: dict = dict(
@@ -92,11 +96,28 @@ class FreeFormBase(Trainable):
 
         # Build model
         self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
+        if self.hparams.load_models_path:
+            print("load models checkpoint")
+            checkpoint = torch.load(self.hparams.load_models_path)
+            models_weights = {k[7:]: v for k, v in checkpoint["state_dict"].items()
+                              if k.startswith("models.")}
+            self.models.load_state_dict(models_weights)
+            if self.hparams.load_transform_path:
+                for param in self.models.parameters():
+                    param.require_grad = False
         #print(self.models)
 
         # Build model, transforming the distribution
         if self.hparams.transform:
             self.transform = build_model([self.hparams.transform],0,0)[0]
+            if self.hparams.load_transform_path:
+                print("load transform checkpoint")
+                checkpoint = torch.load(self.hparams.load_transform_path)
+                transform_weights = {k[10:]: v for k, v in checkpoint["state_dict"].items()
+                                  if k.startswith("transform.")}
+                self.transform.load_state_dict(transform_weights)
+        else:
+            self.transform = False
 
         # Learnt latent distribution
         self.latents = {}
@@ -414,12 +435,11 @@ class FreeFormBase(Trainable):
         # Empty until computed
         x1 = z = None
 
-        """
         # Negative log-likelihood
-        if not self.training or (
+        if not self.transform and (not self.training or (
                 self.hparams.exact_train_nll_every is not None
                 and batch_idx % self.hparams.exact_train_nll_every == 0
-        ):
+        )):
             key = "nll_exact" if self.training else "nll"
             # todo unreadable
             if self.training or (self.hparams.skip_val_nll is not True and (self.hparams.skip_val_nll is False or (
@@ -434,7 +454,7 @@ class FreeFormBase(Trainable):
                 loss_values.update(log_prob_result.regularizations)
             else:
                 loss_weights["nll"] = 0
-        if self.training and check_keys("nll"):
+        if not self.transform and self.training and check_keys("nll"):
             warm_up = self.hparams.warm_up_epochs
             if isinstance(warm_up, int):
                 warm_up = warm_up, warm_up + 1
@@ -458,7 +478,6 @@ class FreeFormBase(Trainable):
                 x1 = log_prob_result.x1
                 loss_values["nll"] = -log_prob_result.log_prob - deq_vol_change
                 loss_values.update(log_prob_result.regularizations)
-        """
 
         # In case they were skipped above
         if z is None:
@@ -467,9 +486,9 @@ class FreeFormBase(Trainable):
             x1 = self.decode(z, c)
 
         #TODO: make if clause checking for injective flows
-        if check_keys("nll"):
+        if check_keys("nll") and self.transform:
             z_detach = z.detach()
-            log_prob, log_det = self._latent_log_prob(z_detach, c)
+            log_prob, log_det, z_dense = self._latent_log_prob(z_detach, c)
             loss_values["nll"] = -(log_prob + log_det)
 
         # Wasserstein distance of marginal to Gaussian
@@ -496,7 +515,11 @@ class FreeFormBase(Trainable):
         if not self.training or check_keys("masked_reconstruction"):
             latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
             latent_mask[:, 0] = 1
-            z_masked = z * latent_mask
+            if self.transform:
+                z_masked_dense = z_dense * latent_mask
+                z_masked = self.transform.latent_decode(z_masked_dense, c) 
+            else:
+                z_masked = z * latent_mask
             x_masked = self.decode(z_masked, c)
             loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_masked)
 
@@ -698,8 +721,16 @@ class FreeFormBase(Trainable):
         return noise_conds, x, torch.zeros(x0.shape[0], device=device, dtype=dtype)
 
     def configure_optimizers(self):
-        params = self.models.parameters()
-
+        params = []
+        if self.hparams.train_models:
+            params.extend(list(self.models.parameters()))
+        else:
+            print("WARNING: models get not trained")
+        if self.transform:
+            if self.hparams.train_transform:
+                params.extend(list(self.transform.parameters()))
+            else:
+                print("WARNING: transform model gets not trained")
 
         kwargs = dict()
 
@@ -797,5 +828,5 @@ class TransformedDistribution():
     def log_prob(self, z, c=None):
         z_dense, jac = self.Trans.latent_encode(z, c)
         log_prob = self.Dist.log_prob(z_dense)
-        return log_prob, jac
+        return log_prob, jac, z_dense
         
