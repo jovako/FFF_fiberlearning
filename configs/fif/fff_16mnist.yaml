@@ -10,12 +10,13 @@ data_set:
 loss_weights:
   nll: 1
   noisy_reconstruction: 10000
-  masked_reconstruction: 100
-  cnew_reconstruction: 100
-  z_sample_reconstruction: 100
+  #masked_reconstruction: 100
+  #cnew_reconstruction: 100
+  #z_sample_reconstruction: 100
 max_epochs: 2000
-warm_up_fiber: [25, 30]
+#warm_up_fiber: [25, 30]
 
+train_models: True
 models:
   - name: fff.model.ConvolutionalNeuralNetwork
     latent_dim: &latent_dim 100
@@ -34,12 +35,11 @@ models:
       - [512, 512]
       - [512, 512]
       - [512, 512]
-      - [512, 512]
 
 
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.0005
+  lr: 0.002
 
-batch_size: 256
+batch_size: 512

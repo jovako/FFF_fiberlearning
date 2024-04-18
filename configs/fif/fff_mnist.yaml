@@ -1,6 +1,6 @@
 model: fff.FreeFormInjectiveFlow
 
-noise: 0.01
+noise: 0.
 data_set:
   name: mnist_split
   root: data
@@ -9,16 +9,24 @@ data_set:
 
 loss_weights:
   nll: 1
-  noisy_reconstruction: 10000
-  masked_reconstruction: 100
-  cnew_reconstruction: 100
-  #cdel_reconstruction: 10000
-max_epochs: 750
+  noisy_reconstruction: 1000000
+  #masked_reconstruction: 100
+  #cnew_reconstruction: 100
+  #z_sample_reconstruction: 100
+max_epochs: 1000
+#warm_up_fiber: [35,40]
 
 models:
   - name: fff.model.ConvolutionalNeuralNetwork
     latent_dim: &latent_dim 59
-    ch_factor: 32
+    ch_factor: 16
+    encoder_spec: 
+      - [1,3,1,1]
+      - [2,3,2,1]
+      - [4,3,2,1]
+    decoder_spec:
+      - [4,4]
+      - [1,3,2,1,1]
   - name: fff.model.ResNet
     latent_dim: *latent_dim
     layers_spec:
@@ -30,6 +38,6 @@ models:
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.001
+  lr: 0.002
 
 batch_size: 512
