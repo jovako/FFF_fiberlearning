@@ -40,4 +40,5 @@ class InjectiveFlow(nn.Module):
 
     def build_model(self) -> nn.Module:
         dim = self.hparams.latent_dim
-        return make_inn(self.hparams.inn_spec, dim, zero_init=self.hparams.zero_init)
+        cond_dim = self.hparams.cond_dim
+        return make_inn(self.hparams.inn_spec, dim, cond_dim, zero_init=self.hparams.zero_init)

@@ -94,6 +94,16 @@ class FreeFormBase(Trainable):
             else:
                 self._data_cond_dim = data_sample[1].shape[0]
 
+        # Build model, transforming the distribution
+        #TODO Make it nicer!
+        if self.hparams.transform:
+            if self.hparams.transform.name == "fff.model.InjectiveFlow":
+                self.transform = "inn"
+            else:
+                self.transform = "fif"
+        else:
+            self.transform = False
+
         # Build model
         self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
         if self.hparams.load_models_path:
@@ -102,27 +112,17 @@ class FreeFormBase(Trainable):
             models_weights = {k[7:]: v for k, v in checkpoint["state_dict"].items()
                               if k.startswith("models.")}
             self.models.load_state_dict(models_weights)
-            if self.hparams.load_transform_path:
-                for param in self.models.parameters():
-                    param.require_grad = False
-        #print(self.models)
 
-        # Build model, transforming the distribution
-        #TODO Make it nicer!
-        if self.hparams.transform:
-            self.transform_model = build_model([self.hparams.transform],0,0)[0]
+        if self.transform:
+            self.transform_model = build_model([self.hparams.transform],
+                                                self.models[-1].hparams.latent_dim,
+                                                self._data_cond_dim)[0]
             if self.hparams.load_transform_path:
                 print("load transform checkpoint")
                 checkpoint = torch.load(self.hparams.load_transform_path)
                 transform_weights = {k[10:]: v for k, v in checkpoint["state_dict"].items()
                                   if k.startswith("transform.")}
                 self.transform_model.load_state_dict(transform_weights)
-                if self.hparams.transform.name == fff.model.InjectiveFlow:
-                    self.transform = "inn"
-                else:
-                    self.transform = "fif"
-        else:
-            self.transform = False
 
         # Learnt latent distribution
         self.latents = {}
@@ -235,15 +235,19 @@ class FreeFormBase(Trainable):
 
     @property
     def latent_dim(self):
-        return self.models[-1].hparams.latent_dim
+        if self.transform:
+            return self.transform_model.hparams.latent_dim
+        else:
+            return self.models[-1].hparams.latent_dim
 
     def is_conditional(self):
         return self._data_cond_dim != 0
 
     @property
     def cond_dim(self):
-        if self.classification:
-            return 0
+        if self.classification or self.transform:
+            cond_dim = 0
+            return cond_dim
         else:
             soft_flow_cond_dim = 1 if isinstance(self.hparams.noise, list) else 0
             hp_aware_cond_dim = sum(
@@ -394,7 +398,7 @@ class FreeFormBase(Trainable):
             out = nll_surrogate(
                 x,
                 lambda _x: self.transform_model.encode(_x, c),
-                lambda _z: self.transform_model.decode(_z, c),
+                lambda z: self.transform_model.decode(z, c),
                 **kwargs
             )
         else:
@@ -454,8 +458,8 @@ class FreeFormBase(Trainable):
 
         # For classification use c as targets
         # or when the conditions are meant only for the transform_model
+        c_full = c.clone()
         if self.classification or self.transform:
-            c_full = c.clone()
             c = torch.empty((x.shape[0], 0), device=x.device, dtype=x.dtype)
 
         # Empty until computed
@@ -478,6 +482,8 @@ class FreeFormBase(Trainable):
                         z = self.encode(x, c)
                         log_prob_result = self.exact_log_prob(x=z, c=c_full, jacobian_target="both")
                         z_dense = log_prob_result.z
+                        z1 = log_prob_result.x1
+                        loss_values["latent_reconstruction"] = self._reconstruction_loss(z, z1)
                     else:
                         log_prob_result = self.exact_log_prob(x=x, c=c, jacobian_target="both")
                         z = z_dense = log_prob_result.z
@@ -511,6 +517,8 @@ class FreeFormBase(Trainable):
                     z = self.encode(x, c)
                     log_prob_result = self.surrogate_log_prob(x=z.detach(), c=c_full)
                     z_dense = log_prob_result.z
+                    z1 = log_prob_result.x1
+                    loss_values["latent_reconstruction"] = self._reconstruction_loss(z, z1)
                 else:
                     log_prob_result = self.surrogate_log_prob(x=x, c=c)
                     x1 = log_prob_result.x1
@@ -525,7 +533,6 @@ class FreeFormBase(Trainable):
         if x1 is None and not self.classification:
             x1 = self.decode(z, c)
 
-        #TODO: make if clause checking for injective flows
         if (not self.training or check_keys("nll")) and self.transform == "inn":
             z_detach = z.detach()
             log_prob, log_det, z_dense = self._latent_log_prob(z_detach, c_full)
@@ -598,6 +605,7 @@ class FreeFormBase(Trainable):
             if not self.training or check_keys(
                     "cnew_reconstruction", "z_sample_reconstruction"):
                 try:
+                    #TODO fix shaping of INN input
                     z_random = self.get_latent(z.device).sample((z.shape[0],), c_full)
                 except TypeError:
                     z_random = self.get_latent(z.device).sample((z.shape[0],))
@@ -606,12 +614,14 @@ class FreeFormBase(Trainable):
                 else:
                     c_random = c
                 x_random = self.decode(z_random, c_random)
+                """
                 if self.hparams["data_set"]["name"] == "mnist_split":
                     cT = torch.empty(x_random.shape[0],0).to(x_random.device)
                     c1 = ((self.Teacher.encode(x_random, cT) - self.data_shift)
                           / self.data_scale)
                     loss_values["cnew_reconstruction"] = self._reconstruction_loss(
-                        c_random, c1)
+                        c_full, c1)
+                """
                 try:
                     # Sanity checks might fail for random data
                     z1_random = self.encode(x_random, c_random)
