@@ -28,7 +28,6 @@ def get_mnist_datasets(root: str, digit: int = None, conditional: bool = False) 
 
     return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional)
 
-#TODO: Give data path as argument
 def get_split_mnist(root: str, digit: int = None, conditional: bool = False, path: str = None):
     if path != None:
         df = pd.read_pickle(f"data/{path}")
@@ -44,8 +43,8 @@ def get_split_mnist(root: str, digit: int = None, conditional: bool = False, pat
     std = torch.std(train_targets)
 
     train_targets = (train_targets - center) / std
-    val_data = torch.from_numpy(df["val_x"])[:1000]
-    val_targets = ((torch.from_numpy(df["val_y"]) - center) / std)[:1000]
+    val_data = torch.from_numpy(df["val_x"])[:2000]
+    val_targets = ((torch.from_numpy(df["val_y"]) - center) / std)[:2000]
     test_data = torch.from_numpy(df["test_x"])
     test_targets = (torch.from_numpy(df["test_y"]) - center) / std
     
@@ -67,7 +66,6 @@ def get_split_mnist(root: str, digit: int = None, conditional: bool = False, pat
     ), TensorDataset(
         *test_data
     ), (center, std)
-
 
 def get_mnist_downsampled(root: str, digit: int = None, conditional: bool = False) -> TrainValTest:
     class DownsampleTransform:
@@ -186,7 +184,7 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
     # Data is (N, H, W, C)
     #train_data = train_dataset.data
     batch_size = train_dataset.data.shape[0]
-    dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size)
+    dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
     train_data, _ = next(iter(dataloader))
     batch_size = test_dataset.data.shape[0]
     dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size)

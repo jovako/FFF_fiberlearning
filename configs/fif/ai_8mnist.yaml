@@ -13,10 +13,10 @@ loss_weights:
   nll: 1
   noisy_reconstruction: 100
   #masked_reconstruction: 1
-  cnew_reconstruction: 1
+  #cnew_reconstruction: 1
   #z_sample_reconstruction: 1
-max_epochs: 1500
-#warm_up_fiber: [35, 40]
+max_epochs: 2000
+#warm_up_fiber: [5, 95]
 
 train_models: True
 train_transform: True
@@ -68,6 +68,6 @@ transform:
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.001
+  lr: 0.002
 
 batch_size: 512

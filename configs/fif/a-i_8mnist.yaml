@@ -15,7 +15,7 @@ loss_weights:
   #masked_reconstruction: 1
   #cnew_reconstruction: 1
   #z_sample_reconstruction: 1
-max_epochs: 1500
+max_epochs: 600
 #warm_up_fiber: [35, 40]
 
 train_models: False
@@ -44,26 +44,26 @@ transform:
   inn_spec:
       #- ["PermuteRandom", {}, 0]
       #- ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
-    - ["AllInOneBlock", {}, [128]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
 
 lr_scheduler: "onecyclelr"
 optimizer:

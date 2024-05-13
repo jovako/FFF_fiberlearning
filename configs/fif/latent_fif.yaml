@@ -1,0 +1,35 @@
+model: fff.FreeFormFlow
+
+noise: 0.
+latent_distribution:
+  name: "normal"
+data_set:
+  name: mnist_split
+  root: data
+  conditional: true
+  path: "16Mnist_AE_latent"
+
+loss_weights:
+  nll: 1
+  noisy_reconstruction: 10000
+  #masked_reconstruction: 1
+  #cnew_reconstruction: 100
+  #z_sample_reconstruction: 1
+max_epochs: 1000
+#warm_up_fiber: [35, 40]
+
+train_models: True
+models:
+  - name: fff.model.ResNet
+    #latent_dim: 92
+    layers_spec:
+      - [512, 512]
+      - [512, 512]
+      - [512, 512]
+
+lr_scheduler: "onecyclelr"
+optimizer:
+  name: adam
+  lr: 0.001
+
+batch_size: 512
