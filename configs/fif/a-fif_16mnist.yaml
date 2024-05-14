@@ -11,20 +11,21 @@ data_set:
 
 loss_weights:
   nll: 1
-  latent_reconstruction: 10000
+  latent_reconstruction: 1000
   #noisy_reconstruction: 100
   #masked_reconstruction: 1
-  cnew_reconstruction: 1000
-  z_sample_reconstruction: 1000
+  #cnew_reconstruction: 1000
+  #z_sample_reconstruction: 1000
 max_epochs: 1000
 #warm_up_epochs: [15, 100]
 #warm_up_fiber: [15, 100]
 
 train_models: False
 train_transform: True
+vae: True
 models:
   - name: fff.model.ConvolutionalNeuralNetwork
-    latent_dim: &latent_dim 100
+    latent_dim: 100
     ch_factor: 32
     encoder_spec: 
       - [2,4,2,1]
@@ -34,16 +35,15 @@ models:
       - [8,4]
       - [4,4,2,1]
       - [1,3,2,1,1]
-  - name: fff.model.ResNet
-    latent_dim: *latent_dim
+  - name: fff.model.VarResNet
+    latent_dim: &latent_dim 64
     layers_spec:
-      - [512, 512]
       - [512, 512]
       - [512, 512]
 transform:
   name: fff.model.ResNet
   data_dim: *latent_dim
-  latent_dim: 100
+  latent_dim: 2
   layers_spec:
     - [512, 512]
     - [512, 512]
@@ -55,5 +55,5 @@ optimizer:
   lr: 0.001
 
 batch_size: 512
-load_models_path: "lightning_logs/16ph_zn_nocond_lr1/version_1/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
 #load_transform_path: "lightning_logs/16aznc_fff3/version_0/checkpoints/last.ckpt"

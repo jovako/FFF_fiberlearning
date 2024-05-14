@@ -489,7 +489,6 @@ class FreeFormBase(Trainable):
         x1 = z = None
         # Negative log-likelihood
         # exact
-        """
         if not self.transform == "inn" and (not self.training or (
                 self.hparams.exact_train_nll_every is not None
                 and batch_idx % self.hparams.exact_train_nll_every == 0
@@ -503,6 +502,8 @@ class FreeFormBase(Trainable):
                 with torch.no_grad():
                     if self.transform:
                         z = self.encode(x, c)
+                        if self.vae:
+                            z, _, __ = z
                         log_prob_result = self.exact_log_prob(x=z, c=c_full, jacobian_target="both")
                         z_dense = log_prob_result.z
                         z1 = log_prob_result.x1
@@ -538,6 +539,8 @@ class FreeFormBase(Trainable):
             #if check_keys("nll"):
             if self.transform:
                 z = self.encode(x, c)
+                if self.vae:
+                    z, _, __ = z
                 log_prob_result = self.surrogate_log_prob(x=z.detach(), c=c_full)
                 z_dense = log_prob_result.z
                 z1 = log_prob_result.x1
@@ -548,7 +551,6 @@ class FreeFormBase(Trainable):
                 z = z_dense = log_prob_result.z
             loss_values["nll"] = -log_prob_result.log_prob - deq_vol_change
             loss_values.update(log_prob_result.regularizations)
-        """
 
         # In case they were skipped above
         if z is None:
@@ -567,13 +569,12 @@ class FreeFormBase(Trainable):
             z_detach = z.detach()
             log_prob, log_det, z_dense = self._latent_log_prob(z_detach, c_full)
             loss_values["nll"] = -(log_prob + log_det)
-            """
-            latent_mask = torch.ones(x.shape[0], self.latent_dim, device=x.device)
-            latent_mask[:, -self._data_cond_dim:] = 0
-            z_coarse_dense = z_dense * latent_mask
-            z_rec = self.transform_model.decode(z_coarse_dense, c_full) 
-            loss_values["latent_reconstruction"] = self._reconstruction_loss(z_detach, z_rec)
-            """
+            if check_keys("latent_reconstruction"):
+                latent_mask = torch.ones(x.shape[0], self.latent_dim, device=x.device)
+                latent_mask[:, -self._data_cond_dim:] = 0
+                z_coarse_dense = z_dense * latent_mask
+                z_rec = self.transform_model.decode(z_coarse_dense, c_full) 
+                loss_values["latent_reconstruction"] = self._reconstruction_loss(z_detach, z_rec)
 
         # Wasserstein distance of marginal to Gaussian
         with torch.no_grad():
@@ -596,9 +597,9 @@ class FreeFormBase(Trainable):
 
         # Reconstruction
         if not self.training or check_keys("reconstruction", "noisy_reconstruction"):
-            #loss_values["reconstruction"] = self._reconstruction_loss(x0, x1)
+            loss_values["reconstruction"] = self._reconstruction_loss(x0, x1)
             loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
-            loss_values["reconstruction"] = self._l1_loss(x0, x1)
+            #loss_values["reconstruction"] = self._l1_loss(x0, x1)
 
         if not self.training or check_keys("masked_reconstruction"):
             latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
@@ -915,7 +916,7 @@ class TransformedDistribution():
     def sample(self, shape=torch.Size(), c=None):
         samples = self.Dist.sample(shape)
         latent_mask = torch.ones(samples.shape, device=samples.device)
-        #latent_mask[:, -c.shape[1]:] = 0
+        latent_mask[:, -c.shape[1]:] = 0
         samples_coarse = samples * latent_mask
         transformed_samples = self.Trans.decode(samples_coarse, c)
         return transformed_samples
