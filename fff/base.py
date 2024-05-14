@@ -38,6 +38,7 @@ class FreeFormBaseHParams(TrainableHParams):
     load_transform_path: bool | str = False
     train_models: bool = True
     train_transform: bool = True
+    vae: bool = False
 
     loss_weights: dict
     log_det_estimator: dict = dict(
@@ -105,6 +106,7 @@ class FreeFormBase(Trainable):
             self.transform = False
 
         # Build model
+        self.vae = self.hparams.vae
         self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
         if self.hparams.load_models_path:
             print("load models checkpoint")
@@ -120,16 +122,22 @@ class FreeFormBase(Trainable):
             if self.hparams.load_transform_path:
                 print("load transform checkpoint")
                 checkpoint = torch.load(self.hparams.load_transform_path)
-                transform_weights = {k[9:]: v for k, v in checkpoint["state_dict"].items()
-                                  if k.startswith("models.")}
-                self.transform_model.load_state_dict(transform_weights)
+                try:
+                    transform_weights = {k[9:]: v for k, v in checkpoint["state_dict"].items()
+                                      if k.startswith("models.")}
+                    self.transform_model.load_state_dict(transform_weights)
+                except:
+                    transform_weights = {k[16:]: v for k, v in checkpoint["state_dict"].items()
+                                      if k.startswith("transform_model.")}
+                    self.transform_model.load_state_dict(transform_weights)
 
         # Learnt latent distribution
         self.latents = {}
         default_latent = self.get_latent(self.device)
         if isinstance(default_latent, torch.nn.Module):
             self.learnt_latent = default_latent
-        #self.lamb = torch.nn.Parameter(torch.ones(1), requires_grad=True)
+        if self.vae:
+            self.lamb = torch.nn.Parameter(torch.ones(1), requires_grad=True)
 
     def train_dataloader(self) -> DataLoader | list[DataLoader]:
         """
@@ -274,12 +282,11 @@ class FreeFormBase(Trainable):
     def encode(self, x, c):
         for model in self.models:
             x = model.encode(x, c)
-        """
-        mu, logvar = x
-        epsilon = torch.randn_like(logvar).to(mu.device)
-        z = mu + torch.exp(0.5 * logvar) * epsilon
-        return z, mu, logvar
-        """
+        if self.vae:
+            mu, logvar = x
+            epsilon = torch.randn_like(logvar).to(mu.device)
+            z = mu + torch.exp(0.5 * logvar) * epsilon
+            x = z, mu, logvar
         return x
 
     def decode(self, z, c):
@@ -482,6 +489,7 @@ class FreeFormBase(Trainable):
         x1 = z = None
         # Negative log-likelihood
         # exact
+        """
         if not self.transform == "inn" and (not self.training or (
                 self.hparams.exact_train_nll_every is not None
                 and batch_idx % self.hparams.exact_train_nll_every == 0
@@ -540,28 +548,32 @@ class FreeFormBase(Trainable):
                 z = z_dense = log_prob_result.z
             loss_values["nll"] = -log_prob_result.log_prob - deq_vol_change
             loss_values.update(log_prob_result.regularizations)
+        """
 
         # In case they were skipped above
         if z is None:
-            #z, mu, logvar = self.encode(x, c)
             z = self.encode(x, c)
+            if self.vae:
+                z, mu, logvar = z
             z_dense = z
         if x1 is None and not self.classification:
             x1 = self.decode(z, c)
 
 
-        if check_keys("kl"):
+        if check_keys("kl") and self.vae:
             loss_values["kl"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
 
         if (not self.training or check_keys("nll")) and self.transform == "inn":
             z_detach = z.detach()
             log_prob, log_det, z_dense = self._latent_log_prob(z_detach, c_full)
-            latent_mask = torch.zeros(x.shape[0], self.latent_dim, device=x.device)
-            latent_mask[:, :-self._data_cond_dim] = 1
-            z_coarse_dense = z_dense * latent_mask
             loss_values["nll"] = -(log_prob + log_det)
+            """
+            latent_mask = torch.ones(x.shape[0], self.latent_dim, device=x.device)
+            latent_mask[:, -self._data_cond_dim:] = 0
+            z_coarse_dense = z_dense * latent_mask
             z_rec = self.transform_model.decode(z_coarse_dense, c_full) 
             loss_values["latent_reconstruction"] = self._reconstruction_loss(z_detach, z_rec)
+            """
 
         # Wasserstein distance of marginal to Gaussian
         with torch.no_grad():
@@ -584,9 +596,9 @@ class FreeFormBase(Trainable):
 
         # Reconstruction
         if not self.training or check_keys("reconstruction", "noisy_reconstruction"):
-            loss_values["reconstruction"] = self._reconstruction_loss(x0, x1)
+            #loss_values["reconstruction"] = self._reconstruction_loss(x0, x1)
             loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
-            #loss_values["noisy_reconstruction"] = self._l1_loss(x, x1)
+            loss_values["reconstruction"] = self._l1_loss(x0, x1)
 
         if not self.training or check_keys("masked_reconstruction"):
             latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
@@ -604,6 +616,8 @@ class FreeFormBase(Trainable):
             # Not reusing x1 from above, as it does not detach z
             x1_detached = x1.detach()
             z1 = self.encode(x1_detached, c)
+            if self.vae:
+                z1 = z1[0]
             loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z1)
 
         # Cyclic consistency of latent code sampled from Gauss
@@ -654,7 +668,7 @@ class FreeFormBase(Trainable):
                     loss_values["z_sample_reconstruction"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
 
-        """ 
+        """
         # Reconstruction of Gauss with double std -- for invertibility
         if not self.training or check_keys("x_sample_reconstruction"):
             # As we only care about the reconstruction, can ignore noise scale
@@ -808,7 +822,8 @@ class FreeFormBase(Trainable):
                 params.extend(list(self.transform_model.parameters()))
             else:
                 print("WARNING: transform model gets not trained")
-        #params.append(self.lamb)
+        if self.vae:
+            params.append(self.lamb)
         kwargs = dict()
 
         match self.hparams.optimizer:
@@ -899,7 +914,10 @@ class TransformedDistribution():
 
     def sample(self, shape=torch.Size(), c=None):
         samples = self.Dist.sample(shape)
-        transformed_samples = self.Trans.decode(samples, c)
+        latent_mask = torch.ones(samples.shape, device=samples.device)
+        #latent_mask[:, -c.shape[1]:] = 0
+        samples_coarse = samples * latent_mask
+        transformed_samples = self.Trans.decode(samples_coarse, c)
         return transformed_samples
 
     def log_prob(self, z, c=None):
@@ -910,3 +928,8 @@ class TransformedDistribution():
 class FIFTransformedDistribution(TransformedDistribution):
     def log_prob(self, z_dense, c=None):
         return self.Dist.log_prob(z_dense)
+
+    def sample(self, shape=torch.Size(), c=None):
+        samples = self.Dist.sample(shape)
+        transformed_samples = self.Trans.decode(samples, c)
+        return transformed_samples

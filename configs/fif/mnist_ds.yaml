@@ -7,11 +7,11 @@ data_set:
   root: data
 
 loss_weights:
-  noisy_reconstruction: 100
+  noisy_reconstruction: 1000
   kl: 1
   #z std: 1
   #nll: 1
-max_epochs: 3000
+max_epochs: 3
 
 train_models: True
 models:
@@ -35,7 +35,7 @@ models:
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.0005
+  lr: 0.
 
 batch_size: 512
-#load_models_path: "lightning_logs/test3/version_1/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
