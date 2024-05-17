@@ -1,6 +1,6 @@
 model: fff.FreeFormInjectiveFlow
 
-noise: 0.
+noise: 0.01
 latent_distribution:
   name: "transformed_normal"
 data_set:
@@ -44,28 +44,32 @@ transform:
   data_dim: *latent_dim
   latent_dim: *latent_dim
   inn_spec:
-      #- ["PermuteRandom", {}, 0]
-      #- ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    - ["PermuteRandom", {}, 0]
+      #- ["AllInOneBlock", {}, [256]]
 
 lr_scheduler: "onecyclelr"
 optimizer:

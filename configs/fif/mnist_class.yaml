@@ -8,7 +8,7 @@ data_set:
 
 loss_weights:
     classification: 1
-max_epochs: 500
+max_epochs: 1000
 
 models:
   - name: fff.model.ConvolutionalNeuralNetwork
@@ -18,9 +18,8 @@ models:
     classification: true
     latent_dim: *latent_dim
     layers_spec:
-      - [256, 256]
-      - [256, 256]
-      - [256, 256]
+      - [512, 512]
+      - [512, 512]
 
 lr_scheduler: "onecyclelr"
 optimizer:
