@@ -1,1 +1,0 @@
-/export/home/wjoran/miniconda3/envs/py11/lib/python3.11/site-packages/lightning_trainable/launcher/fit.py configs/fif/mnist.yaml --name 28GT5
