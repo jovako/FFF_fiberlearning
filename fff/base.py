@@ -557,6 +557,9 @@ class FreeFormBase(Trainable):
             z = self.encode(x, c)
             if self.vae:
                 z, mu, logvar = z
+            if self.transform:
+                noise = self.hparams.noise
+                z = z + torch.randn_like(z) * noise
             z_dense = z
         if x1 is None and not self.classification:
             x1 = self.decode(z, c)
@@ -615,11 +618,16 @@ class FreeFormBase(Trainable):
         # Cyclic consistency of latent code -- gradient only to encoder
         if not self.training or check_keys("z_reconstruction_encoder"):
             # Not reusing x1 from above, as it does not detach z
-            x1_detached = x1.detach()
-            z1 = self.encode(x1_detached, c)
-            if self.vae:
-                z1 = z1[0]
-            loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z1)
+            if self.transform == "fif":
+                z1_detached = z1.detach()
+                z1_dense = self.transform_model.encode(z1_detached, c_full)
+                loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z_dense, z1_dense)
+            else:
+                x1_detached = x1.detach()
+                z1 = self.encode(x1_detached, c)
+                if self.vae:
+                    z1 = z1[0]
+                loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z1)
 
         # Cyclic consistency of latent code sampled from Gauss
         if not self.training or check_keys(
@@ -805,7 +813,7 @@ class FreeFormBase(Trainable):
             x = x0 + torch.randn_like(x0) * (10 ** noise_scale)
             noise_conds = [noise_scale]
         else:
-            if noise > 0:
+            if noise > 0 and not self.transform:
                 x = x0 + torch.randn_like(x0) * noise
             else:
                 x = x0
@@ -916,7 +924,8 @@ class TransformedDistribution():
     def sample(self, shape=torch.Size(), c=None):
         samples = self.Dist.sample(shape)
         latent_mask = torch.ones(samples.shape, device=samples.device)
-        latent_mask[:, -c.shape[1]:] = 0
+        #latent_mask[:, -c.shape[1]:] = 0
+        latent_mask[:, -32:] = 0
         samples_coarse = samples * latent_mask
         transformed_samples = self.Trans.decode(samples_coarse, c)
         return transformed_samples
