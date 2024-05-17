@@ -3,6 +3,7 @@ benchmark/pythae_benchmarks
 logs_FFF
 logs_fff_small
 plots/
+GTs/
 
 # data
 AE1_data
