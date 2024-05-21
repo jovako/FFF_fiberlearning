@@ -92,7 +92,7 @@ def subnet_factory(inner_widths, activation, zero_init=True):
     return make_subnet
 
 
-def make_inn(inn_spec, *data_dim, cond_dim, zero_init=True):
+def make_inn(inn_spec, *data_dim, cond_dim=0, zero_init=True, cond=0):
     inn = FrEIA.framework.SequenceINN(*data_dim)
     for inn_layer in inn_spec:
         module_name, module_args, subnet_widths = inn_layer
@@ -102,7 +102,7 @@ def make_inn(inn_spec, *data_dim, cond_dim, zero_init=True):
             extra_module_args["subnet_constructor"] = subnet_factory(
                 subnet_widths, "silu", zero_init=zero_init
             )
-            extra_module_args["cond"] = 0
+            extra_module_args["cond"] = cond
             extra_module_args["cond_shape"] = (cond_dim,)
         inn.append(module_class, **module_args, **extra_module_args)
     return inn

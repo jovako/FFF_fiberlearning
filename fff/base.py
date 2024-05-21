@@ -31,6 +31,7 @@ class FreeFormBaseHParams(TrainableHParams):
     data_set: dict
     noise: float | list = 0.0
     track_train_time: bool = False
+    mask_dims: int = 0
 
     models: list
     transform: dict = {}
@@ -98,7 +99,8 @@ class FreeFormBase(Trainable):
         # Build model, transforming the distribution
         #TODO Make it nicer!
         if self.hparams.transform:
-            if self.hparams.transform.name == "fff.model.InjectiveFlow":
+            if (self.hparams.transform.name == "fff.model.InjectiveFlow" or
+                self.hparams.transform.name == "fff.model.MultilevelFlow"):
                 self.transform = "inn"
             else:
                 self.transform = "fif"
@@ -235,10 +237,10 @@ class FreeFormBase(Trainable):
                 raise ValueError("You have to give a transform model")
             elif self.transform == "fif":
                 return FIFTransformedDistribution(
-                    self.transform_model, self._make_latent("normal", device))
+                    self.transform_model, self._make_latent("normal", device), self.hparams.mask_dims)
             else:
                 return TransformedDistribution(
-                    self.transform_model, self._make_latent("normal", device))
+                    self.transform_model, self._make_latent("normal", device), self.hparams.mask_dims)
         else:
             raise ValueError(f"Unknown latent distribution: {name!r}")
 
@@ -572,9 +574,13 @@ class FreeFormBase(Trainable):
             z_detach = z.detach()
             log_prob, log_det, z_dense = self._latent_log_prob(z_detach, c_full)
             loss_values["nll"] = -(log_prob + log_det)
+            if isinstance(z_dense, tuple):
+                z_dense, z_coarse = z_dense
+                if check_keys("coarse_supervised"):
+                    loss_values["coarse_supervised"] = self._reconstruction_loss(c_full, z_coarse)
             if check_keys("latent_reconstruction"):
                 latent_mask = torch.ones(x.shape[0], self.latent_dim, device=x.device)
-                latent_mask[:, -self._data_cond_dim:] = 0
+                latent_mask[:, -self.hparams.mask_dims:] = 0
                 z_coarse_dense = z_dense * latent_mask
                 z_rec = self.transform_model.decode(z_coarse_dense, c_full) 
                 loss_values["latent_reconstruction"] = self._reconstruction_loss(z_detach, z_rec)
@@ -917,29 +923,31 @@ def wasserstein2_distance_gaussian_approximation(x1, x2):
     return m_part + cov_part
 
 class TransformedDistribution():
-    def __init__(self, Transform, Distribution):
+    def __init__(self, Transform, Distribution, mask_dims):
         self.Trans = Transform
         self.Dist = Distribution
+        self.mask_dims = mask_dims
 
     def sample(self, shape=torch.Size(), c=None):
         samples = self.Dist.sample(shape)
         latent_mask = torch.ones(samples.shape, device=samples.device)
-        #latent_mask[:, -c.shape[1]:] = 0
-        latent_mask[:, -32:] = 0
+        if self.mask_dims > 0:
+            latent_mask[:, -self.mask_dims:] = 0
         samples_coarse = samples * latent_mask
         transformed_samples = self.Trans.decode(samples_coarse, c)
         return transformed_samples
 
     def log_prob(self, z, c=None):
         z_dense, jac = self.Trans.encode(z, c)
-        log_prob = self.Dist.log_prob(z_dense)
+        if isinstance(z_dense, tuple):
+            z_details, z_coarse = z_dense
+            log_prob = self.Dist.log_prob(z_details)
+        else:
+            log_prob = self.Dist.log_prob(z_dense)
+
         return log_prob, jac, z_dense
         
 class FIFTransformedDistribution(TransformedDistribution):
     def log_prob(self, z_dense, c=None):
         return self.Dist.log_prob(z_dense)
 
-    def sample(self, shape=torch.Size(), c=None):
-        samples = self.Dist.sample(shape)
-        transformed_samples = self.Trans.decode(samples, c)
-        return transformed_samples
