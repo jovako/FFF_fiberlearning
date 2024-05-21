@@ -11,11 +11,12 @@ data_set:
 
 loss_weights:
   nll: 1
-  latent_reconstruction: 1000
+  coarse_supervised: 1000
+  #latent_reconstruction: 100
   #noisy_reconstruction: 100
-  #masked_reconstruction: 1
   #cnew_reconstruction: 1000
   #z_sample_reconstruction: 1
+  #mask_dims: 32
 max_epochs: 1000
 #warm_up_fiber: [35, 40]
 
@@ -40,36 +41,32 @@ models:
       - [512, 512]
       - [512, 512]
 transform:
-  name: fff.model.InjectiveFlow
+  name: fff.model.MultilevelFlow
   data_dim: *latent_dim
   latent_dim: *latent_dim
   inn_spec:
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["PermuteRandom", {}, 0]
-      #- ["AllInOneBlock", {}, [256]]
+      #- ["PermuteRandom", {}, 0]
+      #- ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
 
 lr_scheduler: "onecyclelr"
 optimizer:
