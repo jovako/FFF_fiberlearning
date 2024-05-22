@@ -45,7 +45,8 @@ class MultilevelFlow(nn.Module):
     #    return u
 
     def decode(self, u, c):
-        out_d = self.details_inn(u, [c], jac=False, rev=True)[0]
+        details_in = u[:, :-self.hparams.cond_dim]
+        out_d = self.details_inn(details_in, [c], jac=False, rev=True)[0]
         in0 = torch.cat([out_d, c], dim=1)
         out = self.wavelet_inn(in0, jac=False, rev=True)[0]
         return out
