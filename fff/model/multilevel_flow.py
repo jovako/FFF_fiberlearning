@@ -27,26 +27,26 @@ class MultilevelFlow(nn.Module):
         self.wavelet_inn = self.build_inn(hparams.latent_dim, cond=None)
         dim_details = hparams.latent_dim - hparams.cond_dim
         self.details_inn = self.build_inn(dim_details, cond_dim=hparams.cond_dim)
-        self.cwavelet_inn = self.build_inn(self.hparams.cond_dim, cond=None)
-        self.coarse_inn = self.build_inn(self.hparams.cond_dim, cond=None)
-        #self.hparams.latent_dim = self.hparams.latent_dim - self.hparams.cond_dim
+        #self.cwavelet_inn = self.build_inn(self.hparams.cond_dim, cond=None)
+        self.coarse_layer = nn.Linear(self.hparams.cond_dim, self.hparams.cond_dim)
+        self.hparams.latent_dim = self.hparams.latent_dim - self.hparams.cond_dim
 
     def encode(self, x, c):
-        out0, jac0 = self.wavelet_inn(x, jac=True, rev=False)
-        c_hat, jac_c = self.cwavelet_inn(out0[:, -self.hparams.cond_dim:], jac=True, rev=False)
-        _out0_details = out0[:, :-self.hparams.cond_dim]
-        details, jac_d = self.details_inn(_out0_details, [c_hat], jac=True, rev=False)
-        coarse, jac_coarse = self.coarse_inn(c_hat, jac=True, rev=False)
-        jac = torch.sum(torch.stack([jac0, jac_d, jac_c, jac_coarse], dim=1), dim=1)
-        z_dense = torch.cat([details, coarse], dim=1)
-        return  (z_dense, c_hat), jac
+        out0 = self.wavelet_inn(x, jac=False, rev=False)[0]
+        coarse = self.coarse_layer(out0[:, -self.hparams.cond_dim:])
+        _out0_details = out0[:, :-self.hparams.cond_dim].detach()
+        details, jac_d = self.details_inn(_out0_details, [coarse.detach()], jac=True, rev=False)
+        #coarse, jac_coarse = self.coarse_inn(c_hat, jac=True, rev=False)
+        #jac = torch.sum(torch.stack([jac0, jac_d], dim=1), dim=1)
+        #z_dense = torch.cat([details, coarse], dim=1)
+        return  (details, coarse), jac_d
 
     #def encode(self, u, c=None):
     #    return u
 
     def decode(self, u, c):
-        details_in = u[:, :-self.hparams.cond_dim]
-        out_d = self.details_inn(details_in, [c], jac=False, rev=True)[0]
+        #details_in = u[:, :-self.hparams.cond_dim]
+        out_d = self.details_inn(u, [c], jac=False, rev=True)[0]
         in0 = torch.cat([out_d, c], dim=1)
         out = self.wavelet_inn(in0, jac=False, rev=True)[0]
         return out
