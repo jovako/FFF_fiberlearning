@@ -26,7 +26,7 @@ class MultilevelFlow(nn.Module):
         self.hparams = hparams
         self.wavelet_inn = self.build_inn(hparams.latent_dim, cond=None)
         dim_details = hparams.latent_dim - hparams.cond_dim
-        self.details_inn = self.build_inn(dim_details, cond_dim=hparams.cond_dim))
+        self.details_inn = self.build_inn(dim_details, cond_dim=hparams.cond_dim)
         self.cwavelet_inn = self.build_inn(self.hparams.cond_dim, cond=None)
         self.coarse_inn = self.build_inn(self.hparams.cond_dim, cond=None)
         #self.hparams.latent_dim = self.hparams.latent_dim - self.hparams.cond_dim
