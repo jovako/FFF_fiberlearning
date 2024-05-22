@@ -830,6 +830,8 @@ class FreeFormBase(Trainable):
         params = []
         if self.hparams.train_models:
             params.extend(list(self.models.parameters()))
+            if self.vae:
+                params.append(self.lamb)
         else:
             print("WARNING: models get not trained")
         if self.transform:
@@ -837,8 +839,6 @@ class FreeFormBase(Trainable):
                 params.extend(list(self.transform_model.parameters()))
             else:
                 print("WARNING: transform model gets not trained")
-        if self.vae:
-            params.append(self.lamb)
         kwargs = dict()
 
         match self.hparams.optimizer:

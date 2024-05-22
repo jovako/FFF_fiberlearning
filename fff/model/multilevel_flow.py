@@ -24,18 +24,22 @@ class MultilevelFlow(nn.Module):
 
         super().__init__()
         self.hparams = hparams
-        self.wavelet_inn = self.build_wavelet()
-        self.details_inn = self.build_details()
-        self.coarse_layer = nn.Linear(self.hparams.cond_dim, self.hparams.cond_dim)
-        self.hparams.latent_dim = self.hparams.latent_dim - self.hparams.cond_dim
+        self.wavelet_inn = self.build_inn(hparams.latent_dim, cond=None)
+        dim_details = hparams.latent_dim - hparams.cond_dim
+        self.details_inn = self.build_inn(dim_details, cond_dim=hparams.cond_dim))
+        self.cwavelet_inn = self.build_inn(self.hparams.cond_dim, cond=None)
+        self.coarse_inn = self.build_inn(self.hparams.cond_dim, cond=None)
+        #self.hparams.latent_dim = self.hparams.latent_dim - self.hparams.cond_dim
 
     def encode(self, x, c):
         out0, jac0 = self.wavelet_inn(x, jac=True, rev=False)
-        coarse = self.coarse_layer(out0[:, -self.hparams.cond_dim:])
+        c_hat, jac_c = self.cwavelet_inn(out0[:, -self.hparams.cond_dim:], jac=True, rev=False)
         _out0_details = out0[:, :-self.hparams.cond_dim]
-        details, jac_d = self.details_inn(_out0_details, [coarse], jac=True, rev=False)
-        jac = torch.sum(torch.stack([jac0, jac_d], dim=1), dim=1)
-        return  (details, coarse), jac
+        details, jac_d = self.details_inn(_out0_details, [c_hat], jac=True, rev=False)
+        coarse, jac_coarse = self.coarse_inn(c_hat, jac=True, rev=False)
+        jac = torch.sum(torch.stack([jac0, jac_d, jac_c, jac_coarse], dim=1), dim=1)
+        z_dense = torch.cat([details, coarse], dim=1)
+        return  (z_dense, c_hat), jac
 
     #def encode(self, u, c=None):
     #    return u
@@ -49,9 +53,9 @@ class MultilevelFlow(nn.Module):
     #def decode(self, z, c=None):
     #    return z
 
-    def build_wavelet(self) -> nn.Module:
-        dim = self.hparams.latent_dim
-        return make_inn(self.hparams.inn_spec, dim, cond=None, zero_init=self.hparams.zero_init)
+    def build_inn(self, dim, cond_dim=0, cond=0) -> nn.Module:
+        return make_inn(self.hparams.inn_spec, dim, cond_dim=cond_dim,
+                        cond=cond, zero_init=self.hparams.zero_init)
 
     def build_details(self) -> nn.Module:
         dim = self.hparams.latent_dim - self.hparams.cond_dim
