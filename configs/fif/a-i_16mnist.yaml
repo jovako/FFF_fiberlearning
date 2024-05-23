@@ -15,8 +15,8 @@ loss_weights:
   #noisy_reconstruction: 100
   #cnew_reconstruction: 1000
   #z_sample_reconstruction: 1
-mask_dims: 32
-max_epochs: 1000
+mask_dims: 8
+max_epochs: 10
 #warm_up_fiber: [35, 40]
 
 train_models: False
@@ -46,26 +46,26 @@ transform:
   inn_spec:
       #- ["PermuteRandom", {}, 0]
       #- ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
-    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [256]]
 
 lr_scheduler: "onecyclelr"
 optimizer:
@@ -74,4 +74,4 @@ optimizer:
 
 batch_size: 512
 load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
-#load_transform_path: "lightning_logs/16aznc_i_lr2/version_0/checkpoints/last.ckpt"
+load_transform_path: "lightning_logs/16vae_if2/version_0/checkpoints/last.ckpt"
