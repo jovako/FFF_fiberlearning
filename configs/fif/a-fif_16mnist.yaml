@@ -16,7 +16,7 @@ loss_weights:
   #masked_reconstruction: 1
   #cnew_reconstruction: 1000
   #z_sample_reconstruction: 1000
-max_epochs: 1000
+max_epochs: 2000
 #warm_up_epochs: [15, 100]
 #warm_up_fiber: [15, 100]
 
@@ -52,7 +52,7 @@ transform:
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.001
+  lr: 0.002
 
 batch_size: 512
 load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
