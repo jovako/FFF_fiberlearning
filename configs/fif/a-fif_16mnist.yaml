@@ -1,6 +1,6 @@
 model: fff.FreeFormInjectiveFlow
 
-noise: 0.
+noise: 0.01
 latent_distribution:
   name: "transformed_normal"
 data_set:
@@ -10,7 +10,7 @@ data_set:
   path: "16Mnist_AE"
 
 loss_weights:
-  nll: 1
+  #nll: 1
   latent_reconstruction: 10
   #noisy_reconstruction: 100
   #masked_reconstruction: 1
@@ -45,6 +45,8 @@ transform:
   data_dim: *latent_dim
   latent_dim: 10
   layers_spec:
+    - [512, 512]
+    - [512, 512]
     - [512, 512]
 
 lr_scheduler: "onecyclelr"
