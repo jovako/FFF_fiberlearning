@@ -43,10 +43,10 @@ def get_split_mnist(root: str, digit: int = None, conditional: bool = False, pat
     std = torch.std(train_targets)
 
     train_targets = (train_targets - center) / std
-    val_data = torch.from_numpy(df["val_x"])[:2000]
-    val_targets = ((torch.from_numpy(df["val_y"]) - center) / std)[:2000]
-    test_data = torch.from_numpy(df["test_x"])
-    test_targets = (torch.from_numpy(df["test_y"]) - center) / std
+    val_data = torch.from_numpy(df["test_x"])[-2000:]
+    val_targets = ((torch.from_numpy(df["val_y"]) - center) / std)[-2000:]
+    test_data = torch.from_numpy(df["test_x"])[:-2000]
+    test_targets = ((torch.from_numpy(df["test_y"]) - center) / std)[:-2000]
     
     # Collect tensors for TensorDatasets
     train_data = [train_data]

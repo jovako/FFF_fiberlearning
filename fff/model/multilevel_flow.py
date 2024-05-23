@@ -34,13 +34,14 @@ class MultilevelFlow(nn.Module):
     def encode(self, x, c):
         out0 = self.wavelet_inn(x, jac=False, rev=False)[0]
         coarse = self.coarse_layer(out0[:, -self.hparams.cond_dim:])
-        _out0_details = out0[:, :-self.hparams.cond_dim]
+        #_out0_details = out0[:, :-self.hparams.cond_dim]
+        details = out0[:, :-self.hparams.cond_dim]
         jac_d = None
-        #details, jac_d = self.details_inn(_out0_details, [coarse.detach()], jac=True, rev=False)
+        #details, jac_d = self.details_inn(_out0_details.detach(), [coarse.detach()], jac=True, rev=False)
         #coarse, jac_coarse = self.coarse_inn(c_hat, jac=True, rev=False)
         #jac = torch.sum(torch.stack([jac0, jac_d], dim=1), dim=1)
         #z_dense = torch.cat([details, coarse], dim=1)
-        return  (_out0_details, coarse), jac_d
+        return  (details, coarse), jac_d
 
     #def encode(self, u, c=None):
     #    return u

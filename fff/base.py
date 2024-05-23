@@ -578,7 +578,7 @@ class FreeFormBase(Trainable):
                 z_dense, z_coarse = z_dense
             std = torch.mean(torch.abs(torch.std(z_dense, dim=0) - 1))
             loss_values["z std"] = torch.ones_like(x[:,0]) * std
-            if check_keys("coarse_supervised"):
+            if (not self.training or check_keys("coarse_supervised")):
                 loss_values["coarse_supervised"] = self._reconstruction_loss(c_full, z_coarse)
             if check_keys("latent_reconstruction"):
                 latent_mask = torch.ones(x.shape[0], self.latent_dim, device=x.device)
