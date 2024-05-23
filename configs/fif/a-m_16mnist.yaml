@@ -10,8 +10,9 @@ data_set:
   path: "16Mnist_AE"
 
 loss_weights:
-  nll: 1
-  coarse_supervised: 1
+  #nll: 1
+  coarse_supervised: 100
+  z std: 1
   #latent_reconstruction: 100
   #noisy_reconstruction: 100
   #cnew_reconstruction: 1000

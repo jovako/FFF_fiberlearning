@@ -570,14 +570,16 @@ class FreeFormBase(Trainable):
         if check_keys("kl") and self.vae:
             loss_values["kl"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
 
-        if (not self.training or check_keys("nll")) and self.transform == "inn":
+        if (not self.training or check_keys("z std")) and self.transform == "inn":
             z_detach = z.detach()
             log_prob, log_det, z_dense = self._latent_log_prob(z_detach, c_full)
-            loss_values["nll"] = -(log_prob + log_det)
+            #loss_values["nll"] = -(log_prob + log_det)
             if isinstance(z_dense, tuple):
                 z_dense, z_coarse = z_dense
-                if check_keys("coarse_supervised"):
-                    loss_values["coarse_supervised"] = self._reconstruction_loss(c_full, z_coarse)
+            std = torch.mean(torch.abs(torch.std(z_dense, dim=0) - 1))
+            loss_values["z std"] = torch.ones_like(x[:,0]) * std
+            if check_keys("coarse_supervised"):
+                loss_values["coarse_supervised"] = self._reconstruction_loss(c_full, z_coarse)
             if check_keys("latent_reconstruction"):
                 latent_mask = torch.ones(x.shape[0], self.latent_dim, device=x.device)
                 latent_mask[:, -self.hparams.mask_dims:] = 0
@@ -596,9 +598,11 @@ class FreeFormBase(Trainable):
             metrics["z 1D-Wasserstein-1"] = (z_marginal_sorted - z_gauss_sorted).abs().mean()
             metrics["z std"] = torch.std(z_marginal)
 
+        """
         if not self.training or check_keys("z std"):
             std = torch.mean(torch.abs(torch.std(z_dense, dim=0) - 1))
             loss_values["z std"] = torch.ones_like(x[:,0]) * std
+        """
 
         # Classification
         if check_keys("classification"):
