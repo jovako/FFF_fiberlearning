@@ -11,7 +11,7 @@ data_set:
 
 loss_weights:
   #nll: 1
-  latent_reconstruction: 10
+  latent_reconstruction: 1
   #noisy_reconstruction: 100
   #masked_reconstruction: 1
   #cnew_reconstruction: 1000
