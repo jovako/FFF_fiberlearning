@@ -13,6 +13,7 @@ from torch.nn import Sequential, CrossEntropyLoss
 from torch.utils.data import DataLoader, IterableDataset
 
 import fff.data
+from fff.distributions.learnable import *
 from fff.distributions.multivariate_student_t import MultivariateStudentT
 from fff.loss import nll_surrogate
 from fff.model.utils import TrainWallClock
@@ -96,12 +97,15 @@ class FreeFormBase(Trainable):
             else:
                 self._data_cond_dim = data_sample[1].shape[0]
 
-        # Build model, transforming the distribution
         #TODO Make it nicer!
         if self.hparams.transform:
             if (self.hparams.transform.name == "fff.model.InjectiveFlow" or
                 self.hparams.transform.name == "fff.model.MultilevelFlow"):
                 self.transform = "inn"
+            elif self.hparams.transform.name == "fff.model.DiffusionModel":
+                self.transform = "diffusion"
+                self.betas = torch.linspace(1e-4, 0.02, 1000)
+                self.sample_steps = torch.linspace(0, 1, 1000).flip(0)
             else:
                 self.transform = "fif"
         else:
@@ -119,6 +123,7 @@ class FreeFormBase(Trainable):
                               if k.startswith("models.")}
             self.models.load_state_dict(models_weights)
 
+        # Build model, transforming the distribution
         if self.transform:
             self.transform_model = build_model([self.hparams.transform],
                                                 self.models[-1].hparams.latent_dim,
@@ -240,6 +245,9 @@ class FreeFormBase(Trainable):
             elif self.transform == "fif":
                 return FIFTransformedDistribution(
                     self.transform_model, self._make_latent("normal", device), self.hparams.mask_dims)
+            elif self.transform == "diffusion":
+                return DiffTransformedDistribution(
+                    self.transform_model, self._make_latent("normal", device), self.sample_steps)
             else:
                 return TransformedDistribution(
                     self.transform_model, self._make_latent("normal", device), self.hparams.mask_dims)
@@ -496,7 +504,7 @@ class FreeFormBase(Trainable):
         x1 = z = z1 = None
         # Negative log-likelihood
         # exact
-        if not self.transform == "inn" and (not self.training or (
+        if self.transform == "fif" and (not self.training or (
                 self.hparams.exact_train_nll_every is not None
                 and batch_idx % self.hparams.exact_train_nll_every == 0
         )):
@@ -524,7 +532,7 @@ class FreeFormBase(Trainable):
                 loss_weights["nll"] = 0
 
         # surrogate
-        if not self.transform == "inn" and self.training and check_keys("nll"):
+        if self.transform == "fif" and self.training and check_keys("nll"):
             warm_up = self.hparams.warm_up_epochs
             if isinstance(warm_up, int):
                 warm_up = warm_up, warm_up + 1
@@ -558,17 +566,24 @@ class FreeFormBase(Trainable):
                 loss_values["nll"] = -log_prob_result.log_prob - deq_vol_change
                 loss_values.update(log_prob_result.regularizations)
 
+
         # In case they were skipped above
         if z is None:
             z = self.encode(x, c)
             if self.vae:
                 z, mu, logvar = z
-            if self.transform:
+            if self.transform == "diffusion":
+                t = torch.randint(0, 1000, (z.size(0),), device=z.device).long()
+                z_diff, epsilon = self.diffuse(z, t, self.betas.to(z.device))
+            else:
                 z = z + torch.randn_like(z) * self.hparams.noise
             z_dense = z
         if x1 is None and not self.classification:
             x1 = self.decode(z, c)
 
+        if check_keys("diff_mse") and self.transform == "diffusion":
+            epsilon_pred = self.transform_model(z_diff, t, c_full)
+            loss_values["diff_mse"] = self._reconstruction_loss(epsilon_pred, epsilon)
 
         if check_keys("kl") and self.vae:
             loss_values["kl"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
@@ -587,6 +602,7 @@ class FreeFormBase(Trainable):
                 z_coarse_dense = z_dense * latent_mask
                 z1 = self.transform_model.decode(z_coarse_dense, c_full) 
 
+        """
         if self.transform and (not self.training or check_keys("latent_reconstruction")):
             if z1 is None:
                 z_dense = self.transform_model.encode(z.detach(), c_full)
@@ -644,9 +660,10 @@ class FreeFormBase(Trainable):
                     z1 = z1[0]
                 loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z1)
 
+        """
         # Cyclic consistency of latent code sampled from Gauss
-        if not self.training or check_keys(
-                "cnew_reconstruction", "z_sample_reconstruction"):
+        if ((not self.training and self.current_epoch % 20 == 0) or
+                check_keys("cnew_reconstruction", "z_sample_reconstruction")):
             warm_up = self.hparams.warm_up_fiber
             if isinstance(warm_up, int):
                 warm_up = warm_up, warm_up + 1
@@ -835,6 +852,12 @@ class FreeFormBase(Trainable):
             noise_conds = []
         return noise_conds, x, torch.zeros(x0.shape[0], device=device, dtype=dtype)
 
+    def diffuse(self, x, t, betas):
+        noise = torch.randn_like(x)
+        alpha_t = (1 - betas[t]).cumprod(dim=0)[-1]
+        noisy_x = alpha_t.sqrt() * x + (1 - alpha_t).sqrt() * noise
+        return noisy_x, noise
+
     def configure_optimizers(self):
         params = []
         if self.hparams.train_models:
@@ -930,33 +953,3 @@ def wasserstein2_distance_gaussian_approximation(x1, x2):
     m_part = torch.sum((m1 - m2) ** 2)
     cov_part = torch.trace(cov1) + torch.trace(cov2) - 2 * torch.sum(torch.sqrt(eigenvalues_prod))
     return m_part + cov_part
-
-class TransformedDistribution():
-    def __init__(self, Transform, Distribution, mask_dims):
-        self.Trans = Transform
-        self.Dist = Distribution
-        self.mask_dims = mask_dims
-
-    def sample(self, shape=torch.Size(), c=None):
-        samples = self.Dist.sample(shape)
-        latent_mask = torch.ones(samples.shape, device=samples.device)
-        if self.mask_dims > 0:
-            latent_mask[:, -self.mask_dims:] = 0
-        samples_coarse = samples * latent_mask
-        transformed_samples = self.Trans.decode(samples_coarse, c)
-        return transformed_samples
-
-    def log_prob(self, z, c=None):
-        z_dense, jac = self.Trans.encode(z, c)
-        if isinstance(z_dense, tuple):
-            z_details, z_coarse = z_dense
-            log_prob = self.Dist.log_prob(z_details)
-        else:
-            log_prob = self.Dist.log_prob(z_dense)
-
-        return log_prob, jac, z_dense
-        
-class FIFTransformedDistribution(TransformedDistribution):
-    def log_prob(self, z_dense, c=None):
-        return self.Dist.log_prob(z_dense)
-
