@@ -109,6 +109,8 @@ class FreeFormBase(Trainable):
 
         # Build model
         self.vae = self.hparams.vae
+        if self.hparams.models[1]["name"] == "fff.model.VarResNet":
+            self.vae = True
         self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
         if self.hparams.load_models_path:
             print("load models checkpoint")
@@ -435,15 +437,17 @@ class FreeFormBase(Trainable):
         )
 
     def _reconstruction_loss(self, a, b):
-        return torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)
+        return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1))
         #/ self.lamb + torch.log(self.lamb)
         #l = torch.nn.functional.binary_cross_entropy(a.reshape(a.shape[0],-1), b.reshape(a.shape[0],-1), reduction="sum")
         #return l.repeat(a.shape[0])
-        #return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1))/10
+    
+    def _sqr_reconstruction_loss(self, a, b):
+        return torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)
 
     def _l1_loss(self, a, b):
-        return torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)
-        #return torch.sum(torch.abs(a - b).reshape(a.shape[0], -1), -1)/10
+        #return torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)
+        return torch.sum(torch.abs(a - b).reshape(a.shape[0], -1), -1)/10
 
 
     def compute_metrics(self, batch, batch_idx) -> dict:
@@ -609,9 +613,10 @@ class FreeFormBase(Trainable):
             loss_values["classification"] = self.cross_entropy(z,c_full.float())
 
         # Reconstruction
-        if not self.training or check_keys("reconstruction", "noisy_reconstruction"):
+        if not self.training or check_keys("reconstruction", "noisy_reconstruction", "sqr_reconstruction"):
             loss_values["reconstruction"] = self._reconstruction_loss(x0, x1)
             loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
+            loss_values["sqr_reconstruction"] = self._sqr_reconstruction_loss(x, x1)
             #loss_values["reconstruction"] = self._l1_loss(x0, x1)
 
         if not self.training or check_keys("masked_reconstruction"):
