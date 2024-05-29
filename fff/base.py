@@ -104,7 +104,7 @@ class FreeFormBase(Trainable):
                 self.transform = "inn"
             elif self.hparams.transform.name == "fff.model.DiffusionModel":
                 self.transform = "diffusion"
-                self.betas = torch.linspace(1e-4, 0.25, 1000)
+                self.betas = torch.linspace(1e-4, 0.02, 1000)
                 self.alphas_ = torch.cumprod((1 - self.betas), axis=0)
                 print(self.alphas_.shape)
                 self.sample_steps = torch.linspace(0, 1, 1000).flip(0)
@@ -508,7 +508,7 @@ class FreeFormBase(Trainable):
         x1 = z = z1 = None
         # Negative log-likelihood
         # exact
-        if self.transform == "fif" and (not self.training or (
+        if (not self.transform or self.transform == "fif") and (not self.training or (
                 self.hparams.exact_train_nll_every is not None
                 and batch_idx % self.hparams.exact_train_nll_every == 0
         )):
@@ -536,7 +536,7 @@ class FreeFormBase(Trainable):
                 loss_weights["nll"] = 0
 
         # surrogate
-        if self.transform == "fif" and self.training and check_keys("nll"):
+        if (not self.transform or self.transform == "fif") and self.training and check_keys("nll"):
             warm_up = self.hparams.warm_up_epochs
             if isinstance(warm_up, int):
                 warm_up = warm_up, warm_up + 1
@@ -585,6 +585,7 @@ class FreeFormBase(Trainable):
         if x1 is None and not self.classification:
             x1 = self.decode(z, c)
 
+
         if check_keys("diff_mse") and self.transform == "diffusion":
             epsilon_pred = self.transform_model(z_diff.detach(), t, c_full)
             loss_values["diff_mse"] = self._reconstruction_loss(epsilon_pred, epsilon.detach())
@@ -607,7 +608,6 @@ class FreeFormBase(Trainable):
                 z_coarse_dense = z_dense * latent_mask
                 z1 = self.transform_model.decode(z_coarse_dense, c_full) 
 
-        """
         if self.transform and (not self.training or check_keys("latent_reconstruction")):
             if z1 is None:
                 z_dense = self.transform_model.encode(z.detach(), c_full)
@@ -665,7 +665,6 @@ class FreeFormBase(Trainable):
                     z1 = z1[0]
                 loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z1)
 
-        """
         # Cyclic consistency of latent code sampled from Gauss
         if ((not self.training and self.current_epoch % 20 == 0) or
                 check_keys("cnew_reconstruction", "z_sample_reconstruction")):
@@ -714,7 +713,7 @@ class FreeFormBase(Trainable):
                     loss_values["z_sample_reconstruction"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
 
-        """
+        
         # Reconstruction of Gauss with double std -- for invertibility
         if not self.training or check_keys("x_sample_reconstruction"):
             # As we only care about the reconstruction, can ignore noise scale
@@ -737,7 +736,7 @@ class FreeFormBase(Trainable):
             z_shuffled = self.encode(x_shuffled, c)
             x_shuffled1 = self.decode(z_shuffled, c)
             loss_values["shuffled_reconstruction"] = self._reconstruction_loss(x_shuffled, x_shuffled1)
-        """
+
         # Compute loss as weighted loss
         metrics["loss"] = sum(
             (weight * loss_values[key]).mean(-1)
@@ -860,8 +859,9 @@ class FreeFormBase(Trainable):
     def diffuse(self, x, t, alphas_):
         noise = torch.randn_like(x)
         alpha_t = alphas_[t].unsqueeze(1)
-        alpha_t = alpha_t.repeat([1,x.shape[1]])
+        alpha_t = alpha_t.repeat([1, x.shape[1]])
         noisy_x = alpha_t.sqrt() * x + (1 - alpha_t).sqrt() * noise
+        #noisy_x = alpha_t.sqrt() * x + noise
         return noisy_x, noise
 
     def configure_optimizers(self):

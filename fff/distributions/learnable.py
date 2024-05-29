@@ -74,19 +74,19 @@ class DiffTransformedDistribution():
         
         self.sqrt_1malpha_cumprod = torch.sqrt(1 - self.alpha_cumprod)
 
-    def sample(self, x, condition, guidance_scale=2.0):
-        batch_size = x.size(0)
+    def sample(self, shape, condition, guidance_scale=2.0):
+        x = self.Dist.sample(shape)
         device = x.device
         num_steps = self.num_timesteps
 
         for i in reversed(range(num_steps)):
-            t = torch.full((batch_size,), i, device=device, dtype=torch.long)
+            t = torch.full(shape, i, device=device, dtype=torch.long)
             alpha_t = self.alpha_cumprod[i]
             alpha_t_prev = self.alpha_cumprod_prev[i]
             beta_t = self.betas[i]
 
             # Predict noise
-            eps_pred = self.model(x, condition, t, guidance_scale)
+            eps_pred = self.Diff(x, t, condition, guidance_scale)
 
             # Compute the mean for the reverse process
             pred_x0 = (
@@ -96,7 +96,7 @@ class DiffTransformedDistribution():
             noise = torch.randn_like(x) if self.eta > 0 else torch.zeros_like(x)
             sigma_t = self.eta * torch.sqrt((1 - alpha_t_prev) / (1 - alpha_t) * beta_t)
 
-            dir_xt = (1. - alpha_prev - sigma_t**2).sqrt() * eps_pred
+            dir_xt = (1. - alpha_t_prev - sigma_t**2).sqrt() * eps_pred
 
             x = alpha_t_prev.sqrt() * pred_x0 + dir_xt + sigma_t * noise
 
