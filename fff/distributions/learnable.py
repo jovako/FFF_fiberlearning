@@ -60,36 +60,44 @@ class FIFTransformedDistribution(TransformedDistribution):
 
 
 class DiffTransformedDistribution():
-    def __init__(self, model, Distribution, timesteps, eta=0.0):
+    def __init__(self, model, Distribution, betas, timesteps=1000, eta=0.0):
         self.Diff = model
         self.Dist = Distribution
-        self.timesteps = timesteps
+        self.betas = betas
+        self.num_timesteps = timesteps
         self.eta = eta
 
-    def sample(self, shape=torch.Size(), condition=None, guidance_scale=4.0):
-        x = self.Dist.sample(shape)
-        num_steps = len(self.timesteps)
+        # Precompute constants for sampling
+        self.alphas = 1.0 - betas
+        self.alpha_cumprod = torch.cumprod(self.alphas, dim=0)
+        self.alpha_cumprod_prev = torch.cat([torch.tensor([1.0], device=betas.device), self.alpha_cumprod[:-1]])
+        
+        self.sqrt_1malpha_cumprod = torch.sqrt(1 - self.alpha_cumprod)
+
+    def sample(self, x, condition, guidance_scale=2.0):
+        batch_size = x.size(0)
         device = x.device
+        num_steps = self.num_timesteps
 
-        for i in range(num_steps):
-            t = self.timesteps[i]
-            t_next = self.timesteps[i + 1] if i + 1 < num_steps else 0
+        for i in reversed(range(num_steps)):
+            t = torch.full((batch_size,), i, device=device, dtype=torch.long)
+            alpha_t = self.alpha_cumprod[i]
+            alpha_t_prev = self.alpha_cumprod_prev[i]
+            beta_t = self.betas[i]
 
-            # Forward pass through the model
-            eps = self.Diff(x, torch.tensor([t] * x.size(0), device=device).long(), condition, guidance_scale)
+            # Predict noise
+            eps_pred = self.model(x, condition, t, guidance_scale)
 
-            # Compute alpha values
-            alpha_t = (1 - (t / num_steps)) ** 2
-            alpha_t_next = (1 - (t_next / num_steps)) ** 2
+            # Compute the mean for the reverse process
+            pred_x0 = (
+                x - self.sqrt_1malpha_cumprod[i] * eps_pred
+            ) / alpha_t.sqrt()
 
-            # Compute the noise scale
-            sigma_t = self.eta * ((1 - alpha_t_next) / (1 - alpha_t) * (1 - alpha_t / alpha_t_next)) ** 0.5
+            noise = torch.randn_like(x) if self.eta > 0 else torch.zeros_like(x)
+            sigma_t = self.eta * torch.sqrt((1 - alpha_t_prev) / (1 - alpha_t) * beta_t)
 
-            # Update the sample
-            x = (
-                (x - (1 - alpha_t) / (1 - alpha_t) * eps)
-                * (alpha_t_next / alpha_t) ** 0.5
-                + sigma_t * torch.randn_like(x)
-            )
+            dir_xt = (1. - alpha_prev - sigma_t**2).sqrt() * eps_pred
+
+            x = alpha_t_prev.sqrt() * pred_x0 + dir_xt + sigma_t * noise
 
         return x

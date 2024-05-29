@@ -104,7 +104,9 @@ class FreeFormBase(Trainable):
                 self.transform = "inn"
             elif self.hparams.transform.name == "fff.model.DiffusionModel":
                 self.transform = "diffusion"
-                self.betas = torch.linspace(1e-4, 0.02, 1000)
+                self.betas = torch.linspace(1e-4, 0.25, 1000)
+                self.alphas_ = torch.cumprod((1 - self.betas), axis=0)
+                print(self.alphas_.shape)
                 self.sample_steps = torch.linspace(0, 1, 1000).flip(0)
             else:
                 self.transform = "fif"
@@ -113,8 +115,10 @@ class FreeFormBase(Trainable):
 
         # Build model
         self.vae = self.hparams.vae
+        """
         if self.hparams.models[1]["name"] == "fff.model.VarResNet":
             self.vae = True
+        """
         self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
         if self.hparams.load_models_path:
             print("load models checkpoint")
@@ -247,7 +251,7 @@ class FreeFormBase(Trainable):
                     self.transform_model, self._make_latent("normal", device), self.hparams.mask_dims)
             elif self.transform == "diffusion":
                 return DiffTransformedDistribution(
-                    self.transform_model, self._make_latent("normal", device), self.sample_steps)
+                    self.transform_model, self._make_latent("normal", device), self.betas, 1000)
             else:
                 return TransformedDistribution(
                     self.transform_model, self._make_latent("normal", device), self.hparams.mask_dims)
@@ -574,7 +578,7 @@ class FreeFormBase(Trainable):
                 z, mu, logvar = z
             if self.transform == "diffusion":
                 t = torch.randint(0, 1000, (z.size(0),), device=z.device).long()
-                z_diff, epsilon = self.diffuse(z, t, self.betas.to(z.device))
+                z_diff, epsilon = self.diffuse(z, t, self.alphas_.to(z.device))
             else:
                 z = z + torch.randn_like(z) * self.hparams.noise
             z_dense = z
@@ -582,8 +586,9 @@ class FreeFormBase(Trainable):
             x1 = self.decode(z, c)
 
         if check_keys("diff_mse") and self.transform == "diffusion":
-            epsilon_pred = self.transform_model(z_diff, t, c_full)
-            loss_values["diff_mse"] = self._reconstruction_loss(epsilon_pred, epsilon)
+            epsilon_pred = self.transform_model(z_diff.detach(), t, c_full)
+            loss_values["diff_mse"] = self._reconstruction_loss(epsilon_pred, epsilon.detach())
+            #loss_values["diff_mse"] = self._reconstruction_loss(epsilon_pred, torch.ones_like(epsilon_pred)*10)
 
         if check_keys("kl") and self.vae:
             loss_values["kl"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
@@ -852,9 +857,10 @@ class FreeFormBase(Trainable):
             noise_conds = []
         return noise_conds, x, torch.zeros(x0.shape[0], device=device, dtype=dtype)
 
-    def diffuse(self, x, t, betas):
+    def diffuse(self, x, t, alphas_):
         noise = torch.randn_like(x)
-        alpha_t = (1 - betas[t]).cumprod(dim=0)[-1]
+        alpha_t = alphas_[t].unsqueeze(1)
+        alpha_t = alpha_t.repeat([1,x.shape[1]])
         noisy_x = alpha_t.sqrt() * x + (1 - alpha_t).sqrt() * noise
         return noisy_x, noise
 
