@@ -1,0 +1,56 @@
+model: fff.FreeFormInjectiveFlow
+
+noise: 0.
+latent_distribution:
+  name: "transformed_normal"
+data_set:
+  name: mnist_split
+  root: data
+  conditional: true
+  path: "16Mnist_AE"
+
+loss_weights:
+  diff_mse: 1
+max_epochs: 100
+#warm_up_epochs: [40, 60]
+#warm_up_fiber: [15, 100]
+
+train_models: False
+train_transform: True
+vae: True
+models:
+  - name: fff.model.ConvolutionalNeuralNetwork
+    latent_dim: 100
+    ch_factor: 32
+    encoder_spec: 
+      - [2,4,2,1]
+      - [4,4,2,1]
+      - [8,4,2,1]
+    decoder_spec:
+      - [8,4]
+      - [4,4,2,1]
+      - [1,3,2,1,1]
+  - name: fff.model.VarResNet
+    latent_dim: &latent_dim 64
+    layers_spec:
+      - [512, 512]
+      - [512, 512]
+transform:
+  name: fff.model.DiffusionModel
+  data_dim: *latent_dim
+  num_heads: 4
+  time_dim: 8
+  latent_dim: 64
+  layers_spec:
+    - [512, 512]
+    - [512, 512]
+    - [512, 512]
+
+      #lr_scheduler: "onecyclelr"
+optimizer:
+  name: adam
+  lr: 0.0001
+
+batch_size: 512
+load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
+#load_transform_path: "lightning_logs/16vae_a10e/version_0/checkpoints/last.ckpt"
