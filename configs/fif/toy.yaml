@@ -19,11 +19,12 @@ models:
       - [256, 256]
       - [256, 256]
 
+lr_scheduler: "onecyclelr"
 batch_size: 1024
 optimizer:
   name: adam
   lr: 0.001
-max_epochs: 50
+max_epochs: 200
 
 #accelerator: "cpu"
 #num_workers: 0
