@@ -8,8 +8,8 @@ data_set:
   conditional: False
 
 loss_weights:
-  #noisy_reconstruction: 100
-  sqr_reconstruction: 100
+  noisy_reconstruction: 1000
+  #sqr_reconstruction: 10
   #kl: 1
   #z std: 1
   nll: 1

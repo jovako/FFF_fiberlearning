@@ -140,8 +140,8 @@ class FreeFormBase(Trainable):
         default_latent = self.get_latent(self.device)
         if isinstance(default_latent, torch.nn.Module):
             self.learnt_latent = default_latent
-        if self.vae:
-            self.lamb = torch.nn.Parameter(torch.ones(1), requires_grad=True)
+        #if self.vae:
+        self.lamb = torch.nn.Parameter(torch.ones(1), requires_grad=True)
 
     def train_dataloader(self) -> DataLoader | list[DataLoader]:
         """
@@ -437,7 +437,7 @@ class FreeFormBase(Trainable):
         )
 
     def _reconstruction_loss(self, a, b):
-        return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1))
+        return (torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)) ** self.lamb
         #/ self.lamb + torch.log(self.lamb)
         #l = torch.nn.functional.binary_cross_entropy(a.reshape(a.shape[0],-1), b.reshape(a.shape[0],-1), reduction="sum")
         #return l.repeat(a.shape[0])
@@ -723,6 +723,8 @@ class FreeFormBase(Trainable):
             if check_keys(key) and (self.training or key in loss_values)
         )
 
+        metrics["lambda"] = self.lamb
+
         # Metrics are averaged, non-weighted loss_values
         invalid_losses = []
         for key, weight in loss_values.items():
@@ -837,6 +839,7 @@ class FreeFormBase(Trainable):
 
     def configure_optimizers(self):
         params = []
+        params.append(self.lamb)
         if self.hparams.train_models:
             params.extend(list(self.models.parameters()))
             if self.vae:
