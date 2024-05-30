@@ -1,7 +1,6 @@
 lightning_logs*/
 benchmark/pythae_benchmarks
-logs_FFF
-logs_fff_small
+logs*/
 plots/
 GTs/
 
