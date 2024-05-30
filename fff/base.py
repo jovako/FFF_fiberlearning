@@ -435,10 +435,11 @@ class FreeFormBase(Trainable):
         )
 
     def _reconstruction_loss(self, a, b):
-        #return torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1) / self.lamb + torch.log(self.lamb)
+        return torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)
+        #/ self.lamb + torch.log(self.lamb)
         #l = torch.nn.functional.binary_cross_entropy(a.reshape(a.shape[0],-1), b.reshape(a.shape[0],-1), reduction="sum")
         #return l.repeat(a.shape[0])
-        return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1))/10
+        #return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1))/10
 
     def _l1_loss(self, a, b):
         return torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)
@@ -537,21 +538,21 @@ class FreeFormBase(Trainable):
                     nll_start, warm_up_end
                 )
             loss_weights["nll"] *= nll_warmup
-            #if check_keys("nll"):
-            if self.transform:
-                z = self.encode(x, c)
-                z = z + torch.randn_like(z) * self.hparams.noise
-                if self.vae:
-                    z, _, __ = z
-                log_prob_result = self.surrogate_log_prob(x=z.detach(), c=c_full)
-                z_dense = log_prob_result.z
-                z1 = log_prob_result.x1
-            else:
-                log_prob_result = self.surrogate_log_prob(x=x, c=c)
-                x1 = log_prob_result.x1
-                z = z_dense = log_prob_result.z
-            loss_values["nll"] = -log_prob_result.log_prob - deq_vol_change
-            loss_values.update(log_prob_result.regularizations)
+            if check_keys("nll"):
+                if self.transform:
+                    z = self.encode(x, c)
+                    if self.vae:
+                        z, _, __ = z
+                    z = z + torch.randn_like(z) * self.hparams.noise
+                    log_prob_result = self.surrogate_log_prob(x=z.detach(), c=c_full)
+                    z_dense = log_prob_result.z
+                    z1 = log_prob_result.x1
+                else:
+                    log_prob_result = self.surrogate_log_prob(x=x, c=c)
+                    x1 = log_prob_result.x1
+                    z = z_dense = log_prob_result.z
+                loss_values["nll"] = -log_prob_result.log_prob - deq_vol_change
+                loss_values.update(log_prob_result.regularizations)
 
         # In case they were skipped above
         if z is None:
@@ -580,7 +581,7 @@ class FreeFormBase(Trainable):
                 latent_mask = torch.ones(x.shape[0], self.latent_dim, device=x.device)
                 latent_mask[:, -self.hparams.mask_dims:] = 0
                 z_coarse_dense = z_dense * latent_mask
-                z1 == self.transform_model.decode(z_coarse_dense, c_full) 
+                z1 = self.transform_model.decode(z_coarse_dense, c_full) 
 
         if self.transform and (not self.training or check_keys("latent_reconstruction")):
             if z1 is None:
