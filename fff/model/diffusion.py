@@ -46,10 +46,10 @@ class DiffusionModel(nn.Module):
         self.build_model()
         
         
-    def forward(self, x_in, time_step, condition, guidance_scale=1.0, conditional=False):
+    def forward(self, x_in, time_step, condition, guidance_scale=1.0, conditional=True):
         # Embed the time step
         time_embedding = self.time_embedding(time_step)
-        condition = torch.zeros_like(x_in)
+        #condition = torch.zeros_like(x_in)
         
         # Initial input
         x = torch.cat((x_in, time_embedding), dim=-1)
@@ -60,7 +60,7 @@ class DiffusionModel(nn.Module):
             conditional_x = x
             for layer in self.layers:
                 if isinstance(layer, CrossAttention):
-                    conditional_x = layer(conditional_x, condition)
+                    conditional_x = x + layer(conditional_x, condition)
                 else:
                     conditional_x = layer(conditional_x)
             conditional_output = self.fc_out(conditional_x)
@@ -69,7 +69,7 @@ class DiffusionModel(nn.Module):
             unconditional_x = x
             for layer in self.layers:
                 if isinstance(layer, CrossAttention):
-                    unconditional_x = layer(unconditional_x, torch.zeros_like(condition))
+                    unconditional_x = x + layer(unconditional_x, torch.zeros_like(condition))
                 else:
                     unconditional_x = layer(unconditional_x)
             unconditional_output = self.fc_out(unconditional_x)
@@ -91,8 +91,8 @@ class DiffusionModel(nn.Module):
     def build_model(self):
         input_dim = self.hparams.data_dim
         hidden_dim = self.hparams.hidden_dim
-        #condition_dim = self.hparams.cond_dim
-        condition_dim = 2
+        condition_dim = self.hparams.cond_dim
+        #condition_dim = 2
         time_dim = self.hparams.time_dim
         num_heads = self.hparams.num_heads
         activation = self.hparams.activation
@@ -110,7 +110,7 @@ class DiffusionModel(nn.Module):
                 id_init=self.hparams.id_init,
                 batch_norm=self.hparams.batch_norm, dropout=self.hparams.dropout)
             )
-            #self.layers.append(CrossAttention(hidden_dim, condition_dim, num_heads))
+            self.layers.append(CrossAttention(hidden_dim, condition_dim, num_heads))
         
         # Output layer
         self.fc_out = nn.Linear(hidden_dim, input_dim)

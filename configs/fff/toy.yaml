@@ -3,12 +3,12 @@ model: fff.FreeFormFlow
 latent_distribution:
   name: "transformed_normal"
 data_set:
-  name: 2moons
+  name: moons_split
   # num_simulations: ... must be specified in separate config file
-  conditional: false
+  conditional: True
+  path: "fif_moons"
 
 noise: 0.
-#accelerator: 'gpu'
 
 loss_weights:
   diff_mse: 1
@@ -24,17 +24,19 @@ transform:
   time_dim: 8
   hidden_dim: 32
   layers_spec:
-      - [64, 64, 64, 64]
+      - [256, 256]
+      - [256, 256]
+      - [256, 256]
 
-        #lr_scheduler: "onecyclelr"
+lr_scheduler: "onecyclelr"
 
-batch_size: 2048
+batch_size: 1024
 optimizer:
   name: adam
-  lr: 0.
+  lr: 0.001
   #weight_decay: 0.0001
 
-max_epochs: 3000
+max_epochs: 1000
 
 num_workers: 1
 gradient_clip: 3.0

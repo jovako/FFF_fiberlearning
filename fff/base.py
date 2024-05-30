@@ -608,6 +608,7 @@ class FreeFormBase(Trainable):
                 z_coarse_dense = z_dense * latent_mask
                 z1 = self.transform_model.decode(z_coarse_dense, c_full) 
 
+        """
         if self.transform and (not self.training or check_keys("latent_reconstruction")):
             if z1 is None:
                 z_dense = self.transform_model.encode(z.detach(), c_full)
@@ -664,6 +665,7 @@ class FreeFormBase(Trainable):
                 if self.vae:
                     z1 = z1[0]
                 loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z1)
+        """
 
         # Cyclic consistency of latent code sampled from Gauss
         if ((not self.training and self.current_epoch % 20 == 0) or
@@ -698,7 +700,7 @@ class FreeFormBase(Trainable):
                 else:
                     c_random = c
                 x_random = self.decode(z_random, c_random)
-                if self.hparams["data_set"]["name"] == "mnist_split":
+                if self.hparams["data_set"]["name"].endswith("_split"):
                     cT = torch.empty(x_random.shape[0],0).to(x_random.device)
                     c1 = ((self.Teacher.encode(x_random, cT) - self.data_shift)
                           / self.data_scale)
@@ -713,7 +715,7 @@ class FreeFormBase(Trainable):
                     loss_values["z_sample_reconstruction"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
 
-        
+        """
         # Reconstruction of Gauss with double std -- for invertibility
         if not self.training or check_keys("x_sample_reconstruction"):
             # As we only care about the reconstruction, can ignore noise scale
@@ -736,6 +738,7 @@ class FreeFormBase(Trainable):
             z_shuffled = self.encode(x_shuffled, c)
             x_shuffled1 = self.decode(z_shuffled, c)
             loss_values["shuffled_reconstruction"] = self._reconstruction_loss(x_shuffled, x_shuffled1)
+        """
 
         # Compute loss as weighted loss
         metrics["loss"] = sum(
