@@ -437,7 +437,8 @@ class FreeFormBase(Trainable):
         )
 
     def _reconstruction_loss(self, a, b):
-        return (torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)) ** self.lamb
+        lamb = torch.maximum(self.lamb, torch.Tensor([0.]).to(self.lamb.device))
+        return (torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)) ** lamb
         #/ self.lamb + torch.log(self.lamb)
         #l = torch.nn.functional.binary_cross_entropy(a.reshape(a.shape[0],-1), b.reshape(a.shape[0],-1), reduction="sum")
         #return l.repeat(a.shape[0])
