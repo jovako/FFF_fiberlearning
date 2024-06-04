@@ -42,7 +42,7 @@ class FreeFormInjectiveFlow(FreeFormBase):
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
                             "GTs/28Mnist_AE/checkpoints/last.ckpt"
                     )
-                elif hparams["data_set"]["path"] in ["16Mnist_AE", "16noisy_AE"]:
+                elif hparams["data_set"]["path"] in ["16Mnist_AE", "16noisy_AE", "16Mnist_AE_ext"]:
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
                             "GTs/16Mnist_AE/checkpoints/last.ckpt"
                     )
