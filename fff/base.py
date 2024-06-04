@@ -582,11 +582,14 @@ class FreeFormBase(Trainable):
                 z_dense, z_coarse = z_dense
                 if check_keys("coarse_supervised"):
                     loss_values["coarse_supervised"] = self._reconstruction_loss(c_full, z_coarse)
-            if check_keys("latent_reconstruction"):
-                latent_mask = torch.ones(x.shape[0], self.latent_dim, device=x.device)
-                latent_mask[:, -self.hparams.mask_dims:] = 0
-                z_coarse_dense = z_dense * latent_mask
-                z1 = self.transform_model.decode(z_coarse_dense, c_full) 
+            if check_keys("latent_reconstruction") or not self.training:
+                if self.hparams.mask_dims==0:
+                    z1 = self.transform_model.decode(z_dense, c_full) 
+                else:
+                    latent_mask = torch.ones(x.shape[0], self.latent_dim, device=x.device)
+                    latent_mask[:, -self.hparams.mask_dims:] = 0
+                    z_coarse_dense = z_dense * latent_mask
+                    z1 = self.transform_model.decode(z_coarse_dense, c_full) 
 
         if self.transform and (not self.training or check_keys("latent_reconstruction")):
             if z1 is None:
@@ -687,6 +690,8 @@ class FreeFormBase(Trainable):
                 try:
                     # Sanity checks might fail for random data
                     z1_random = self.encode(x_random, c_random)
+                    if self.vae:
+                        z1_random, _, __ = z1_random
                     loss_values["z_sample_reconstruction"] = self._reconstruction_loss(
                         z_random, z1_random)
                 except:
