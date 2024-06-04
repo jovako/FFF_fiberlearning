@@ -5,8 +5,7 @@ noise: 0.01
 data_set:
   name: mnist_ds
   root: data
-  conditional: False
-  digit: 4
+  conditional: True
 
 loss_weights:
   noisy_reconstruction: 100
@@ -14,7 +13,7 @@ loss_weights:
   #kl: 1
   #z std: 1
   nll: 1
-max_epochs: 10000
+max_epochs: 2000
 
 train_models: True
 models:

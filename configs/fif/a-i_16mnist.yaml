@@ -7,16 +7,16 @@ data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "16Mnist_AE"
+  path: "16Mnist_AE_ext"
 
 loss_weights:
   nll: 1
-  latent_reconstruction: 1000
+  #latent_reconstruction: 1000
   #noisy_reconstruction: 100
   #cnew_reconstruction: 1000
   #z_sample_reconstruction: 1
-mask_dims: 8
-max_epochs: 10
+mask_dims: 0
+max_epochs: 100
 #warm_up_fiber: [35, 40]
 
 train_models: False
@@ -46,32 +46,32 @@ transform:
   inn_spec:
       #- ["PermuteRandom", {}, 0]
       #- ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
 
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.001
+  lr: 0.01
 
 batch_size: 512
 load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
-load_transform_path: "lightning_logs/16vae_if2/version_0/checkpoints/last.ckpt"
+#load_transform_path: "lightning_logs/16vae_if2/version_0/checkpoints/last.ckpt"
