@@ -43,10 +43,10 @@ def get_split_mnist(root: str, digit: int = None, conditional: bool = False, pat
     std = torch.std(train_targets)
 
     train_targets = (train_targets - center) / std
-    val_data = torch.from_numpy(df["test_x"])[-2000:]
-    val_targets = ((torch.from_numpy(df["test_y"]) - center) / std)[-2000:]
-    test_data = torch.from_numpy(df["test_x"])[:-2000]
-    test_targets = ((torch.from_numpy(df["test_y"]) - center) / std)[:-2000]
+    val_data = torch.from_numpy(df["val_x"])[:1000]
+    val_targets = ((torch.from_numpy(df["val_y"]) - center) / std)[:1000]
+    test_data = torch.from_numpy(df["test_x"])
+    test_targets = ((torch.from_numpy(df["test_y"]) - center) / std)
     
     # Collect tensors for TensorDatasets
     train_data = [train_data]
@@ -184,7 +184,7 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
     # Data is (N, H, W, C)
     #train_data = train_dataset.data
     batch_size = train_dataset.data.shape[0]
-    dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+    dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size)
     train_data, _ = next(iter(dataloader))
     batch_size = test_dataset.data.shape[0]
     dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size)
@@ -193,11 +193,11 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
     print(train_data.shape)
     if val_dataset is None:
         if len(train_data) > 40000:
-            val_data_split = 1000
+            val_data_split = 10000
         else:
             val_data_split = len(train_data) // 6
-        train_data = train_data[:-val_data_split]
         val_data = train_data[-val_data_split:]
+        train_data = train_data[:-val_data_split]
     else:
         val_data = val_dataset.data
     #test_data = test_dataset.data
