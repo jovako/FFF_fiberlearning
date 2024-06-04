@@ -41,6 +41,7 @@ class FreeFormBaseHParams(TrainableHParams):
     train_models: bool = True
     train_transform: bool = True
     vae: bool = False
+    betas_max: float = 0.2
 
     loss_weights: dict
     log_det_estimator: dict = dict(
@@ -104,7 +105,7 @@ class FreeFormBase(Trainable):
                 self.transform = "inn"
             elif self.hparams.transform.name == "fff.model.DiffusionModel":
                 self.transform = "diffusion"
-                self.betas = torch.linspace(1e-4, 0.02, 1000)
+                self.betas = torch.linspace(1e-4, self.hparams.betas_max, 1000)
                 self.alphas_ = torch.cumprod((1 - self.betas), axis=0)
                 print(self.alphas_.shape)
                 self.sample_steps = torch.linspace(0, 1, 1000).flip(0)
