@@ -567,8 +567,10 @@ class FreeFormBase(Trainable):
             if self.transform:
                 z = z + torch.randn_like(z) * self.hparams.noise
             z_dense = z
-        if x1 is None and not self.classification:
+        if x1 is None:
             x1 = self.decode(z, c)
+        if self.classification:
+            x1 = self.decode(z.detach(),c)
 
 
         if check_keys("kl") and self.vae:
@@ -615,6 +617,9 @@ class FreeFormBase(Trainable):
         # Classification
         if check_keys("classification"):
             loss_values["classification"] = self.cross_entropy(z,c_full.float())
+            if not self.training:
+                oneminusacc = torch.sum(torch.abs(c_full - torch.nn.functional.one_hot(torch.argmax(z,dim=1), num_classes=10)), dim=1) * 0.5
+                loss_values["accuracy"] = 1 - oneminusacc
 
         # Reconstruction
         if not self.training or check_keys("reconstruction", "noisy_reconstruction", "sqr_reconstruction"):
