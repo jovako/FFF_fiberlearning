@@ -43,7 +43,7 @@ models:
 transform:
   name: fff.model.ResNet
   data_dim: *latent_dim
-  latent_dim: 1
+  latent_dim: 5
   layers_spec:
     - [512, 512]
     - [512, 512]

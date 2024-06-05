@@ -7,7 +7,7 @@ data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "16Mnist_AE_ext"
+  path: "Mnist_Class_ext"
 
 loss_weights:
   nll: 1
@@ -70,7 +70,7 @@ transform:
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.01
+  lr: 0.002
 
 batch_size: 512
 load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
