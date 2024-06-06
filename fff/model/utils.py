@@ -7,6 +7,7 @@ import FrEIA
 import torch
 from lightning import Callback
 from torch import nn
+import torch.nn.functional as F
 
 
 class Sin(nn.Module):
@@ -227,3 +228,37 @@ class TrainWallClock(Callback):
 
     def state_dict(self):
         return self.state.copy()
+
+class CrossAttention(nn.Module):
+    def __init__(self, input_dim, condition_dim, num_heads):
+        super(CrossAttention, self).__init__()
+        self.num_heads = num_heads
+        self.query = nn.Linear(input_dim, input_dim)
+        self.key = nn.Linear(condition_dim, input_dim)
+        self.value = nn.Linear(condition_dim, input_dim)
+        self.out = nn.Linear(input_dim, input_dim)
+        self.init = nn.Parameter(torch.zeros(1))
+        
+    def forward(self, x, condition):
+        batch_size = x.size(0)
+        # Linear projections
+        queries = self.query(x)
+        keys = self.key(condition)
+        values = self.value(condition)
+
+        # Reshape for multi-head attention
+        queries = queries.view(batch_size, -1, self.num_heads, queries.size(-1) // self.num_heads).transpose(1, 2)
+        keys = keys.view(batch_size, -1, self.num_heads, keys.size(-1) // self.num_heads).transpose(1, 2)
+        values = values.view(batch_size, -1, self.num_heads, values.size(-1) // self.num_heads).transpose(1, 2)
+
+        # Scaled dot-product attention
+        scores = torch.matmul(queries, keys.transpose(-2, -1)) / (keys.size(-1) ** 0.5)
+        attn_weights = F.softmax(scores, dim=-1)
+
+        attn_output = torch.matmul(attn_weights, values)
+        attn_output = attn_output.transpose(1, 2).contiguous().view(
+            batch_size, self.num_heads * (attn_output.size(-1)))
+        attn_output = attn_output * self.init
+
+        output = self.out(attn_output)
+        return output

@@ -50,6 +50,9 @@ def load_dataset(name: str, **kwargs) -> TrainValTest:
     elif name in ["fire", "flood", "quakes", "volcano"]:
         from .earth import get_earth_dataset
         return get_earth_dataset(name, **kwargs)
+    elif name in ["moons_split"]:
+        from .toy import get_split_moons
+        return get_split_moons(**kwargs)
     else:
         from .toy import make_toy_data
         return make_toy_data(name, **kwargs)

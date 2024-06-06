@@ -11,6 +11,54 @@ import pandas as pd
 from fff.data.manifold import ManifoldDataset
 from fff.data.utils import TrainValTest
 
+def get_split_moons(conditional: bool = False, path: str = None):
+    df = pd.read_pickle(f"data/{path}")
+    # read targets and conditions from dataframe
+    train_data, train_targets = (
+        torch.from_numpy(df["train_x"]),
+        torch.from_numpy(df["train_y"]),
+    )
+
+    center = torch.mean(train_targets)
+    std = torch.std(train_targets)
+
+    train_targets = (train_targets - center) / std
+    val_data = torch.from_numpy(df["val_x"])[:]
+    val_targets = ((torch.from_numpy(df["val_y"]) - center) / std)[:]
+    test_data = torch.from_numpy(df["test_x"])[:]
+    test_targets = ((torch.from_numpy(df["test_y"]) - center) / std)[:]
+
+    first_val_sample = val_data[0]
+    matches = torch.all(train_data == first_val_sample, dim=1)
+    is_in_train_set = torch.any(matches).item()
+    if is_in_train_set:
+        print("Warning: val datasets are corrupted!")
+    first_val_sample = test_data[0]
+    matches = torch.all(train_data == first_val_sample, dim=1)
+    is_in_train_set = torch.any(matches).item()
+    if is_in_train_set:
+        print("Warning: test datasets are corrupted!")
+    
+    # Collect tensors for TensorDatasets
+    train_data = [train_data]
+    val_data = [val_data]
+    test_data = [test_data]
+
+    # Conditions
+    if conditional:
+        train_data.append(train_targets)
+        val_data.append(val_targets)
+        test_data.append(test_targets)
+
+    return TensorDataset(
+        *train_data
+    ), TensorDataset(
+        *val_data
+    ), TensorDataset(
+        *test_data
+    ), (center, std)
+
+
 def get_saved_MOONS_dataset():
     """Returns a 2D dataset of two moons conditioned on distance and angle"""
     # load data from 2moons_conditional_data.pkl into pandas dataframe
@@ -48,7 +96,7 @@ def make_toy_data(kind: str, N_train=60_000, N_val=1_000, N_test=5_000, random_s
     if kind == "2moons":
         data, labels = make_moons(n_samples=N, random_state=random_state)
         if kwargs.pop("conditional", False):
-            conditions.append(one_hot(torch.from_numpy(labels)))
+            conditions.append(one_hot(torch.from_numpy(labels)).float())
         data = torch.Tensor(data)
     elif kind == "saved_moons":
         data, labels = get_saved_MOONS_dataset()

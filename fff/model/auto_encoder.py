@@ -7,6 +7,30 @@ from torch.nn import Module
 from fff.base import ModelHParams
 from fff.model.utils import make_dense
 
+class Identity(nn.Module):
+    hparams: ModelHParams
+
+    def __init__(self, hparams: dict | ModelHParams):
+        if not isinstance(hparams, ModelHParams):
+            hparams = ModelHParams(**hparams)
+
+        super().__init__()
+        self.hparams = hparams
+        self.model = self.build_model()
+
+    def encode(self, x, c):
+        return self.model.Id(torch.cat([x, c], -1))
+
+    def decode(self, z, c):
+        return self.model.Id(torch.cat([z, c], -1))
+
+    def build_model(self) -> nn.Module:
+        Id = nn.Identity()
+        modules = OrderedDict(
+            Id=Id
+        )
+
+        return torch.nn.Sequential(modules)
 
 class FullyConnectedNetworkHParams(ModelHParams):
     layer_spec: list
