@@ -1,24 +1,21 @@
 model: fff.FreeFormInjectiveFlow
+#accelerator: "cpu"
 
 noise: 0.01
-latent_distribution:
-  name: "normal"
 data_set:
-  name: mnist_split
+  name: mnist_ds
   root: data
   conditional: True
-  path: "16Mnist_AE_ext"
 
 loss_weights:
-  nll: 1
-  noisy_reconstruction: 10
+  noisy_reconstruction: 1000
+  #sqr_reconstruction: 10
+  kl: 1
   #z std: 1
-  #masked_reconstruction: 100
-  #cnew_reconstruction: 100
-  #z_sample_reconstruction: 100
-max_epochs: 30
-#warm_up_fiber: [25, 30]
+  #nll: 1
+max_epochs: 3000
 
+vae: True
 train_models: True
 models:
   - name: fff.model.ConvolutionalNeuralNetwork
@@ -32,8 +29,9 @@ models:
       - [8,4]
       - [4,4,2,1]
       - [1,3,2,1,1]
-  - name: fff.model.ResNet
-    latent_dim: 1
+  - name: fff.model.VarResNet
+    latent_dim: 64
+    dropout: 0.4
     layers_spec:
       - [512, 512]
       - [512, 512]
@@ -42,6 +40,7 @@ models:
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.001
+  lr: 0.0005
 
 batch_size: 512
+#load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
