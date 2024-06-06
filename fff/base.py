@@ -438,8 +438,10 @@ class FreeFormBase(Trainable):
 
     def _reconstruction_loss(self, a, b):
         #return (torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)) ** self.lamb - torch.log(self.lamb)
-        return (torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)) ** 0.5
-        #/ self.lamb + torch.log(self.lamb)
+        if self.vae:
+            return (torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)) / self.lamb + torch.log(self.lamb)
+        else:
+            return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1))
         #l = torch.nn.functional.binary_cross_entropy(a.reshape(a.shape[0],-1), b.reshape(a.shape[0],-1), reduction="sum")
         #return l.repeat(a.shape[0])
     
@@ -523,7 +525,7 @@ class FreeFormBase(Trainable):
                 loss_values.update(log_prob_result.regularizations)
             else:
                 loss_weights["nll"] = 0
-
+        
         # surrogate
         if not self.transform == "inn" and self.training and check_keys("nll"):
             warm_up = self.hparams.warm_up_epochs
