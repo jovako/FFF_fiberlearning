@@ -237,6 +237,7 @@ class CrossAttention(nn.Module):
         self.key = nn.Linear(condition_dim, input_dim)
         self.value = nn.Linear(condition_dim, input_dim)
         self.out = nn.Linear(input_dim, input_dim)
+        self.init = nn.Parameter(torch.zeros(1))
         
     def forward(self, x, condition):
         batch_size = x.size(0)
@@ -255,7 +256,9 @@ class CrossAttention(nn.Module):
         attn_weights = F.softmax(scores, dim=-1)
 
         attn_output = torch.matmul(attn_weights, values)
-        attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, self.num_heads * (attn_output.size(-1)))
+        attn_output = attn_output.transpose(1, 2).contiguous().view(
+            batch_size, self.num_heads * (attn_output.size(-1)))
+        attn_output = attn_output * self.init
 
         output = self.out(attn_output)
         return output

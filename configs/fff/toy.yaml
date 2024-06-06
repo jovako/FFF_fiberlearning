@@ -9,7 +9,7 @@ data_set:
   path: "fif_moons"
 
 noise: 0.
-betas_max: 0.1
+betas_max: 0.02
 
 loss_weights:
   diff_mse: 1
@@ -31,13 +31,13 @@ transform:
 
 lr_scheduler: "onecyclelr"
 
-batch_size: 512
+batch_size: 2048
 optimizer:
   name: adam
-  lr: 0.0001
+  lr: 0.004
   #weight_decay: 0.0001
 
-max_epochs: 300
+max_epochs: 10000
 
 num_workers: 1
 gradient_clip: 3.0

@@ -60,7 +60,7 @@ class DiffusionModel(nn.Module):
             conditional_x = x
             for layer in self.layers:
                 if isinstance(layer, CrossAttention):
-                    conditional_x = x + layer(conditional_x, condition)
+                    conditional_x = conditional_x + layer(conditional_x, condition)
                 else:
                     conditional_x = layer(conditional_x)
             conditional_output = self.fc_out(conditional_x)
@@ -69,13 +69,14 @@ class DiffusionModel(nn.Module):
             unconditional_x = x
             for layer in self.layers:
                 if isinstance(layer, CrossAttention):
-                    unconditional_x = x + layer(unconditional_x, torch.zeros_like(condition))
+                    unconditional_x = unconditional_x + layer(unconditional_x, torch.zeros_like(condition))
                 else:
                     unconditional_x = layer(unconditional_x)
             unconditional_output = self.fc_out(unconditional_x)
             
             # Classifier-free guidance
             output = unconditional_output + guidance_scale * (conditional_output - unconditional_output)
+            #output = conditional_output
         else:
             # Unconditional forward pass
             for layer in self.layers:

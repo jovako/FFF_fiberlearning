@@ -96,7 +96,7 @@ def make_toy_data(kind: str, N_train=60_000, N_val=1_000, N_test=5_000, random_s
     if kind == "2moons":
         data, labels = make_moons(n_samples=N, random_state=random_state)
         if kwargs.pop("conditional", False):
-            conditions.append(one_hot(torch.from_numpy(labels)))
+            conditions.append(one_hot(torch.from_numpy(labels)).float())
         data = torch.Tensor(data)
     elif kind == "saved_moons":
         data, labels = get_saved_MOONS_dataset()

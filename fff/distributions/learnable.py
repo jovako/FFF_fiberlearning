@@ -74,7 +74,7 @@ class DiffTransformedDistribution():
         
         self.sqrt_1malpha_cumprod = torch.sqrt(1 - self.alpha_cumprod)
 
-    def sample(self, shape, condition, guidance_scale=4.0):
+    def sample(self, shape, condition, guidance_scale=1.0):
         x = self.Dist.sample(shape)
         device = x.device
         num_steps = self.num_timesteps
