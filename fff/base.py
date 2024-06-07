@@ -50,6 +50,7 @@ class FreeFormBaseHParams(TrainableHParams):
     )
     skip_val_nll: bool | int = False
     exact_train_nll_every: int | None = None
+    cnew_every: int = 1
 
     warm_up_fiber: int | list = 0
     warm_up_epochs: int | list = 0
@@ -451,7 +452,7 @@ class FreeFormBase(Trainable):
 
     def _reconstruction_loss(self, a, b):
         #return (torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)) ** self.lamb - torch.log(self.lamb)
-        if self.vae:
+        if self.vae and not self.transform:
             return (torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)) / self.lamb + torch.log(self.lamb)
         else:
             return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1))
@@ -460,6 +461,9 @@ class FreeFormBase(Trainable):
     
     def _sqr_reconstruction_loss(self, a, b):
         return torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)
+
+    def _reduced_rec_loss(self, a, b):
+        return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1) / float(a.shape[-1]))
 
     def _l1_loss(self, a, b):
         #return torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)
@@ -679,8 +683,9 @@ class FreeFormBase(Trainable):
                 loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z1)
 
         # Cyclic consistency of latent code sampled from Gauss
-        if (not self.training or
-                check_keys("cnew_reconstruction", "z_sample_reconstruction")):
+        if ((not self.training or
+                check_keys("cnew_reconstruction", "z_sample_reconstruction")) and 
+                self.current_epoch % self.hparams.cnew_every == 0):
             warm_up = self.hparams.warm_up_fiber
             if isinstance(warm_up, int):
                 warm_up = warm_up, warm_up + 1
@@ -715,7 +720,7 @@ class FreeFormBase(Trainable):
                     cT = torch.empty(x_random.shape[0],0).to(x_random.device)
                     c1 = ((self.Teacher.encode(x_random, cT) - self.data_shift)
                           / self.data_scale)
-                    loss_values["cnew_reconstruction"] = self._reconstruction_loss(
+                    loss_values["cnew_reconstruction"] = self._reduced_rec_loss(
                         c_full, c1)
                 try:
                     # Sanity checks might fail for random data
