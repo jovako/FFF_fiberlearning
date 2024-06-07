@@ -2,17 +2,18 @@ model: fff.FreeFormInjectiveFlow
 
 noise: 0.
 betas_max: 0.02
+cnew_every: 10
 latent_distribution:
   name: "transformed_normal"
 data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "16Mnist_AE_ext"
+  path: "Mnist_Class"
 
 loss_weights:
   diff_mse: 1
-max_epochs: 10
+max_epochs: 1000
 #warm_up_epochs: [40, 60]
 #warm_up_fiber: [15, 100]
 
@@ -53,5 +54,5 @@ optimizer:
   lr: 0.001
 
 batch_size: 512
-load_models_path: "lightning_logs/VAE_do/version_1/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
 #load_transform_path: "lightning_logs/16vae_a10e/version_0/checkpoints/last.ckpt"

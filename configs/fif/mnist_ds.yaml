@@ -1,7 +1,7 @@
 model: fff.FreeFormInjectiveFlow
 #accelerator: "cpu"
 
-noise: 0.01
+noise: 0.05
 data_set:
   name: mnist_ds
   root: data
@@ -9,10 +9,11 @@ data_set:
 
 loss_weights:
   noisy_reconstruction: 100
+  z_reconstruction_encoder: 10
   #sqr_reconstruction: 10
   #z std: 1
   nll: 1
-max_epochs: 250
+max_epochs: 750
 
 train_models: True
 models:
@@ -34,7 +35,7 @@ models:
       - [512, 512]
       - [512, 512]
 
-        #lr_scheduler: "onecyclelr"
+lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
   lr: 0.001

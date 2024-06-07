@@ -7,7 +7,7 @@ data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "Mnist_Class_ext"
+  path: "Mnist_Class"
 
 loss_weights:
   nll: 1
@@ -16,7 +16,7 @@ loss_weights:
   #cnew_reconstruction: 1000
   #z_sample_reconstruction: 1
 mask_dims: 0
-max_epochs: 2
+max_epochs: 1000
 #warm_up_fiber: [35, 40]
 
 train_models: False
@@ -73,5 +73,5 @@ optimizer:
   lr: 0.002
 
 batch_size: 512
-load_models_path: "lightning_logs/VAE_do/version_0/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
 #load_transform_path: "lightning_logs/16vae_if2/version_0/checkpoints/last.ckpt"

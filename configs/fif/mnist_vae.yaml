@@ -8,12 +8,12 @@ data_set:
   conditional: False
 
 loss_weights:
-  noisy_reconstruction: 1000
+  noisy_reconstruction: 10000
   #sqr_reconstruction: 10
   kl: 1
   #z std: 1
   #nll: 1
-max_epochs: 3000
+max_epochs: 2000
 
 vae: True
 train_models: True
@@ -31,7 +31,7 @@ models:
       - [1,3,2,1,1]
   - name: fff.model.VarResNet
     latent_dim: 64
-    dropout: 0.4
+    dropout: 0.3
     layers_spec:
       - [512, 512]
       - [512, 512]
