@@ -193,7 +193,7 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
     print(train_data.shape)
     if val_dataset is None:
         if len(train_data) > 40000:
-            val_data_split = 10000
+            val_data_split = 1000
         else:
             val_data_split = len(train_data) // 6
         val_data = train_data[-val_data_split:]
