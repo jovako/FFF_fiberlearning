@@ -5,7 +5,7 @@ noise: 0.01
 data_set:
   name: mnist_ds
   root: data
-  conditional: True
+  conditional: False
 
 loss_weights:
   noisy_reconstruction: 1000
@@ -33,7 +33,6 @@ models:
     latent_dim: 64
     dropout: 0.4
     layers_spec:
-      - [512, 512]
       - [512, 512]
       - [512, 512]
 
