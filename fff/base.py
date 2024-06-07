@@ -583,7 +583,7 @@ class FreeFormBase(Trainable):
             if self.transform == "diffusion":
                 t = torch.randint(0, 1000, (z.size(0),), device=z.device).long()
                 z_diff, epsilon = self.diffuse(z, t, self.alphas_.to(z.device))
-            elif self.tansform:
+            elif self.transform:
                 z = z + torch.randn_like(z) * self.hparams.noise
             z_dense = z
         if x1 is None:
@@ -617,7 +617,8 @@ class FreeFormBase(Trainable):
                     z_coarse_dense = z_dense * latent_mask
                     z1 = self.transform_model.decode(z_coarse_dense, c_full) 
 
-        if self.transform and (not self.training or check_keys("latent_reconstruction")):
+        
+        if (self.transform and not self.transform=="diffusion") and (not self.training or check_keys("latent_reconstruction")):
             if z1 is None:
                 z_dense = self.transform_model.encode(z.detach(), c_full)
                 z1 = self.transform_model.decode(z_dense, c_full)
@@ -655,7 +656,7 @@ class FreeFormBase(Trainable):
         if not self.training or check_keys("masked_reconstruction"):
             latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
             latent_mask[:, 0] = 1
-            if self.transform:
+            if (self.transform and not self.transform=="diffusion"):
                 z_masked_dense = z_dense * latent_mask
                 z_masked = self.transform_model.decode(z_masked_dense, c_full) 
             else:
