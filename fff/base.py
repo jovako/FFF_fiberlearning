@@ -18,6 +18,7 @@ from fff.distributions.multivariate_student_t import MultivariateStudentT
 from fff.loss import nll_surrogate
 from fff.model.utils import TrainWallClock
 from fff.utils.jacobian import compute_jacobian
+from fff.utils.diffusion import make_betas
 
 class ModelHParams(HParams):
     data_dim: int
@@ -42,6 +43,7 @@ class FreeFormBaseHParams(TrainableHParams):
     train_transform: bool = True
     vae: bool = False
     betas_max: float = 0.2
+    beta_schedule: str = "linear"
 
     loss_weights: dict
     log_det_estimator: dict = dict(
@@ -106,7 +108,7 @@ class FreeFormBase(Trainable):
                 self.transform = "inn"
             elif self.hparams.transform.name == "fff.model.DiffusionModel":
                 self.transform = "diffusion"
-                self.betas = torch.linspace(1e-4, self.hparams.betas_max, 1000)
+                self.betas = make_betas(1000, self.hparams.betas_max, self.hparams.beta_schedule)
                 self.alphas_ = torch.cumprod((1 - self.betas), axis=0)
                 print(self.alphas_.shape)
                 self.sample_steps = torch.linspace(0, 1, 1000).flip(0)
