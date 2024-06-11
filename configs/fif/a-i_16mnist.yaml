@@ -7,16 +7,16 @@ data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "Mnist_Class"
+  path: "16Mnist_F3F"
 
 loss_weights:
   nll: 1
-  #latent_reconstruction: 1000
+  latent_reconstruction: 100
   #noisy_reconstruction: 100
-  #cnew_reconstruction: 1000
+  #cnew_reconstruction: 100
   #z_sample_reconstruction: 1
-mask_dims: 0
-max_epochs: 1000
+mask_dims: 3
+max_epochs: 100
 #warm_up_fiber: [35, 40]
 
 train_models: False
