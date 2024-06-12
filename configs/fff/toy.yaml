@@ -1,0 +1,43 @@
+model: fff.FreeFormFlow
+
+latent_distribution:
+  name: "transformed_normal"
+data_set:
+  name: moons_split
+  # num_simulations: ... must be specified in separate config file
+  conditional: True
+  path: "fif_moons"
+
+noise: 0.
+betas_max: 0.02
+
+loss_weights:
+  diff_mse: 1
+
+train_models: False
+train_transform: True
+models:
+  - name: fff.model.Identity
+transform:
+  name: fff.model.DiffusionModel
+  data_dim: 2
+  num_heads: 1
+  time_dim: 8
+  hidden_dim: 32
+  layers_spec:
+      - [64, 64]
+      - [64, 64]
+      - [64, 64]
+
+lr_scheduler: "onecyclelr"
+
+batch_size: 2048
+optimizer:
+  name: adam
+  lr: 0.004
+  #weight_decay: 0.0001
+
+max_epochs: 10000
+
+num_workers: 1
+gradient_clip: 3.0
