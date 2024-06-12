@@ -1,22 +1,22 @@
 model: fff.FreeFormInjectiveFlow
 
-noise: 0.
+noise: 0.01
 latent_distribution:
   name: "transformed_normal"
 data_set:
   name: mnist_split
   root: data
-  conditional: true
-  path: "16Mnist_AE"
+  conditional: True
+  path: "Mnist_Class_ext"
 
 loss_weights:
   nll: 1
   latent_reconstruction: 10
   #noisy_reconstruction: 100
   #masked_reconstruction: 1
-  #cnew_reconstruction: 1000
+  cnew_reconstruction: 100
   #z_sample_reconstruction: 1000
-max_epochs: 1000
+max_epochs: 100
 #warm_up_epochs: [15, 100]
 #warm_up_fiber: [15, 100]
 
@@ -43,15 +43,17 @@ models:
 transform:
   name: fff.model.ResNet
   data_dim: *latent_dim
-  latent_dim: 10
+  latent_dim: 63
   layers_spec:
+    - [512, 512]
+    - [512, 512]
     - [512, 512]
 
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.001
+  lr: 0.002
 
 batch_size: 512
-load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/VAE2/version_2/checkpoints/last.ckpt"
 #load_transform_path: "lightning_logs/16aznc_fff3/version_0/checkpoints/last.ckpt"

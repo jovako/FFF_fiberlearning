@@ -7,7 +7,6 @@ GTs/
 # data
 AE1_data
 Mnist_AE_data
-data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

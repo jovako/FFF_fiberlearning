@@ -22,10 +22,10 @@ class FreeFormInjectiveFlow(FreeFormBase):
             hparams = FreeFormInjectiveFlowHParams(**hparams)
         super().__init__(hparams)
         if hparams["data_set"]["name"]=="mnist_split":
-            if hparams["data_set"]["path"]=="Mnist_Class_data":
+            if hparams["data_set"]["path"] in ["Mnist_Class", "Mnist_Class_ext"]:
                 print("Teacher is Classifier")
                 Classifier = FreeFormInjectiveFlow.load_from_checkpoint(
-                        "lightning_logs/classifier/version_4/checkpoints/last.ckpt"
+                        "GTs/16Mnist_Class/checkpoints/last.ckpt"
                 )
                 self.Teacher = Truncate(Classifier)
             else:
@@ -42,9 +42,13 @@ class FreeFormInjectiveFlow(FreeFormBase):
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
                             "GTs/28Mnist_AE/checkpoints/last.ckpt"
                     )
-                elif hparams["data_set"]["path"] in ["16Mnist_AE", "16noisy_AE"]:
+                elif hparams["data_set"]["path"] in ["16Mnist_AE", "16noisy_AE", "16Mnist_AE_ext"]:
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
                             "GTs/16Mnist_AE/checkpoints/last.ckpt"
+                    )
+                elif hparams["data_set"]["path"] in ["16Mnist_F3F"]:
+                    self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
+                            "GTs/16Mnist_F3F/checkpoints/best.ckpt"
                     )
                 elif hparams["data_set"]["path"]=="28Mnist_AE5":
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(

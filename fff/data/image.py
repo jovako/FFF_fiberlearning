@@ -43,10 +43,11 @@ def get_split_mnist(root: str, digit: int = None, conditional: bool = False, pat
     std = torch.std(train_targets)
 
     train_targets = (train_targets - center) / std
-    val_data = torch.from_numpy(df["test_x"])[-2000:]
-    val_targets = ((torch.from_numpy(df["val_y"]) - center) / std)[-2000:]
-    test_data = torch.from_numpy(df["test_x"])[:-2000]
-    test_targets = ((torch.from_numpy(df["test_y"]) - center) / std)[:-2000]
+    val_data = torch.from_numpy(df["val_x"])[:5000]
+    print(val_data.shape)
+    val_targets = ((torch.from_numpy(df["val_y"]) - center) / std)[:5000]
+    test_data = torch.from_numpy(df["test_x"])
+    test_targets = ((torch.from_numpy(df["test_y"]) - center) / std)
     
     # Collect tensors for TensorDatasets
     train_data = [train_data]
@@ -184,7 +185,7 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
     # Data is (N, H, W, C)
     #train_data = train_dataset.data
     batch_size = train_dataset.data.shape[0]
-    dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+    dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size)
     train_data, _ = next(iter(dataloader))
     batch_size = test_dataset.data.shape[0]
     dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size)
@@ -196,8 +197,8 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
             val_data_split = 10000
         else:
             val_data_split = len(train_data) // 6
-        train_data = train_data[:-val_data_split]
         val_data = train_data[-val_data_split:]
+        train_data = train_data[:-val_data_split]
     else:
         val_data = val_dataset.data
     #test_data = test_dataset.data
@@ -231,8 +232,8 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
     if label is not None or conditional:
         train_targets = train_dataset.targets
         if val_dataset is None:
-            train_targets = train_targets[:-val_data_split]
             val_targets = train_targets[-val_data_split:]
+            train_targets = train_targets[:-val_data_split]
         else:
             val_targets = val_dataset.targets
         test_targets = test_dataset.targets

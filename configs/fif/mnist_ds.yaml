@@ -1,17 +1,19 @@
 model: fff.FreeFormInjectiveFlow
 #accelerator: "cpu"
 
-noise: 0.01
+noise: 0.05
 data_set:
   name: mnist_ds
   root: data
+  conditional: False
 
 loss_weights:
-  noisy_reconstruction: 1000
-  kl: 1
+  noisy_reconstruction: 100
+  z_reconstruction_encoder: 10
+  #sqr_reconstruction: 10
   #z std: 1
-  #nll: 1
-max_epochs: 3
+  nll: 1
+max_epochs: 100
 
 train_models: True
 models:
@@ -26,16 +28,18 @@ models:
       - [8,4]
       - [4,4,2,1]
       - [1,3,2,1,1]
-  - name: fff.model.VarResNet
-    latent_dim: 64
+  - name: fff.model.ResNet
+    latent_dim: 5
+    dropout: 0.5
     layers_spec:
-      - [512, 512]
-      - [512, 512]
+      - [32, 32]
+      - [32, 32]
 
-lr_scheduler: "onecyclelr"
+        #lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.
+  lr: 0.0005
+  weight_decay: 0.01
 
 batch_size: 512
-load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
+#load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"

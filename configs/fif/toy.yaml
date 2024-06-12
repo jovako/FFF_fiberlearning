@@ -1,12 +1,13 @@
 model: fff.FreeFormInjectiveFlow
 
 data_set:
-  name: sine
+  name: 2moons
 
 noise: 0.1  # This is varied
 
 lr_scheduler: "onecyclelr"
 
+train_models: True
 loss_weights:
   nll: 1
   noisy_reconstruction: 10  # This is varied in the paper
@@ -15,16 +16,14 @@ models:
   - name: fff.model.ResNet
     latent_dim: 1
     layers_spec:
-      - [256, 256]
-      - [256, 256]
-      - [256, 256]
-      - [256, 256]
+      - [512, 512, 512]
 
-batch_size: 128
+lr_scheduler: "onecyclelr"
+batch_size: 1024
 optimizer:
   name: adam
-  lr: 0.001
-max_epochs: 50
+  lr: 0.0001
+max_epochs: 200
 
-accelerator: "cpu"
-num_workers: 0
+#accelerator: "cpu"
+#num_workers: 0

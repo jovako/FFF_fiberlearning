@@ -1,6 +1,7 @@
 from math import prod
 
 from .base import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult
+from .fif import FreeFormInjectiveFlow
 
 
 class FreeFormFlowHParams(FreeFormBaseHParams):
@@ -18,6 +19,10 @@ class FreeFormFlow(FreeFormBase):
         if not isinstance(hparams, FreeFormFlowHParams):
             hparams = FreeFormFlowHParams(**hparams)
         super().__init__(hparams)
+        if hparams["data_set"]["path"]=="fif_moons":
+            self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
+                    "GTs/moons_FIF/checkpoints/last.ckpt"
+            )
         if self.data_dim != self.latent_dim:
             raise ValueError("Data and latent dimension must be equal for a FreeFormFlow.")
 

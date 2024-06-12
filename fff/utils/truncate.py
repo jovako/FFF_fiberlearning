@@ -24,7 +24,7 @@ class Truncate(torch.nn.Module):
                     )[1].children()
                     )[0].children()
                     )[0].children()
-                    )[:-2]
+                    )[:]
                 self.features = torch.nn.Sequential(
                     enc_conv, *enc_res
                 )
