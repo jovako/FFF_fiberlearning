@@ -55,5 +55,5 @@ optimizer:
   lr: 0.002
 
 batch_size: 512
-load_models_path: "lightning_logs/VAE2/version_2/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
 #load_transform_path: "lightning_logs/16aznc_fff3/version_0/checkpoints/last.ckpt"
