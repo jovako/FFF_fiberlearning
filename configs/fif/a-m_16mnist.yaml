@@ -7,17 +7,17 @@ data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "16Mnist_AE"
+  path: "16Mnist_F5F"
 
 loss_weights:
   nll: 1
-  coarse_supervised: 1000
+  coarse_supervised: 100
   #latent_reconstruction: 100
   #noisy_reconstruction: 100
-  #cnew_reconstruction: 1000
+  #cnew_reconstruction: 100
   #z_sample_reconstruction: 1
   #mask_dims: 32
-max_epochs: 1000
+max_epochs: 100
 #warm_up_fiber: [35, 40]
 
 train_models: False
@@ -47,26 +47,26 @@ transform:
   inn_spec:
       #- ["PermuteRandom", {}, 0]
       #- ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
-    - ["AllInOneBlock", {}, [256]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
 
 lr_scheduler: "onecyclelr"
 optimizer:

@@ -7,15 +7,14 @@ data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "16Mnist_F3F"
+  path: "16Mnist_F5F"
 
 loss_weights:
   nll: 1
-  latent_reconstruction: 100
-  #noisy_reconstruction: 100
-  #cnew_reconstruction: 100
+  #latent_reconstruction: 10
+  #cnew_reconstruction: 10
   #z_sample_reconstruction: 1
-mask_dims: 3
+  #mask_dims: 3
 max_epochs: 100
 #warm_up_fiber: [35, 40]
 
@@ -46,6 +45,11 @@ transform:
   inn_spec:
       #- ["PermuteRandom", {}, 0]
       #- ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
     - ["AllInOneBlock", {}, [512]]
     - ["AllInOneBlock", {}, [512]]
     - ["AllInOneBlock", {}, [512]]

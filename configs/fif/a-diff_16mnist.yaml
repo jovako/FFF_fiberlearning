@@ -10,7 +10,7 @@ data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "Mnist_Class_ext"
+  path: "16Mnist_F5F"
 
 loss_weights:
   diff_mse: 1
@@ -52,7 +52,7 @@ transform:
 lr_scheduler:
   name: "onecyclelr"
   kwargs:
-    pct_start: 0.02
+    pct_start: 0.05
     
 optimizer:
   name: adam
