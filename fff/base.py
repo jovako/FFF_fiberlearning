@@ -119,10 +119,8 @@ class FreeFormBase(Trainable):
 
         # Build model
         self.vae = self.hparams.vae
-        """
         if self.hparams.models[1]["name"] == "fff.model.VarResNet":
             self.vae = True
-        """
         self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
         if self.hparams.load_models_path:
             print("load models checkpoint")
@@ -673,7 +671,7 @@ class FreeFormBase(Trainable):
         # Cyclic consistency of latent code -- gradient only to encoder
         if not self.training or check_keys("z_reconstruction_encoder"):
             # Not reusing x1 from above, as it does not detach z
-            if self.transform == "fif":
+            if self.transform in ["fif"]:
                 z1_detached = z1.detach()
                 z1_dense = self.transform_model.encode(z1_detached, c_full)
                 loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z_dense, z1_dense)

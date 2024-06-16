@@ -7,11 +7,11 @@ data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "16Mnist_F5F"
+  path: "Mnist_Class_ext"
 
 loss_weights:
-  nll: 1
-  coarse_supervised: 100
+  nll: 10
+  coarse_supervised: 1
   #latent_reconstruction: 100
   #noisy_reconstruction: 100
   #cnew_reconstruction: 100

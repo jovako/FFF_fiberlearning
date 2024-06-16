@@ -10,7 +10,7 @@ data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "16Mnist_F5F"
+  path: "Mnist_Class_ext"
 
 loss_weights:
   diff_mse: 1
