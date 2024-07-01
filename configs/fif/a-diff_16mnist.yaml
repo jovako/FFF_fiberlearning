@@ -10,11 +10,11 @@ data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "Mnist_Class_ext"
+  path: "16Mnist_F3F"
 
 loss_weights:
   diff_mse: 1
-max_epochs: 400
+max_epochs: 4
 #warm_up_epochs: [40, 60]
 #warm_up_fiber: [15, 100]
 
@@ -56,8 +56,8 @@ lr_scheduler:
     
 optimizer:
   name: adam
-  lr: 0.001
+  lr: 0.
 
 batch_size: 512
 load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
-#load_transform_path: "lightning_logs/16vae_a10e/version_0/checkpoints/last.ckpt"
+load_transform_path: "lightning_logs/3_d/version_0/checkpoints/last.ckpt"

@@ -579,6 +579,7 @@ class FreeFormBase(Trainable):
                 loss_values.update(log_prob_result.regularizations)
 
 
+
         # In case they were skipped above
         if z is None:
             z = self.encode(x, c)
@@ -596,10 +597,10 @@ class FreeFormBase(Trainable):
             x1 = self.decode(z.detach(),c)
 
 
+
         if check_keys("diff_mse") and self.transform == "diffusion":
             epsilon_pred = self.transform_model(z_diff.detach(), t, c_full)
             loss_values["diff_mse"] = self._reconstruction_loss(epsilon_pred, epsilon.detach())
-            #loss_values["diff_mse"] = self._reconstruction_loss(epsilon_pred, torch.ones_like(epsilon_pred)*10)
 
         if check_keys("kl") and self.vae:
             loss_values["kl"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
@@ -716,7 +717,7 @@ class FreeFormBase(Trainable):
                 else:
                     c_random = c
                 x_random = self.decode(z_random, c_random)
-                if self.hparams["data_set"]["name"].endswith("_split"):
+                if self.hparams["data_set"]["name"].endswith("_split0"):
                     cT = torch.empty(x_random.shape[0],0).to(x_random.device)
                     c1 = ((self.Teacher.encode(x_random, cT) - self.data_shift)
                           / self.data_scale)

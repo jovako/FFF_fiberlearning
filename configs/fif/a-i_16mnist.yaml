@@ -1,22 +1,22 @@
 model: fff.FreeFormInjectiveFlow
 
-noise: 0.01
+noise: 0.05
 latent_distribution:
   name: "transformed_normal"
 data_set:
   name: mnist_split
   root: data
-  conditional: true
-  path: "Mnist_Class_ext"
+  conditional: False
+  path: "16Mnist_F3F"
 
 loss_weights:
   nll: 1
-  latent_reconstruction: 10
-  cnew_reconstruction: 10
+  #latent_reconstruction: 10
+  #cnew_reconstruction: 10
   #z_sample_reconstruction: 1
-mask_dims: 10
-max_epochs: 100
-warm_up_fiber: [35, 40]
+  #mask_dims: 10
+max_epochs: 20
+#warm_up_fiber: [35, 40]
 
 train_models: False
 train_transform: True
