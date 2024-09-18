@@ -21,7 +21,7 @@ class FreeFormInjectiveFlow(FreeFormBase):
         if not isinstance(hparams, FreeFormInjectiveFlowHParams):
             hparams = FreeFormInjectiveFlowHParams(**hparams)
         super().__init__(hparams)
-        if hparams["data_set"]["name"]=="mnist_split":
+        if hparams["data_set"]["name"] in ["mnist_split", "moons_split"]:
             if hparams["data_set"]["path"] in ["Mnist_Class", "Mnist_Class_ext", "do_Mnist_Clext"]:
                 print("Teacher is Classifier")
                 Classifier = FreeFormInjectiveFlow.load_from_checkpoint(
@@ -30,6 +30,10 @@ class FreeFormInjectiveFlow(FreeFormBase):
                 self.Teacher = Truncate(Classifier)
             else:
                 print("Teacher is Autoencoder")
+                if hparams["data_set"]["path"]=="fif_moons":
+                    self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
+                            "GTs/moons_FIF/checkpoints/last.ckpt"
+                    )
                 if hparams["data_set"]["path"]=="Mnist_AE_5":
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
                             "GTs/AE5/checkpoints/last.ckpt"
@@ -42,6 +46,10 @@ class FreeFormInjectiveFlow(FreeFormBase):
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
                             "GTs/28Mnist_AE/checkpoints/last.ckpt"
                     )
+                elif hparams["data_set"]["path"] in ["16Mnist_F16F"]:
+                    self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
+                            "GTs/16Mnist_F16F/checkpoints/last.ckpt"
+                    )
                 elif hparams["data_set"]["path"] in ["16Mnist_AE", "16noisy_AE", "16Mnist_AE_ext"]:
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
                             "GTs/16Mnist_AE/checkpoints/last.ckpt"
@@ -53,6 +61,10 @@ class FreeFormInjectiveFlow(FreeFormBase):
                 elif hparams["data_set"]["path"] in ["16Mnist_F5F"]:
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
                             "GTs/16Mnist_F5F/checkpoints/last.ckpt"
+                    )
+                elif hparams["data_set"]["path"] in ["16Mnist_F5F_4"]:
+                    self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
+                            "GTs/16Mnist_F5F_4/checkpoints/last.ckpt"
                     )
                 elif hparams["data_set"]["path"]=="28Mnist_AE5":
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(

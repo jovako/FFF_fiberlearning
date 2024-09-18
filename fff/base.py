@@ -119,8 +119,11 @@ class FreeFormBase(Trainable):
 
         # Build model
         self.vae = self.hparams.vae
-        if self.hparams.models[1]["name"] == "fff.model.VarResNet":
-            self.vae = True
+        try:
+            if self.hparams.models[1]["name"] == "fff.model.VarResNet":
+                self.vae = True
+        except: 
+            self.vae = False
         self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
         if self.hparams.load_models_path:
             print("load models checkpoint")
@@ -683,7 +686,7 @@ class FreeFormBase(Trainable):
                     z1 = z1[0]
                 loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z1)
 
-        # Cyclic consistency of latent code sampled from Gauss
+        # Cyclic consistency of latent code sampled from Gauss and fiber loss
         if ((not self.training or
                 check_keys("cnew_reconstruction", "z_sample_reconstruction")) and 
                 self.current_epoch % self.hparams.cnew_every == 0):
@@ -717,7 +720,7 @@ class FreeFormBase(Trainable):
                 else:
                     c_random = c
                 x_random = self.decode(z_random, c_random)
-                if self.hparams["data_set"]["name"].endswith("_split0"):
+                if self.hparams["data_set"]["name"].endswith("_split"):
                     cT = torch.empty(x_random.shape[0],0).to(x_random.device)
                     c1 = ((self.Teacher.encode(x_random, cT) - self.data_shift)
                           / self.data_scale)
