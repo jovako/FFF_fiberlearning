@@ -101,10 +101,13 @@ class FreeFormBase(Trainable):
             else:
                 self._data_cond_dim = data_sample[1].shape[0]
 
+        self.teacher_normal = torch.distributions.normal.Normal(
+            torch.zeros(self._data_cond_dim), torch.eye(self._data_cond_dim)
+            )
+
         #TODO Make it nicer!
         if self.hparams.transform:
-            if (self.hparams.transform.name == "fff.model.InjectiveFlow" or
-                self.hparams.transform.name == "fff.model.MultilevelFlow"):
+            if (self.hparams.transform.name in ["fff.model.InjectiveFlow", "fff.model.MultilevelFlow"]):
                 self.transform = "inn"
             elif self.hparams.transform.name == "fff.model.DiffusionModel":
                 self.transform = "diffusion"
@@ -453,6 +456,9 @@ class FreeFormBase(Trainable):
             out.z, out.x1, latent_prob + volume_change, out.regularizations
         )
 
+    def _fiber_loss(self, a, b):
+        return torch.abs(teacher_normal.cdf(a) - teacher_normal.cdf(b))
+
     def _reconstruction_loss(self, a, b):
         #return (torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)) ** self.lamb - torch.log(self.lamb)
         if self.vae and not self.transform:
@@ -724,7 +730,7 @@ class FreeFormBase(Trainable):
                     cT = torch.empty(x_random.shape[0],0).to(x_random.device)
                     c1 = ((self.Teacher.encode(x_random, cT) - self.data_shift)
                           / self.data_scale)
-                    loss_values["cnew_reconstruction"] = self._reduced_rec_loss(
+                    loss_values["cnew_reconstruction"] = self._fiber_loss(
                         c_full, c1)
                 try:
                     # Sanity checks might fail for random data
