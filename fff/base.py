@@ -457,7 +457,9 @@ class FreeFormBase(Trainable):
         )
 
     def _fiber_loss(self, a, b):
-        return torch.abs(teacher_normal.cdf(a) - teacher_normal.cdf(b))
+        fl =  torch.squeeze(torch.abs(self.teacher_normal.cdf(a) - self.teacher_normal.cdf(b)))
+        print(fl.shape)
+        return fl
 
     def _reconstruction_loss(self, a, b):
         #return (torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)) ** self.lamb - torch.log(self.lamb)
