@@ -19,10 +19,11 @@ class Identity(nn.Module):
         self.model = self.build_model()
 
     def encode(self, x, c):
-        return self.model.Id(torch.cat([x, c], -1))
+        #return self.model.Id(torch.cat([x, c], -1))
+        return self.model.Id(x)
 
     def decode(self, z, c):
-        return self.model.Id(torch.cat([z, c], -1))
+        return self.model.Id(x)
 
     def build_model(self) -> nn.Module:
         Id = nn.Identity()

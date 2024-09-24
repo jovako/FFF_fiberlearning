@@ -50,7 +50,6 @@ class TransformedDistribution():
             log_prob = self.Dist.log_prob(z_details)
         else:
             log_prob = self.Dist.log_prob(z_dense)
-
         return log_prob, jac, z_dense
         
 

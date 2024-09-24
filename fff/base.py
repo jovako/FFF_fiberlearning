@@ -730,7 +730,7 @@ class FreeFormBase(Trainable):
                     cT = torch.empty(x_random.shape[0],0).to(x_random.device)
                     c1 = ((self.Teacher.encode(x_random, cT) - self.data_shift)
                           / self.data_scale)
-                    loss_values["cnew_reconstruction"] = self._fiber_loss(
+                    loss_values["cnew_reconstruction"] = self._reconstruction_loss(
                         c_full, c1)
                 try:
                     # Sanity checks might fail for random data
@@ -953,6 +953,7 @@ def build_model(models, data_dim: int, cond_dim: int):
         model_spec["data_dim"] = data_dim
         model_spec["cond_dim"] = cond_dim
         if model_spec.get("latent_dim", "data") == "data":
+            print(module_name, data_dim)
             model_spec["latent_dim"] = data_dim
         model.append(
             getattr(import_module(module_name), class_name)(model_spec)
