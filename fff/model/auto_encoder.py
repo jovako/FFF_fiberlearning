@@ -23,7 +23,7 @@ class Identity(nn.Module):
         return self.model.Id(x)
 
     def decode(self, z, c):
-        return self.model.Id(x)
+        return self.model.Id(z)
 
     def build_model(self) -> nn.Module:
         Id = nn.Identity()
