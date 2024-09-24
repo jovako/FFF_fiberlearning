@@ -18,6 +18,7 @@ train_models: True
 models:
   - name: fff.model.ResNet
     latent_dim: 2
+    hidden_dim: 32
     layers_spec:
       - [256, 256]
       - [256, 256]

@@ -10,6 +10,7 @@ data_set:
 
 noise: 0.
 betas_max: 0.02
+cnew_every: 25
 
 loss_weights:
   diff_mse: 1
@@ -23,21 +24,23 @@ transform:
   data_dim: 2
   num_heads: 1
   time_dim: 8
-  hidden_dim: 32
+  hidden_dim: 3
   layers_spec:
-      - [64, 64]
-      - [64, 64]
-      - [64, 64]
+      - [256, 256]
+      - [256, 256]
+      - [256, 256]
+      - [256, 256]
 
 lr_scheduler: "onecyclelr"
 
-batch_size: 2048
+batch_size: 128
 optimizer:
   name: adam
-  lr: 0.004
+  lr: 0.002
   #weight_decay: 0.0001
 
-max_epochs: 10000
+max_epochs: 200
 
-num_workers: 1
+num_workers: 4
 gradient_clip: 3.0
+accelerator: "cpu"
