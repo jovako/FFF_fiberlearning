@@ -8,7 +8,7 @@ data_set:
   conditional: True
   path: "fif_moons"
 
-noise: 0.05
+noise: 0.
 
 loss_weights:
   nll: 1
@@ -23,36 +23,26 @@ transform:
   latent_dim: 2
   inn_spec:
     - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [512]]
+    - ["RationalQuadraticSpline", {"bins": 8}, [256, 256]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [256, 256]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [256, 256]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8}, [256, 256]]
       #- ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [256]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [512]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [512]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [512]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [512]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [512]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [512]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [512]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [512]]
     - ["PermuteRandom", {}, 0]
 
 lr_scheduler: "onecyclelr"
 
-batch_size: 1024
+batch_size: 128
 optimizer:
   name: adam
-  lr: 0.0005
+  lr: 0.00004
   #weight_decay: 0.0001
 
-max_epochs: 200
+max_epochs: 1000
 
 num_workers: 4
 gradient_clip: 3.0
-accelerator: "gpu"
+accelerator: "cpu"
