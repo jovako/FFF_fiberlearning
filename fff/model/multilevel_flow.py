@@ -41,8 +41,10 @@ class MultilevelFlow(nn.Module):
     def encode(self, x, c):
         #global wavelet
         if self.hparams.ssf:
-            x = x, c
-        out0, jac0 = self.wavelet_inn(x, jac=True, rev=False)
+            out0, jac0 = self.wavelet_inn(x, jac=True, rev=False)
+        else:
+            out0, jac0 = self.wavelet_inn(x, c, jac=True, rev=False)
+
         _out0_details = out0[:, :-self.hparams.cond_dim]
         _out0_coarse = out0[:, -self.hparams.cond_dim:]
         if self.hparams.ssf:
@@ -71,11 +73,12 @@ class MultilevelFlow(nn.Module):
             out_c = self.cwavelet_inn(c, jac=False, rev=True)[0]
             out_d = self.details_inn(_details_in, [c], jac=False, rev=True)[0]
             in0 = torch.cat([out_d, out_c], dim=1)
+            out = self.wavelet_inn(in0, jac=False, rev=True)[0]
         else:
             out_c = u[:, self.details_dim:]
             out_d = self.details_inn(_details_in, [out_c], jac=False, rev=True)[0]
-            in0 = torch.cat([out_d, out_c], dim=1), c
-        out = self.wavelet_inn(in0, jac=False, rev=True)[0]
+            in0 = torch.cat([out_d, out_c], dim=1)
+            out = self.wavelet_inn(in0, c, jac=False, rev=True)[0]
         return out
 
     #def decode(self, z, c=None):

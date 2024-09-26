@@ -40,7 +40,7 @@ optimizer:
   lr: 0.00004
   #weight_decay: 0.0001
 
-max_epochs: 1000
+max_epochs: 1
 
 num_workers: 4
 gradient_clip: 3.0
