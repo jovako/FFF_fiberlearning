@@ -107,7 +107,7 @@ class FreeFormBase(Trainable):
 
         #TODO Make it nicer!
         if self.hparams.transform:
-            if (self.hparams.transform.name in ["fff.model.InjectiveFlow", "fff.model.MultilevelFlow"]):
+            if (self.hparams.transform.name in ["fff.model.InjectiveFlow", "fff.model.MultilevelFlow", "fff.model.DenoisingFlow"]):
                 self.transform = "inn"
             elif self.hparams.transform.name == "fff.model.DiffusionModel":
                 self.transform = "diffusion"

@@ -39,10 +39,10 @@ lr_scheduler: "onecyclelr"
 batch_size: 128
 optimizer:
   name: adam
-  lr: 0.00004
+  lr: 0.0002
   #weight_decay: 0.0001
 
-max_epochs: 1000
+max_epochs: 100
 
 num_workers: 4
 gradient_clip: 3.0
