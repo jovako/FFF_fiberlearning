@@ -97,8 +97,9 @@ def make_inn(inn_spec, *data_dim, cond_dim=0, zero_init=True, cond=0):
     inn = FrEIA.framework.SequenceINN(*data_dim)
     for inn_layer in inn_spec:
         module_name, module_args, subnet_widths = inn_layer
-        if data_dim == 1:
-            module_name = "ElementwiseQuadraticSpline"
+        if (module_name == "RationalQuadraticSpline" and data_dim[0] == 1):
+            print(data_dim, cond_dim)
+            module_name = "ElementwiseRationalQuadraticSpline"
         module_class = getattr(FrEIA.modules, module_name)
         extra_module_args = dict()
         if "subnet_constructor" not in module_args and module_name!="PermuteRandom":

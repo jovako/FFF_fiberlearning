@@ -3,6 +3,7 @@ from .conv_auto_encoder import ConvolutionalNeuralNetwork, ConvolutionalNeuralNe
 from .var_res_net import VarResNet
 from .injective_flow import InjectiveFlow, InjectiveFlowHParams
 from .multilevel_flow import MultilevelFlow, MultilevelFlowHParams
+from .denoising_flow import DenoisingFlow, DenoisingFlowHParams
 from .res_net import ResNet, ResNetHParams
 from .diffusion import DiffusionModel, DiffHParams
 from .en_graph import ENGNN, ENGNNH, ENGNNHParams
