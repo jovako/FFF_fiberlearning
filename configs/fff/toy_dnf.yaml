@@ -8,8 +8,7 @@ data_set:
   conditional: True
   path: "fif_moons"
 
-noise: 0.
-  #cnew_every: 2
+noise: 0.01
 
 loss_weights:
   nll: 1
@@ -19,14 +18,13 @@ train_transform: True
 models:
   - name: fff.model.Identity
 transform:
-  name: fff.model.InjectiveFlow
+  name: fff.model.MultilevelFlow
+  ssf: False
   data_dim: 2
   latent_dim: 2
   inn_spec:
     - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [256, 256]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [256, 256]]
+    - ["RationalQuadraticSpline", {"bins": 8}, [128, 256]]
     - ["PermuteRandom", {}, 0]
     - ["RationalQuadraticSpline", {"bins": 8}, [256, 256]]
     - ["PermuteRandom", {}, 0]
@@ -39,7 +37,7 @@ lr_scheduler: "onecyclelr"
 batch_size: 128
 optimizer:
   name: adam
-  lr: 0.00004
+  lr: 0.0001
   #weight_decay: 0.0001
 
 max_epochs: 1000
