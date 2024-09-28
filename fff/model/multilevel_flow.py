@@ -46,9 +46,8 @@ class MultilevelFlow(nn.Module):
                 coarse, jac_coarse = self.coarse_inn(c_hat, jac=True, rev=False)
                 jacs = [jac0, jac_details, jac_c, jac_coarse]
             else:
-                c_hat, jac_c = self.cwavelet_inn(_out0_coarse, jac=True, rev=False)
                 jacs = [jac0, jac_c]
-                details = _out_details
+                details = _out0_details
                 coarse = c_hat
         elif self.hparams.phase == 2:
             with torch.no_grad():

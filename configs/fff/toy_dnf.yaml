@@ -12,8 +12,8 @@ data_set:
 noise: 0.
 
 loss_weights:
-  nll: 10
-  latent_reconstruction: 1
+  nll: 1
+  latent_reconstruction: 100
 mask_dims: 1
 
 train_models: False
@@ -26,11 +26,11 @@ transform:
   latent_dim: 2
   inn_spec:
     - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [32, 32]]
+    - ["RationalQuadraticSpline", {"bins": 8}, [128, 256]]
     - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [32, 32]]
+    - ["RationalQuadraticSpline", {"bins": 8}, [256, 256]]
     - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [32, 32]]
+    - ["RationalQuadraticSpline", {"bins": 8}, [256, 256]]
       #- ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [256]]
     - ["PermuteRandom", {}, 0]
 
@@ -42,7 +42,7 @@ optimizer:
   lr: 0.0004
   #weight_decay: 0.0001
 
-max_epochs: 100
+max_epochs: 500
 
 num_workers: 4
 gradient_clip: 3.0

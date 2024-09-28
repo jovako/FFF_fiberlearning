@@ -616,10 +616,13 @@ class FreeFormBase(Trainable):
         if check_keys("kl") and self.vae:
             loss_values["kl"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
 
-        if (not self.training or check_keys("nll")) and self.transform == "inn":
+        if (not self.training or check_keys("nll") or check_keys("coarse_supervised")) and self.transform == "inn":
             z_detach = z.detach()
-            log_prob, log_det, z_dense = self._latent_log_prob(z_detach, c_full)
-            loss_values["nll"] = -(log_prob + log_det)
+            if (not check_keys("nll") and check_keys("coarse_supervised")):
+                z_dense, _ = self.transform_model.encode(z_detach, c_full)
+            else:
+                log_prob, log_det, z_dense = self._latent_log_prob(z_detach, c_full)
+                loss_values["nll"] = -(log_prob + log_det)
             if isinstance(z_dense, tuple):
                 z_dense, z_coarse = z_dense
                 if check_keys("coarse_supervised"):
@@ -652,7 +655,8 @@ class FreeFormBase(Trainable):
             metrics["z std"] = torch.std(z_marginal)
 
         if not self.training or check_keys("z std"):
-            std = torch.mean(torch.abs(torch.std(z_dense, dim=0) - 1))
+            z_details = z_dense[:, :-1]
+            std = torch.mean(torch.abs(torch.std(z_details, dim=0) - 1))
             loss_values["z std"] = torch.ones_like(x[:,0]) * std
 
         # Classification
