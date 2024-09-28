@@ -11,7 +11,7 @@ import pandas as pd
 from fff.data.manifold import ManifoldDataset
 from fff.data.utils import TrainValTest
 
-def get_split_moons(conditional: bool = False, path: str = None):
+def get_split_moons(conditional: bool = False, path: str = None, fix_noise: float = None):
     df = pd.read_pickle(f"data/{path}")
     # read targets and conditions from dataframe
     train_data, train_targets = (
@@ -39,6 +39,13 @@ def get_split_moons(conditional: bool = False, path: str = None):
     if is_in_train_set:
         print("Warning: test datasets are corrupted!")
     
+    # Add fix noise to data
+    if fix_noise is not None:
+        print("add fixed noise")
+        train_data = train_data + torch.randn_like(train_data) * fix_noise
+        val_data = val_data + torch.randn_like(val_data) * fix_noise
+        test_data = test_data + torch.randn_like(test_data) * fix_noise
+
     # Collect tensors for TensorDatasets
     train_data = [train_data]
     val_data = [val_data]
