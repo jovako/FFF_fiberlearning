@@ -101,10 +101,6 @@ class FreeFormBase(Trainable):
             else:
                 self._data_cond_dim = data_sample[1].shape[0]
 
-        self.teacher_normal = torch.distributions.normal.Normal(
-            torch.zeros(self._data_cond_dim), torch.eye(self._data_cond_dim)
-            )
-
         #TODO Make it nicer!
         if self.hparams.transform:
             if (self.hparams.transform.name in ["fff.model.InjectiveFlow", "fff.model.MultilevelFlow", "fff.model.DenoisingFlow"]):
@@ -590,7 +586,6 @@ class FreeFormBase(Trainable):
                 loss_values.update(log_prob_result.regularizations)
 
 
-
         # In case they were skipped above
         if z is None:
             z = self.encode(x, c)
@@ -618,10 +613,14 @@ class FreeFormBase(Trainable):
 
         if (not self.training or check_keys("nll") or check_keys("coarse_supervised")) and self.transform == "inn":
             z_detach = z.detach()
+            if check_keys("coarse_supervised"):
+                c_full_n = c_full + torch.randn_like(c_full) * self.hparams.noise
+            else: 
+                c_full_n = c_full
             if (not check_keys("nll") and check_keys("coarse_supervised")):
-                z_dense, _ = self.transform_model.encode(z_detach, c_full)
+                z_dense, _ = self.transform_model.encode(z_detach, c_full_n)
             else:
-                log_prob, log_det, z_dense = self._latent_log_prob(z_detach, c_full)
+                log_prob, log_det, z_dense = self._latent_log_prob(z_detach, c_full_n)
                 loss_values["nll"] = -(log_prob + log_det)
             if isinstance(z_dense, tuple):
                 z_dense, z_coarse = z_dense
@@ -699,6 +698,7 @@ class FreeFormBase(Trainable):
                 loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z1)
 
         # Cyclic consistency of latent code sampled from Gauss and fiber loss
+        """
         if ((not self.training or
                 check_keys("cnew_reconstruction", "z_sample_reconstruction")) and 
                 self.current_epoch % self.hparams.cnew_every == 0):
@@ -749,7 +749,6 @@ class FreeFormBase(Trainable):
                     loss_values["z_sample_reconstruction"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
 
-        """
         # Reconstruction of Gauss with double std -- for invertibility
         if not self.training or check_keys("x_sample_reconstruction"):
             # As we only care about the reconstruction, can ignore noise scale
