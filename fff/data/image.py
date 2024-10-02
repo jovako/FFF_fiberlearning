@@ -4,11 +4,14 @@ import torch
 from torch.nn import Flatten
 from torch.nn.functional import one_hot
 from torch.utils.data import TensorDataset, DataLoader, Dataset
-from torchvision.datasets import MNIST, CIFAR10, CelebA
+import torchvision
+from torchvision.datasets.utils import download_url
+from torchvision.datasets import EMNIST, MNIST, CIFAR10, CelebA
 from torchvision.transforms import ToTensor, Resize, Compose, CenterCrop, Grayscale
 from tqdm import tqdm
 from PIL import Image, ImageFilter  # install 'pillow' to get PIL
 import pandas as pd
+import os
 
 from fff.data.utils import TrainValTest
 
@@ -27,6 +30,7 @@ def get_mnist_datasets(root: str, digit: int = None, conditional: bool = False) 
         test_dataset = MNIST(root, train=False, download=True)
 
     return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional)
+
 
 def get_split_mnist(root: str, digit: int = None, conditional: bool = False, path: str = None):
     if path != None:
@@ -88,14 +92,32 @@ def get_mnist_downsampled(root: str, digit: int = None, conditional: bool = Fals
 
     # download MNIST
     try:
-        train_dataset = MNIST(root=root, train=True, transform=transform)
-        test_dataset = MNIST(root=root, train=False, transform=transform)
+        train_dataset = EMNIST(root=root, train=True, split="digits", transform=transform)
+        test_dataset = EMNIST(root=root, train=False, split="digits", transform=transform)
     except RuntimeError:
         # Input with timeout
         if input("Download dataset? [y/n] ").lower() != "y":
             raise RuntimeError("Dataset not downloaded")
-        train_dataset = MNIST(root=root, train=True, transform=transform, download=True)
-        test_dataset = MNIST(root=root, train=False, transform=transform, download=True)
+        """
+        raw_folder = 'data/EMNIST/raw'
+
+        url = 'https://biometrics.nist.gov/cs_links/EMNIST/gzip.zip'
+        md5 = "58c8d27c78d21e728a6bc7b3cc06412e"
+
+        version_numbers = list(map(int, torchvision.__version__.split('+')[0].split('.')))
+        if version_numbers[0] == 0 and version_numbers[1] < 10:
+            filename = "emnist.zip"
+        else:
+            filename = None
+
+        os.makedirs(raw_folder, exist_ok=True)
+
+        # download files
+        print('Downloading zip archive')
+        download_url(url, root=raw_folder, filename=filename, md5=md5)
+        """
+        train_dataset = EMNIST(root=root, train=True, split="digits", transform=transform, download=True)
+        test_dataset = EMNIST(root=root, train=False, split="digits", transform=transform, download=True)
 
     return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional)
 

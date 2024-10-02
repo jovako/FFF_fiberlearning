@@ -25,7 +25,7 @@ class FreeFormInjectiveFlow(FreeFormBase):
             if hparams["data_set"]["path"] in ["Mnist_Class", "Mnist_Class_ext", "do_Mnist_Clext"]:
                 print("Teacher is Classifier")
                 Classifier = FreeFormInjectiveFlow.load_from_checkpoint(
-                        "GTs/16Mnist_Class/checkpoints/last.ckpt"
+                        "GTs/16EMnist_Class/checkpoints/last.ckpt"
                 ).eval()
                 self.Teacher = Truncate(Classifier)
             else:
@@ -56,11 +56,11 @@ class FreeFormInjectiveFlow(FreeFormBase):
                     )
                 elif hparams["data_set"]["path"] in ["16Mnist_F3F"]:
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
-                            "GTs/16Mnist_F3F/checkpoints/best.ckpt"
+                            "GTs/16EMnist_F3F/checkpoints/best.ckpt"
                     )
                 elif hparams["data_set"]["path"] in ["16Mnist_F5F"]:
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
-                            "GTs/16Mnist_F5F/checkpoints/last.ckpt"
+                            "GTs/16EMnist_F5F/checkpoints/last.ckpt"
                     )
                 elif hparams["data_set"]["path"] in ["16Mnist_F5F_4"]:
                     self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
