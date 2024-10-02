@@ -8,11 +8,11 @@ data_set:
   conditional: True
   path: "fif_moons"
 
-noise: 0.
+noise: 0.01
   #cnew_every: 2
 
 loss_weights:
-  z std: 1
+  nll: 1
   coarse_supervised: 1
 
 train_models: False
@@ -21,29 +21,29 @@ models:
   - name: fff.model.Identity
 transform:
   name: fff.model.MultilevelFlow
-  phase: 1
+  phase: False
   data_dim: 2
   latent_dim: 2
   inn_spec:
     - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [128, 256]]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.5,0.5]}, [128, 256]]
     - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [256, 256]]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.5,0.5]}, [256, 256]]
     - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [256, 256]]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.5,0.5]}, [256, 256]]
       #- ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [256]]
     - ["PermuteRandom", {}, 0]
 
 lr_scheduler: "onecyclelr"
 
-batch_size: 128
+batch_size: 2048
 optimizer:
   name: adam
-  lr: 0.0004
-  #weight_decay: 0.0001
+  lr: 0.0002
+  weight_decay: 0.0001
 
-max_epochs: 20
+max_epochs: 100
 
 num_workers: 4
-gradient_clip: 3.0
-accelerator: "cpu"
+gradient_clip: 2.0
+accelerator: "gpu"

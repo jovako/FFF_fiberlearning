@@ -9,7 +9,7 @@ data_set:
 loss_weights:
     classification: 1
     noisy_reconstruction: 1
-max_epochs: 5
+max_epochs: 1
 
 train_models: True
 models:

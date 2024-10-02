@@ -4,7 +4,7 @@ latent_distribution:
   name: "transformed_normal"
 data_set:
   name: moons_split
-  fix_noise: 0.01
+  fix_noise: 0.04
   # num_simulations: ... must be specified in separate config file
   conditional: True
   path: "fif_moons"
@@ -26,11 +26,11 @@ transform:
   latent_dim: 2
   inn_spec:
     - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [128, 256]]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128, 256]]
     - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [256, 256]]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [256, 256]]
     - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8}, [256, 256]]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [256, 256]]
       #- ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [256]]
     - ["PermuteRandom", {}, 0]
 
@@ -42,7 +42,7 @@ optimizer:
   lr: 0.0004
   #weight_decay: 0.0001
 
-max_epochs: 500
+max_epochs: 200
 
 num_workers: 4
 gradient_clip: 3.0
