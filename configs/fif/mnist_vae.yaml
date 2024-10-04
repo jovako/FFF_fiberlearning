@@ -8,12 +8,12 @@ data_set:
   conditional: False
 
 loss_weights:
-  noisy_reconstruction: 10000
+  noisy_reconstruction: 1000
   #sqr_reconstruction: 10
   kl: 1
   #z std: 1
   #nll: 1
-max_epochs: 3000
+max_epochs: 2300
 
 vae: True
 train_models: True
