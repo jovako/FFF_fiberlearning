@@ -32,7 +32,7 @@ def get_mnist_datasets(root: str, digit: int = None, conditional: bool = False) 
     return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional)
 
 
-def get_split_mnist(root: str, digit: int = None, conditional: bool = False, path: str = None):
+def get_split_mnist(root: str, digit: int = None, conditional: bool = False, path: str = None, fix_noise: float = None):
     if path != None:
         df = pd.read_pickle(f"data/{path}")
     else:
@@ -53,6 +53,13 @@ def get_split_mnist(root: str, digit: int = None, conditional: bool = False, pat
     test_data = torch.from_numpy(df["test_x"])
     test_targets = ((torch.from_numpy(df["test_y"]) - center) / std)
     
+    # Add fix noise to data
+    if fix_noise is not None:
+        print("add fixed noise")
+        train_data = train_data + torch.randn_like(train_data) * fix_noise
+        val_data = val_data + torch.randn_like(val_data) * fix_noise
+        test_data = test_data + torch.randn_like(test_data) * fix_noise
+
     # Collect tensors for TensorDatasets
     train_data = [train_data]
     val_data = [val_data]
