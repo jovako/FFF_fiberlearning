@@ -28,11 +28,14 @@ class MultilevelFlow(nn.Module):
 
         super().__init__()
         self.hparams = hparams
-        self.wavelet_inn = self.build_inn(hparams.latent_dim, cond=None)
+        hidden_dim = self.hparams.latent_dim
+        if hparams.phase:
+            hidden_dim += hparams.cond_dim
+        self.wavelet_inn = self.build_inn(hidden_dim, cond=None)
         self.cwavelet_inn = self.build_inn(self.hparams.cond_dim, cond=None)
         if hparams.phase == False:
             self.coarse_inn = self.build_inn(self.hparams.cond_dim, cond=None)
-        self.details_dim = self.hparams.latent_dim - self.hparams.cond_dim
+        self.details_dim = hidden_dim - self.hparams.cond_dim
         self.details_inn = self.build_inn(self.details_dim, cond_dim=hparams.cond_dim)
 
     def encode(self, x, c):
@@ -49,28 +52,37 @@ class MultilevelFlow(nn.Module):
                 jacs = [jac0, jac_c]
                 details = _out0_details
                 coarse = c_hat
+            z_dense = torch.cat([details, coarse], dim=1)
         elif self.hparams.phase == 2:
             with torch.no_grad():
                 out0, jac0 = self.wavelet_inn(x, jac=True, rev=False)
             _out0_details = out0[:, :-self.hparams.cond_dim]
+            c_hat = c
             details, jac_details = self.details_inn(_out0_details, [c], jac=True, rev=False)
-            coarse = c
             jacs = [jac_details]
+            z_dense = details
         else:
             raise NotImplementedError("phase parameter has to be either False, 1 or 2")
         jac = torch.sum(torch.stack(jacs, dim=1), dim=1)
-        z_dense = torch.cat([details, coarse], dim=1)
         return  (z_dense, c_hat), jac
 
     #def encode(self, u, c=None):
     #    return u
 
     def decode(self, u, c):
-        _details_in = u[:, :self.details_dim]
-        out_c = self.cwavelet_inn(c, jac=False, rev=True)[0]
-        out_d = self.details_inn(_details_in, [c], jac=False, rev=True)[0]
-        in0 = torch.cat([out_d, out_c], dim=1)
-        out = self.wavelet_inn(in0, jac=False, rev=True)[0]
+        if not self.hparams.phase:
+            _details_in = u[:, :self.details_dim]
+        else:
+            _details_in = u
+            print("Ho")
+        if self.hparams.phase == 1:
+            out = u
+        else:
+            out_c = self.cwavelet_inn(c, jac=False, rev=True)[0]
+            out_d = self.details_inn(_details_in, [c], jac=False, rev=True)[0]
+            in0 = torch.cat([out_d, out_c], dim=1)
+            out = self.wavelet_inn(in0, jac=False, rev=True)[0]
+            print("Hoho")
         return out
 
     #def decode(self, z, c=None):

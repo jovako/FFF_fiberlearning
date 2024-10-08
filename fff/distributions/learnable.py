@@ -37,8 +37,6 @@ class TransformedDistribution():
     def sample(self, shape=torch.Size(), c=None):
         samples = self.Dist.sample(shape)
         latent_mask = torch.ones(samples.shape, device=samples.device)
-        if self.mask_dims > 0:
-            latent_mask[:, -self.mask_dims:] = 0
         samples_coarse = samples * latent_mask
         transformed_samples = self.Trans.decode(samples_coarse, c)
         return transformed_samples
