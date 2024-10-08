@@ -95,7 +95,7 @@ class FreeFormBase(Trainable):
                 self._data_cond_dim = 0
             elif self.classification:
                 self._data_cond_dim = data_sample[1].shape[0]
-                self.cross_entropy = CrossEntropyLoss(reduction='none')
+                self.cross_entropy = CrossEntropyLoss(reduction='none', label_smoothing=0.2)
             elif len(data_sample[1].shape) != 1:
                 raise NotImplementedError("More than one condition dimension is not supported.")
             else:
@@ -698,7 +698,6 @@ class FreeFormBase(Trainable):
                 loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z1)
 
         # Cyclic consistency of latent code sampled from Gauss and fiber loss
-        """
         if ((not self.training or
                 check_keys("cnew_reconstruction", "z_sample_reconstruction")) and 
                 self.current_epoch % self.hparams.cnew_every == 0):
@@ -749,6 +748,7 @@ class FreeFormBase(Trainable):
                     loss_values["z_sample_reconstruction"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
 
+        """
         # Reconstruction of Gauss with double std -- for invertibility
         if not self.training or check_keys("x_sample_reconstruction"):
             # As we only care about the reconstruction, can ignore noise scale
