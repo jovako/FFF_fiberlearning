@@ -3,18 +3,18 @@ model: fff.FreeFormInjectiveFlow
 noise: 0.
 betas_max: 0.02
 beta_schedule: "linear"
-cnew_every: 5
+cnew_every: 20
 latent_distribution:
   name: "transformed_normal"
 data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "16Mnist_F3F"
+  path: "16EMnist_F3F"
 
 loss_weights:
   diff_mse: 1
-max_epochs: 4
+max_epochs: 400
 #warm_up_epochs: [40, 60]
 #warm_up_fiber: [15, 100]
 
@@ -48,6 +48,9 @@ transform:
     - [512, 512]
     - [512, 512]
     - [512, 512]
+    - [512, 512]
+    - [512, 512]
+    - [512, 512]
 
 lr_scheduler:
   name: "onecyclelr"
@@ -56,8 +59,8 @@ lr_scheduler:
     
 optimizer:
   name: adam
-  lr: 0.
+  lr: 0.001
 
 batch_size: 512
-load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
-load_transform_path: "lightning_logs/3_d/version_0/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/E16VAE_3_wodo/version_0/checkpoints/last.ckpt"
+  #load_transform_path: "lightning_logs/3_d/version_0/checkpoints/last.ckpt"

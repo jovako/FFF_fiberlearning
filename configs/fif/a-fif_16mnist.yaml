@@ -11,12 +11,12 @@ data_set:
 
 loss_weights:
   nll: 1
-  latent_reconstruction: 100
+  latent_reconstruction: 10
   #noisy_reconstruction: 100
   masked_reconstruction: 1
   #cnew_reconstruction: 10
   #z_sample_reconstruction: 1000
-max_epochs: 200
+max_epochs: 100
 #warm_up_epochs: [15, 100]
 #warm_up_fiber: [35, 40]
 
@@ -55,5 +55,5 @@ optimizer:
   lr: 0.002
 
 batch_size: 512
-load_models_path: "lightning_logs/16VAE_3/version_0/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/E16VAE_3_wodo/version_0/checkpoints/last.ckpt"
   #load_transform_path: "lightning_logs/16_f48f_011_log/version_0/checkpoints/last.ckpt"

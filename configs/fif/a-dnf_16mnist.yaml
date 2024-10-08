@@ -1,9 +1,10 @@
 model: fff.FreeFormInjectiveFlow
 
-noise: 0.01
+noise: 0.
 latent_distribution:
   name: "transformed_normal"
 data_set:
+  fix_noise: 0.01
   name: mnist_split
   root: data
   conditional: true
@@ -11,15 +12,14 @@ data_set:
 
 loss_weights:
   nll: 1
-  coarse_supervised: 100
-    #z std: 1
+  latent_reconstruction: 10
   masked_reconstruction: 1
   #latent_reconstruction: 100
   #noisy_reconstruction: 100
   #cnew_reconstruction: 10
   #z_sample_reconstruction: 1
   #mask_dims: 32
-max_epochs: 20
+max_epochs: 200
 #warm_up_fiber: [35, 40]
 
 train_models: False
@@ -43,39 +43,29 @@ models:
       - [512, 512]
       - [512, 512]
 transform:
-  name: fff.model.MultilevelFlow
+  name: fff.model.DenoisingFlow
   data_dim: *latent_dim
   latent_dim: *latent_dim
   inn_spec:
-    #- ["PermuteRandom", {}, 0]
-    #  - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-    #  - ["PermuteRandom", {}, 0]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
+      - ["PermuteRandom", {}, 0]
+      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+      - ["PermuteRandom", {}, 0]
+      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+      - ["PermuteRandom", {}, 0]
+      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+      - ["PermuteRandom", {}, 0]
+      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+      - ["PermuteRandom", {}, 0]
+      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+      - ["PermuteRandom", {}, 0]
+        #- ["AllInOneBlock", {}, [16]]
 
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.0005
+  lr: 0.001
 
 batch_size: 512
+gradient_clip: 3.0
 load_models_path: "lightning_logs/E16VAE_3_wodo/version_0/checkpoints/last.ckpt"
 #load_transform_path: "lightning_logs/16aznc_i_lr2/version_0/checkpoints/last.ckpt"

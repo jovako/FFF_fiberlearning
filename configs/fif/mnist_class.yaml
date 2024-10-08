@@ -4,12 +4,12 @@ noise: 0.01
 data_set:
   name: mnist_ds
   root: data
-  conditional: true
+  conditional: True
 
 loss_weights:
-  classification: 1
+  classification: 0
   noisy_reconstruction: 1
-max_epochs: 1
+max_epochs: 50
 
 train_models: True
 models:
@@ -32,10 +32,10 @@ models:
       - [32, 32]
       - [32, 32]
 
-        #lr_scheduler: "onecyclelr"
+lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.00001
+  lr: 0.001
 
 batch_size: 512
-  #load_models_path: "lightning_logs/GT_Class/version_2/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/GT_Class_decoder/version_3/checkpoints/last.ckpt"

@@ -12,7 +12,7 @@ noise: 0.
 
 loss_weights:
   nll: 1
-  noisy_reconstruction: 20
+  noisy_reconstruction: 10
 
 train_models: True
 models:

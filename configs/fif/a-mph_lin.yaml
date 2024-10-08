@@ -6,17 +6,19 @@ latent_distribution:
 data_set:
   name: mnist_split
   root: data
-  conditional: True
+  conditional: true
   path: "16EMnist_F3F"
 
 loss_weights:
+  #coarse_supervised: 100
   nll: 1
-  masked_reconstruction: 1
-  #latent_reconstruction: 10
+    #z std: 1
+  #latent_reconstruction: 100
+  #noisy_reconstruction: 100
   #cnew_reconstruction: 10
   #z_sample_reconstruction: 1
-  #mask_dims: 16
-max_epochs: 200
+  #mask_dims: 3
+max_epochs: 100
 #warm_up_fiber: [35, 40]
 
 train_models: False
@@ -40,32 +42,13 @@ models:
       - [512, 512]
       - [512, 512]
 transform:
-  name: fff.model.InjectiveFlow
+  name: fff.model.MultilevelFlow
   data_dim: *latent_dim
-  latent_dim: *latent_dim
+  latent_dim: 61
+  phase: 2
   inn_spec:
     #- ["PermuteRandom", {}, 0]
-    #  - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
+    #  - ["RationalQuadraticSpline", {"bins": 8}, [128]]
       - ["AllInOneBlock", {}, [512]]
       - ["AllInOneBlock", {}, [512]]
       - ["AllInOneBlock", {}, [512]]
@@ -87,12 +70,12 @@ transform:
       - ["AllInOneBlock", {}, [512]]
       - ["AllInOneBlock", {}, [512]]
 
-        #lr_scheduler: "onecyclelr"
+lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.0005
-gradient_clip: 3.0
+  lr: 0.001
 
 batch_size: 512
+gradient_clip: 3.0
 load_models_path: "lightning_logs/E16VAE_3_wodo/version_0/checkpoints/last.ckpt"
-#load_transform_path: "lightning_logs/16vae_if2/version_0/checkpoints/last.ckpt"
+load_transform_path: "lightning_logs/3_ssfph_lin/version_0/checkpoints/last.ckpt"
