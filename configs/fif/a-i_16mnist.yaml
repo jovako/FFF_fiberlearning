@@ -13,7 +13,7 @@ loss_weights:
   nll: 1
   masked_reconstruction: 1
   #latent_reconstruction: 10
-  #cnew_reconstruction: 10
+  cnew_reconstruction: 100
   #z_sample_reconstruction: 1
   #mask_dims: 16
 max_epochs: 200
@@ -44,53 +44,31 @@ transform:
   data_dim: *latent_dim
   latent_dim: *latent_dim
   inn_spec:
-    #- ["PermuteRandom", {}, 0]
-    #  - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
-      - ["AllInOneBlock", {}, [512]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
+    - ["PermuteRandom", {}, 0]
+    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
+    - ["PermuteRandom", {}, 0]
+        #- ["AllInOneBlock", {}, [512]]
 
-        #lr_scheduler: "onecyclelr"
+lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.0005
+  lr: 0.002
 gradient_clip: 3.0
 
 batch_size: 512

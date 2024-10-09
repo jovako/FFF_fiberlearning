@@ -74,7 +74,6 @@ class MultilevelFlow(nn.Module):
             _details_in = u[:, :self.details_dim]
         else:
             _details_in = u
-            print("Ho")
         if self.hparams.phase == 1:
             out = u
         else:
@@ -82,7 +81,6 @@ class MultilevelFlow(nn.Module):
             out_d = self.details_inn(_details_in, [c], jac=False, rev=True)[0]
             in0 = torch.cat([out_d, out_c], dim=1)
             out = self.wavelet_inn(in0, jac=False, rev=True)[0]
-            print("Hoho")
         return out
 
     #def decode(self, z, c=None):
