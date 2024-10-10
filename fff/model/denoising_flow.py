@@ -51,7 +51,7 @@ class DenoisingFlow(nn.Module):
 
     def decode(self, u, c):
         _coarse_in = u[:, :self.coarse_dim]
-        out_d = u[:, self.coarse_dim:]
+        out_d = torch.zeros_like(u[:, self.coarse_dim:])
         cond = torch.cat([out_d, c], dim=1)
         out_c = self.coarse_inn(_coarse_in, [cond], jac=False, rev=True)[0]
         in0 = torch.cat([out_c, out_d], dim=1)
