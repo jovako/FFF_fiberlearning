@@ -7,7 +7,7 @@ data_set:
   name: mnist_split
   root: data
   conditional: True
-  path: "16EMnist_F3F"
+  path: "16EMnist_F5F"
 
 loss_weights:
   nll: 1
@@ -44,26 +44,49 @@ transform:
   data_dim: *latent_dim
   latent_dim: *latent_dim
   inn_spec:
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
-    - ["PermuteRandom", {}, 0]
-    - ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
-    - ["PermuteRandom", {}, 0]
-        #- ["AllInOneBlock", {}, [512]]
+    #- ["PermuteRandom", {}, 0]
+    #- ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
+    #- ["PermuteRandom", {}, 0]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
 
 lr_scheduler: "onecyclelr"
 optimizer:

@@ -7,14 +7,14 @@ data_set:
   name: mnist_split
   root: data
   conditional: True
-  path: "16EMnist_F3F"
+  path: "16EMnist_F5F"
 
 loss_weights:
   nll: 1
-  latent_reconstruction: 100
+  latent_reconstruction: 10
   #noisy_reconstruction: 100
   masked_reconstruction: 1
-  cnew_reconstruction: 100
+    #cnew_reconstruction: 10
   #z_sample_reconstruction: 1000
 max_epochs: 200
 #warm_up_epochs: [15, 100]
@@ -43,7 +43,7 @@ models:
 transform:
   name: fff.model.ResNet
   data_dim: *latent_dim
-  latent_dim: 61
+  latent_dim: 64
   layers_spec:
     - [512, 512]
     - [512, 512]

@@ -47,23 +47,34 @@ transform:
   data_dim: *latent_dim
   latent_dim: *latent_dim
   inn_spec:
-      - ["PermuteRandom", {}, 0]
-      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-      - ["PermuteRandom", {}, 0]
-      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-      - ["PermuteRandom", {}, 0]
-      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-      - ["PermuteRandom", {}, 0]
-      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-      - ["PermuteRandom", {}, 0]
-      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-      - ["PermuteRandom", {}, 0]
-        #- ["AllInOneBlock", {}, [16]]
+    #- ["PermuteRandom", {}, 0]
+    #  - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    #  - ["PermuteRandom", {}, 0]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
 
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.001
+  lr: 0.002
 
 batch_size: 512
 gradient_clip: 3.0

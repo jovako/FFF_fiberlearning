@@ -7,7 +7,7 @@ data_set:
   name: mnist_split
   root: data
   conditional: true
-  path: "16EMnist_F3F"
+  path: "16EMnist_F5F"
 
 loss_weights:
   nll: 1
@@ -16,7 +16,7 @@ loss_weights:
   masked_reconstruction: 1
   #latent_reconstruction: 100
   #noisy_reconstruction: 100
-  cnew_reconstruction: 10
+  cnew_reconstruction: 100
   #z_sample_reconstruction: 1
   #mask_dims: 32
 max_epochs: 200
@@ -47,23 +47,34 @@ transform:
   data_dim: *latent_dim
   latent_dim: *latent_dim
   inn_spec:
-      - ["PermuteRandom", {}, 0]
-      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-      - ["PermuteRandom", {}, 0]
-      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-      - ["PermuteRandom", {}, 0]
-      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-      - ["PermuteRandom", {}, 0]
-      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-      - ["PermuteRandom", {}, 0]
-      - ["RationalQuadraticSpline", {"bins": 8}, [128]]
-      - ["PermuteRandom", {}, 0]
-        #- ["AllInOneBlock", {}, [512]]
+    #- ["PermuteRandom", {}, 0]
+    #  - ["RationalQuadraticSpline", {"bins": 8}, [128]]
+    #  - ["PermuteRandom", {}, 0]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
+    - ["AllInOneBlock", {}, [512]]
 
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.001
+  lr: 0.002
 
 batch_size: 512
 load_models_path: "lightning_logs/E16VAE_3_wodo/version_0/checkpoints/last.ckpt"
