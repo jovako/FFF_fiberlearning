@@ -7,14 +7,14 @@ data_set:
   name: mnist_split
   root: data
   conditional: True
-  path: "16EMnist_F5F"
+  path: "EMnist_Class"
 
 loss_weights:
   nll: 1
   latent_reconstruction: 10
   #noisy_reconstruction: 100
   masked_reconstruction: 1
-    #cnew_reconstruction: 10
+  cnew_reconstruction: 10
   #z_sample_reconstruction: 1000
 max_epochs: 200
 #warm_up_epochs: [15, 100]

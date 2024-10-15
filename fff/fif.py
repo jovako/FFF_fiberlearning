@@ -22,7 +22,7 @@ class FreeFormInjectiveFlow(FreeFormBase):
             hparams = FreeFormInjectiveFlowHParams(**hparams)
         super().__init__(hparams)
         if hparams["data_set"]["name"] in ["mnist_split", "moons_split"]:
-            if hparams["data_set"]["path"] in ["Mnist_Class", "Mnist_Class_ext", "do_Mnist_Clext"]:
+            if hparams["data_set"]["path"] in ["EMnist_Class", "Mnist_Class_ext", "do_Mnist_Clext"]:
                 print("Teacher is Classifier")
                 Classifier = FreeFormInjectiveFlow.load_from_checkpoint(
                         "GTs/16EMnist_Class/checkpoints/last.ckpt"

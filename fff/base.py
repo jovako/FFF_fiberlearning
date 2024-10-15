@@ -255,7 +255,7 @@ class FreeFormBase(Trainable):
                     self.transform_model, self._make_latent("normal", device), self.hparams.mask_dims)
             elif self.transform == "diffusion":
                 return DiffTransformedDistribution(
-                    self.transform_model, self._make_latent("normal", device), self.betas, 1000)
+                    self.transform_model, self._make_latent("normal", device), self.betas, 1000, eta=0.1)
             else:
                 return TransformedDistribution(
                     self.transform_model, self._make_latent("normal", device), self.hparams.mask_dims)
