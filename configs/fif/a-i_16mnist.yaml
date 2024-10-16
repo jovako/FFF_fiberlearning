@@ -13,7 +13,7 @@ loss_weights:
   nll: 1
   masked_reconstruction: 1
   #latent_reconstruction: 10
-  #cnew_reconstruction: 100
+  cnew_reconstruction: 10
   #z_sample_reconstruction: 1
   #mask_dims: 16
 max_epochs: 50

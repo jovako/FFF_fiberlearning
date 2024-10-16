@@ -7,7 +7,7 @@ data_set:
   name: mnist_split
   root: data
   conditional: True
-  path: "EMnist_Class"
+  path: "16EMnist_F3F_4"
 
 loss_weights:
   nll: 1
@@ -43,7 +43,7 @@ models:
 transform:
   name: fff.model.ResNet
   data_dim: *latent_dim
-  latent_dim: 64
+  latent_dim: 61
   layers_spec:
     - [512, 512]
     - [512, 512]

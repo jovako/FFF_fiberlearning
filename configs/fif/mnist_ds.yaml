@@ -6,7 +6,7 @@ data_set:
   name: mnist_ds
   root: data
   conditional: False
-    #digit: 4
+  digit: 4
 
 loss_weights:
   noisy_reconstruction: 100
@@ -14,7 +14,7 @@ loss_weights:
   #sqr_reconstruction: 10
   #z std: 1
   nll: 1
-max_epochs: 12
+max_epochs: 200
 
 train_models: True
 models:

@@ -16,10 +16,10 @@ loss_weights:
   masked_reconstruction: 1
   #latent_reconstruction: 100
   #noisy_reconstruction: 100
-  cnew_reconstruction: 10
+  cnew_reconstruction: 100
   #z_sample_reconstruction: 1
   #mask_dims: 32
-max_epochs: 200
+max_epochs: 50
   #warm_up_fiber: [2, 7]
 
 train_models: False
