@@ -52,7 +52,8 @@ class FreeFormBaseHParams(TrainableHParams):
     )
     skip_val_nll: bool | int = False
     exact_train_nll_every: int | None = None
-    cnew_every: int = 1
+    fiber_loss_every: int = 1
+    cnew_every: int = 1 #deprecated and not used anymore
 
     warm_up_fiber: int | list = 0
     warm_up_epochs: int | list = 0
@@ -101,9 +102,11 @@ class FreeFormBase(Trainable):
             else:
                 self._data_cond_dim = data_sample[1].shape[0]
 
-        #TODO Make it nicer!
+        # Ask whether the latent variebles should be passed by another learning model and which model class to use
         if self.hparams.transform:
-            if (self.hparams.transform.name in ["fff.model.InjectiveFlow", "fff.model.MultilevelFlow", "fff.model.DenoisingFlow"]):
+            if (self.hparams.transform.name in [
+                    "fff.model.InjectiveFlow", "fff.model.MultilevelFlow",
+                    "fff.model.DenoisingFlow"]):
                 self.transform = "inn"
             elif self.hparams.transform.name == "fff.model.DiffusionModel":
                 self.transform = "diffusion"
@@ -115,14 +118,15 @@ class FreeFormBase(Trainable):
                 self.transform = "fif"
         else:
             self.transform = False
-
-        # Build model
+        # Check whether self,models is a VAE
         self.vae = self.hparams.vae
         try:
             if self.hparams.models[1]["name"] == "fff.model.VarResNet":
                 self.vae = True
         except: 
             self.vae = False
+
+        # Build model
         self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
         if self.hparams.load_models_path:
             print("load models checkpoint")
@@ -131,8 +135,10 @@ class FreeFormBase(Trainable):
                               if k.startswith("models.")}
             self.models.load_state_dict(models_weights)
 
-        # Build model, transforming the distribution
+        # Build transform_model that transforms the latent variables
         if self.transform:
+            print("Only the transform_model will be trained while the model is kept fixed!")
+            print("Also the noise is added only to the latent variables!")
             self.transform_model = build_model([self.hparams.transform],
                                                 self.models[-1].hparams.latent_dim,
                                                 self._data_cond_dim)[0]
@@ -154,6 +160,7 @@ class FreeFormBase(Trainable):
         if isinstance(default_latent, torch.nn.Module):
             self.learnt_latent = default_latent
         if self.vae:
+            # Add learnable parameter for standard deviation
             self.lamb = torch.nn.Parameter(torch.ones(1), requires_grad=True)
 
     def train_dataloader(self) -> DataLoader | list[DataLoader]:
@@ -247,6 +254,7 @@ class FreeFormBase(Trainable):
         elif name == "student_t":
             df = self.hparams.latent_distribution["df"] * torch.ones(1, device=device)
             return MultivariateStudentT(df, self.latent_dim)
+        # Embed transform_model in the learning latent distribution and equip it with a normal latent distribution
         elif name == "transformed_normal":
             if not self.transform:
                 raise ValueError("You have to give a transform model")
@@ -274,9 +282,10 @@ class FreeFormBase(Trainable):
 
     @property
     def cond_dim(self):
+        # For the fiber learning model we want an unconditional lossless autoencoder
+        # If we train a classifier, the labels are not to be used as conditions
         if self.classification or self.transform:
-            cond_dim = 0
-            return cond_dim
+            return 0
         else:
             soft_flow_cond_dim = 1 if isinstance(self.hparams.noise, list) else 0
             hp_aware_cond_dim = sum(
@@ -303,6 +312,7 @@ class FreeFormBase(Trainable):
         for model in self.models:
             x = model.encode(x, c)
         if self.vae:
+            # VAE latent sampling
             mu, logvar = x
             epsilon = torch.randn_like(logvar).to(mu.device)
             z = mu + torch.exp(0.5 * logvar) * epsilon
@@ -361,6 +371,7 @@ class FreeFormBase(Trainable):
         """
         Sample via the decoder.
         """
+        # sample first via the transform_model, if included in the latent distribution
         try:
             z = self.get_latent(self.device).sample(sample_shape, condition)
         except TypeError:
@@ -452,9 +463,9 @@ class FreeFormBase(Trainable):
             out.z, out.x1, latent_prob + volume_change, out.regularizations
         )
 
-    def _fiber_loss(self, a, b):
+    # Computaion of cumulative density function as distance measure for loss
+    def _cdf_loss(self, a, b):
         fl =  torch.squeeze(torch.abs(self.teacher_normal.cdf(a) - self.teacher_normal.cdf(b)))
-        print(fl.shape)
         return fl
 
     def _reconstruction_loss(self, a, b):
@@ -463,8 +474,6 @@ class FreeFormBase(Trainable):
             return (torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)) / self.lamb + torch.log(self.lamb)
         else:
             return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1))
-        #l = torch.nn.functional.binary_cross_entropy(a.reshape(a.shape[0],-1), b.reshape(a.shape[0],-1), reduction="sum")
-        #return l.repeat(a.shape[0])
     
     def _sqr_reconstruction_loss(self, a, b):
         return torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)
@@ -473,8 +482,7 @@ class FreeFormBase(Trainable):
         return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1) / float(a.shape[-1]))
 
     def _l1_loss(self, a, b):
-        #return torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)
-        return torch.sum(torch.abs(a - b).reshape(a.shape[0], -1), -1)/10
+        return torch.sum(torch.abs(a - b).reshape(a.shape[0], -1), -1)
 
 
     def compute_metrics(self, batch, batch_idx) -> dict:
@@ -595,6 +603,7 @@ class FreeFormBase(Trainable):
                 t = torch.randint(0, 1000, (z.size(0),), device=z.device).long()
                 z_diff, epsilon = self.diffuse(z, t, self.alphas_.to(z.device))
             elif self.transform:
+                # Add noise on latent variables
                 z = z + torch.randn_like(z) * self.hparams.noise
             z_dense = z
         if x1 is None:
@@ -604,14 +613,18 @@ class FreeFormBase(Trainable):
 
 
 
+        # Diffusion model
         if check_keys("diff_mse") and self.transform == "diffusion":
             epsilon_pred = self.transform_model(z_diff.detach(), t, c_full)
             loss_values["diff_mse"] = self._reconstruction_loss(epsilon_pred, epsilon.detach())
 
+        # KL-Divergence for VAE
         if check_keys("kl") and self.vae:
             loss_values["kl"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
 
-        if (not self.training or check_keys("nll") or check_keys("coarse_supervised")) and self.transform == "inn":
+        # NLL loss for INN-architectures
+        if ((not self.training or check_keys("nll") or check_keys("coarse_supervised"))
+                and self.transform == "inn"):
             z_detach = z.detach()
             if check_keys("coarse_supervised"):
                 c_full_n = c_full + torch.randn_like(c_full) * self.hparams.noise
@@ -632,11 +645,12 @@ class FreeFormBase(Trainable):
                 else:
                     latent_mask = torch.ones(x.shape[0], self.latent_dim, device=x.device)
                     latent_mask[:, -self.hparams.mask_dims:] = 0
-                    z_coarse_dense = z_dense * latent_mask
-                    z1 = self.transform_model.decode(z_coarse_dense, c_full) 
+                    z_masked_dense = z_dense * latent_mask
+                    z1 = self.transform_model.decode(z_masked_dense, c_full) 
 
         
-        if (self.transform and not self.transform=="diffusion") and (not self.training or check_keys("latent_reconstruction")):
+        if ((self.transform and not self.transform=="diffusion") and 
+                (not self.training or check_keys("latent_reconstruction"))):
             if z1 is None:
                 z_dense = self.transform_model.encode(z.detach(), c_full)
                 z1 = self.transform_model.decode(z_dense, c_full)
@@ -662,7 +676,9 @@ class FreeFormBase(Trainable):
         if check_keys("classification"):
             loss_values["classification"] = self.cross_entropy(z,c_full.float())
             if not self.training:
-                oneminusacc = torch.sum(torch.abs(c_full - torch.nn.functional.one_hot(torch.argmax(z,dim=1), num_classes=10)), dim=1) * 0.5
+                oneminusacc = 0.5 * torch.sum(
+                    torch.abs(c_full - torch.nn.functional.one_hot(torch.argmax(z,dim=1), num_classes=10)), 
+                    dim=1)
                 loss_values["accuracy"] = 1 - oneminusacc
 
         # Reconstruction
@@ -697,32 +713,31 @@ class FreeFormBase(Trainable):
                     z1 = z1[0]
                 loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z1)
 
-        # Cyclic consistency of latent code sampled from Gauss and fiber loss
+        # Cyclic consistency of latent code sampled from Gaussian and fiber loss
         if ((not self.training or
-                check_keys("cnew_reconstruction", "z_sample_reconstruction")) and 
-                self.current_epoch % self.hparams.cnew_every == 0):
+                check_keys("fiber_loss", "z_sample_reconstruction")) and 
+                self.current_epoch % self.hparams.fiber_loss_every == 0):
             warm_up = self.hparams.warm_up_fiber
             if isinstance(warm_up, int):
                 warm_up = warm_up, warm_up + 1
             warm_up = map(lambda x: x * self.hparams.max_epochs // 100, warm_up)
-            nll_start, warm_up_end = warm_up
-            if nll_start == 0:
-                nll_warmup = 1
+            fl_start, warm_up_end = warm_up
+            if fl_start == 0:
+                fl_warmup = 1
             else:
-                nll_warmup = soft_heaviside(
+                fl_warmup = soft_heaviside(
                     self.current_epoch + batch_idx / len(
                         self.trainer.train_dataloader
                         if self.training else
                         self.trainer.val_dataloaders
                     ),
-                    nll_start, warm_up_end
+                    fl_start, warm_up_end
                 )
-            loss_weights["z_sample_reconstruction"] *= nll_warmup
-            loss_weights["cnew_reconstruction"] *= nll_warmup
+            loss_weights["z_sample_reconstruction"] *= fl_warmup
+            loss_weights["fiber_loss"] *= fl_warmup
             if not self.training or check_keys(
-                    "cnew_reconstruction", "z_sample_reconstruction"):
+                    "fiber_loss", "z_sample_reconstruction"):
                 try:
-                    #TODO fix shaping of INN input
                     z_random = self.get_latent(z.device).sample((z.shape[0],), c_full)
                 except TypeError:
                     z_random = self.get_latent(z.device).sample((z.shape[0],))
@@ -731,12 +746,18 @@ class FreeFormBase(Trainable):
                 else:
                     c_random = c
                 x_random = self.decode(z_random, c_random)
-                if self.hparams["data_set"]["name"].endswith("_split"):
+                # Try whether the model learns fibers and therefore has a subject model
+                #if self.hparams["data_set"]["name"].endswith("_split"):
+                try:
+                    # There might be no subject model
                     cT = torch.empty(x_random.shape[0],0).to(x_random.device)
-                    c1 = ((self.Teacher.encode(x_random, cT) - self.data_shift)
+                    c1 = ((self.subject_model.encode(x_random, cT) - self.data_shift)
                           / self.data_scale)
-                    loss_values["cnew_reconstruction"] = self._reconstruction_loss(
+                    loss_values["fiber_loss"] = self._reduced_rec_loss(
                         c_full, c1)
+                except:
+                    loss_values["fiber_loss"] = (
+                        float("nan") * torch.ones(z_random.shape[0]))
                 try:
                     # Sanity checks might fail for random data
                     z1_random = self.encode(x_random, c_random)
@@ -908,6 +929,8 @@ class FreeFormBase(Trainable):
             params.extend(list(self.models.parameters()))
             if self.vae:
                 params.append(self.lamb)
+            if self.transform:
+                print("WARNING: model is not meant to be trained when a transform_model is included")
         else:
             print("WARNING: models get not trained")
         if self.transform:

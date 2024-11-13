@@ -14,9 +14,9 @@ loss_weights:
   latent_reconstruction: 10
   #noisy_reconstruction: 100
   masked_reconstruction: 1
-  cnew_reconstruction: 1
+  fiber_loss: 1
   #z_sample_reconstruction: 1000
-max_epochs: 500
+max_epochs: 5
 #warm_up_epochs: [15, 100]
 #warm_up_fiber: [35, 40]
 

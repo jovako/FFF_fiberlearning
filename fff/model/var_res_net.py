@@ -7,6 +7,9 @@ from .auto_encoder import SkipConnection
 from fff.base import ModelHParams
 from .utils import wrap_batch_norm1d, make_dense
 
+"""
+Copy of res_net to build a VAE.
+"""
 
 class ResNetHParams(ModelHParams):
     classification: bool = False

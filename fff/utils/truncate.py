@@ -1,6 +1,7 @@
 import torch.nn
 from fff.model.utils import guess_image_shape
 
+# Class to seperate the Classifier from the decoder.
 class Truncate(torch.nn.Module):
             def __init__(self, Classifier):
                 super(Truncate, self).__init__()

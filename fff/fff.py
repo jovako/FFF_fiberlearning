@@ -20,7 +20,7 @@ class FreeFormFlow(FreeFormBase):
             hparams = FreeFormFlowHParams(**hparams)
         super().__init__(hparams)
         if hparams["data_set"]["path"]=="fif_moons":
-            self.Teacher = FreeFormInjectiveFlow.load_from_checkpoint(
+            self.subject_model = FreeFormInjectiveFlow.load_from_checkpoint(
                     "GTs/moons_FIF/checkpoints/last.ckpt"
             )
         if self.data_dim != self.latent_dim:

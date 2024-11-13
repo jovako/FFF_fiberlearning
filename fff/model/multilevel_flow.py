@@ -14,11 +14,14 @@ class MultilevelFlowHParams(ModelHParams):
 class MultilevelFlow(nn.Module):
     """
     A Multilevel Splitflow with fixed architecture:
-    If hparams.ssl 2 wavelet levels (0 and coarse wavelet) and two output INNs,
-    else 1 wavelet and 1 output INN (details).
-    This uses a INN to map from data to latent space and back.
-    In the case that latent_dim < data_dim, the latent space is a subspace of the data space.
-    For reverting, the latent space is padded with zeros.
+    2 wavelet levels (0_wavelet and coarse_wavelet) and two output INNs,
+    In phase mode, the coarse output INN is omitted.
+    The phase mode is currently commented!!!
+
+    output:
+    z_dense: the full latent representation
+    c_hat: The output of the coarse wavelet
+    jac: The stacked jacobians of the wavelets
     """
     hparams: MultilevelFlowHParams
 
@@ -48,11 +51,14 @@ class MultilevelFlow(nn.Module):
                 details, jac_details = self.details_inn(_out0_details, [c_hat], jac=True, rev=False)
                 coarse, jac_coarse = self.coarse_inn(c_hat, jac=True, rev=False)
                 jacs = [jac0, jac_details, jac_c, jac_coarse]
+            """
             else:
                 jacs = [jac0, jac_c]
                 details = _out0_details
                 coarse = c_hat
+            """
             z_dense = torch.cat([details, coarse], dim=1)
+        """
         elif self.hparams.phase == 2:
             with torch.no_grad():
                 out0, jac0 = self.wavelet_inn(x, jac=True, rev=False)
@@ -63,6 +69,7 @@ class MultilevelFlow(nn.Module):
             z_dense = details
         else:
             raise NotImplementedError("phase parameter has to be either False, 1 or 2")
+        """
         jac = torch.sum(torch.stack(jacs, dim=1), dim=1)
         return  (z_dense, c_hat), jac
 
