@@ -39,7 +39,7 @@ class FreeFormBaseHParams(TrainableHParams):
     transform: dict = {}
     load_models_path: bool | str = False
     load_transform_path: bool | str = False
-    subject_model_path: bool | str = False
+    load_subject_model: bool = False
     train_models: bool = True
     train_transform: bool = True
     vae: bool = False
@@ -749,14 +749,14 @@ class FreeFormBase(Trainable):
                     c_random = c
                 x_random = self.decode(z_random, c_random)
                 # Try whether the model learns fibers and therefore has a subject model
-                if self.hparams.subject_model_path:
+                try:
                     # There might be no subject model
                     cT = torch.empty(x_random.shape[0],0).to(x_random.device)
                     c1 = ((self.subject_model.encode(x_random, cT) - self.data_shift)
                           / self.data_scale)
                     loss_values["fiber_loss"] = self._reduced_rec_loss(
                         c_full, c1)
-                else:
+                except:
                     loss_values["fiber_loss"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
                 try:

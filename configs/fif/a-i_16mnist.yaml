@@ -1,6 +1,7 @@
 model: fff.FreeFormInjectiveFlow
 
 noise: 0.01
+load_subject_model: True
 latent_distribution:
   name: "transformed_normal"
 data_set:

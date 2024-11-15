@@ -2,6 +2,7 @@ model: fff.FreeFormFlow
 
 latent_distribution:
   name: "normal"
+load_subject_model: True
 data_set:
   name: moons_split
   # num_simulations: ... must be specified in separate config file

@@ -19,12 +19,15 @@ class FreeFormFlow(FreeFormBase):
         if not isinstance(hparams, FreeFormFlowHParams):
             hparams = FreeFormFlowHParams(**hparams)
         super().__init__(hparams)
-        if sm_dir:
+        load_sm = hparams["load_subject_model"]
+        if load_sm:
             print("loading subject_model")
+            sm_dir = hparams["data_set"]["path"]
             self.subject_model = FreeFormInjectiveFlow.load_from_checkpoint(
-                f"subject_models/{sm_dir}/checkpoints/last.ckpt"
+                f"data/{sm_dir}/subject_model/checkpoints/last.ckpt"
             )
                 #self.subject_model = Truncate(Classifier)
+            self.subject_model.eval()
         if self.data_dim != self.latent_dim:
             raise ValueError("Data and latent dimension must be equal for a FreeFormFlow.")
 

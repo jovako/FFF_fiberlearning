@@ -1,9 +1,10 @@
 model: fff.FreeFormInjectiveFlow
 
 noise: 0.
+load_subject_model: True
 betas_max: 0.04
 beta_schedule: "linear"
-cnew_every: 20
+fiber_loss_every: 20
 latent_distribution:
   name: "transformed_normal"
 data_set:
