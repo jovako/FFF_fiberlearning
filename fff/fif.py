@@ -21,13 +21,14 @@ class FreeFormInjectiveFlow(FreeFormBase):
         if not isinstance(hparams, FreeFormInjectiveFlowHParams):
             hparams = FreeFormInjectiveFlowHParams(**hparams)
         super().__init__(hparams)
-        if hparams["data_set"]["name"] in ["mnist_split", "moons_split"]:
-            if hparams["data_set"]["path"] in ["EMnist_Class", "Mnist_Class_ext", "do_Mnist_Clext"]:
-                print("subject_model is Classifier")
-                Classifier = FreeFormInjectiveFlow.load_from_checkpoint(
-                        "subject_models/16EMnist_Class/checkpoints/last.ckpt"
-                ).eval()
-                self.subject_model = Truncate(Classifier)
+        sm_dir = hparams["subject_model_path"]
+        if sm_dir:
+            print("loading subject_model")
+            self.subject_model = FreeFormInjectiveFlow.load_from_checkpoint(
+                f"subject_models/{sm_dir}/checkpoints/last.ckpt"
+            )
+                #self.subject_model = Truncate(Classifier)
+            """
             else:
                 print("subject_model is Autoencoder")
                 if hparams["data_set"]["path"]=="fif_moons":
@@ -46,7 +47,7 @@ class FreeFormInjectiveFlow(FreeFormBase):
                     self.subject_model = FreeFormInjectiveFlow.load_from_checkpoint(
                             "subject_models/16EMnist_F3F_4/checkpoints/last.ckpt"
                     )
-
+            """
             self.subject_model.eval()
             for param in self.subject_model.parameters():
                 param.require_grad = False
