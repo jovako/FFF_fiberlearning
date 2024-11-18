@@ -1,6 +1,7 @@
 model: fff.FreeFormInjectiveFlow
 
 noise: 0.01
+load_subject_model: True
 latent_distribution:
   name: "transformed_normal"
 data_set:
@@ -55,5 +56,5 @@ optimizer:
   lr: 0.002
 
 batch_size: 512
-load_models_path: "lightning_logs/E16VAE_3_wodo/version_0/checkpoints/last.ckpt"
+load_models_path: "lossless_AE/E16VAE_3_wodo/version_0/checkpoints/last.ckpt"
   #load_transform_path: "lightning_logs/16_f48f_011_log/version_0/checkpoints/last.ckpt"

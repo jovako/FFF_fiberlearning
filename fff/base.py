@@ -39,6 +39,7 @@ class FreeFormBaseHParams(TrainableHParams):
     transform: dict = {}
     load_models_path: bool | str = False
     load_transform_path: bool | str = False
+    load_subject_model: bool = False
     train_models: bool = True
     train_transform: bool = True
     vae: bool = False
@@ -50,6 +51,7 @@ class FreeFormBaseHParams(TrainableHParams):
         name="surrogate",
         hutchinson_samples=1
     )
+    eval_all: bool = True
     skip_val_nll: bool | int = False
     exact_train_nll_every: int | None = None
     fiber_loss_every: int = 1
@@ -497,6 +499,7 @@ class FreeFormBase(Trainable):
         :param batch_idx:
         :return:
         """
+        val_all_metrics = not self.training and self.hparams.eval_all
         conditioned = self.apply_conditions(batch)
         loss_weights = conditioned.loss_weights
         x = conditioned.x_noisy
@@ -531,10 +534,9 @@ class FreeFormBase(Trainable):
         x1 = z = z1 = None
         # Negative log-likelihood
         # exact
-        if (not self.transform or self.transform == "fif") and (not self.training or (
-                self.hparams.exact_train_nll_every is not None
-                and batch_idx % self.hparams.exact_train_nll_every == 0
-        )):
+        if (not self.transform or self.transform == "fif") and (self.hparams.eval_all and (
+                not self.training or (self.hparams.exact_train_nll_every is not None and
+                batch_idx % self.hparams.exact_train_nll_every == 0))):
             key = "nll_exact" if self.training else "nll"
             # todo unreadable
             if self.training or (self.hparams.skip_val_nll is not True and (self.hparams.skip_val_nll is False or (
@@ -623,7 +625,7 @@ class FreeFormBase(Trainable):
             loss_values["kl"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
 
         # NLL loss for INN-architectures
-        if ((not self.training or check_keys("nll") or check_keys("coarse_supervised"))
+        if ((val_all_metrics or check_keys("nll") or check_keys("coarse_supervised"))
                 and self.transform == "inn"):
             z_detach = z.detach()
             if check_keys("coarse_supervised"):
@@ -650,7 +652,7 @@ class FreeFormBase(Trainable):
 
         
         if ((self.transform and not self.transform=="diffusion") and 
-                (not self.training or check_keys("latent_reconstruction"))):
+                (val_all_metrics or check_keys("latent_reconstruction"))):
             if z1 is None:
                 z_dense = self.transform_model.encode(z.detach(), c_full)
                 z1 = self.transform_model.decode(z_dense, c_full)
@@ -667,7 +669,7 @@ class FreeFormBase(Trainable):
             metrics["z 1D-Wasserstein-1"] = (z_marginal_sorted - z_gauss_sorted).abs().mean()
             metrics["z std"] = torch.std(z_marginal)
 
-        if not self.training or check_keys("z std"):
+        if val_all_metrics or check_keys("z std"):
             z_details = z_dense[:, :-1]
             std = torch.mean(torch.abs(torch.std(z_details, dim=0) - 1))
             loss_values["z std"] = torch.ones_like(x[:,0]) * std
@@ -682,13 +684,13 @@ class FreeFormBase(Trainable):
                 loss_values["accuracy"] = 1 - oneminusacc
 
         # Reconstruction
-        if not self.training or check_keys("reconstruction", "noisy_reconstruction", "sqr_reconstruction"):
+        if val_all_metrics or check_keys("reconstruction", "noisy_reconstruction", "sqr_reconstruction"):
             loss_values["reconstruction"] = self._reconstruction_loss(x0, x1)
             loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
             loss_values["sqr_reconstruction"] = self._sqr_reconstruction_loss(x, x1)
             #loss_values["reconstruction"] = self._l1_loss(x0, x1)
 
-        if not self.training or check_keys("masked_reconstruction"):
+        if val_all_metrics or check_keys("masked_reconstruction"):
             latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
             latent_mask[:, 0] = 1
             if (self.transform and not self.transform=="diffusion"):
@@ -700,7 +702,7 @@ class FreeFormBase(Trainable):
             loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_masked)
 
         # Cyclic consistency of latent code -- gradient only to encoder
-        if not self.training or check_keys("z_reconstruction_encoder"):
+        if val_all_metrics or check_keys("z_reconstruction_encoder"):
             # Not reusing x1 from above, as it does not detach z
             if self.transform in ["fif"]:
                 z1_detached = z1.detach()
@@ -714,7 +716,7 @@ class FreeFormBase(Trainable):
                 loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z1)
 
         # Cyclic consistency of latent code sampled from Gaussian and fiber loss
-        if ((not self.training or
+        if ((val_all_metrics or
                 check_keys("fiber_loss", "z_sample_reconstruction")) and 
                 self.current_epoch % self.hparams.fiber_loss_every == 0):
             warm_up = self.hparams.warm_up_fiber
@@ -735,7 +737,7 @@ class FreeFormBase(Trainable):
                 )
             loss_weights["z_sample_reconstruction"] *= fl_warmup
             loss_weights["fiber_loss"] *= fl_warmup
-            if not self.training or check_keys(
+            if val_all_metrics or check_keys(
                     "fiber_loss", "z_sample_reconstruction"):
                 try:
                     z_random = self.get_latent(z.device).sample((z.shape[0],), c_full)
@@ -747,7 +749,6 @@ class FreeFormBase(Trainable):
                     c_random = c
                 x_random = self.decode(z_random, c_random)
                 # Try whether the model learns fibers and therefore has a subject model
-                #if self.hparams["data_set"]["name"].endswith("_split"):
                 try:
                     # There might be no subject model
                     cT = torch.empty(x_random.shape[0],0).to(x_random.device)

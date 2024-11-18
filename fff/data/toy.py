@@ -12,7 +12,7 @@ from fff.data.manifold import ManifoldDataset
 from fff.data.utils import TrainValTest
 
 def get_split_moons(conditional: bool = False, path: str = None, fix_noise: float = None):
-    df = pd.read_pickle(f"data/{path}")
+    df = pd.read_pickle(f"data/{path}/data")
     # read targets and conditions from dataframe
     train_data, train_targets = (
         torch.from_numpy(df["train_x"]),

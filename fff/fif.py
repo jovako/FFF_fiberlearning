@@ -21,32 +21,34 @@ class FreeFormInjectiveFlow(FreeFormBase):
         if not isinstance(hparams, FreeFormInjectiveFlowHParams):
             hparams = FreeFormInjectiveFlowHParams(**hparams)
         super().__init__(hparams)
-        if hparams["data_set"]["name"] in ["mnist_split", "moons_split"]:
-            if hparams["data_set"]["path"] in ["EMnist_Class", "Mnist_Class_ext", "do_Mnist_Clext"]:
-                print("subject_model is Classifier")
-                Classifier = FreeFormInjectiveFlow.load_from_checkpoint(
-                        "GTs/16EMnist_Class/checkpoints/last.ckpt"
-                ).eval()
-                self.subject_model = Truncate(Classifier)
+        load_sm = hparams["load_subject_model"]
+        if load_sm:
+            print("loading subject_model")
+            sm_dir = hparams["data_set"]["path"]
+            self.subject_model = FreeFormInjectiveFlow.load_from_checkpoint(
+                f"data/{sm_dir}/subject_model/checkpoints/last.ckpt"
+            )
+                #self.subject_model = Truncate(Classifier)
+            """
             else:
                 print("subject_model is Autoencoder")
                 if hparams["data_set"]["path"]=="fif_moons":
                     self.subject_model = FreeFormInjectiveFlow.load_from_checkpoint(
-                            "GTs/moons_FIF/checkpoints/last.ckpt"
+                            "subject_models/moons_FIF/checkpoints/last.ckpt"
                     )
                 elif hparams["data_set"]["path"] in ["16EMnist_F3F"]:
                     self.subject_model = FreeFormInjectiveFlow.load_from_checkpoint(
-                            "GTs/16EMnist_F3F/checkpoints/last.ckpt"
+                            "subject_models/16EMnist_F3F/checkpoints/last.ckpt"
                     )
                 elif hparams["data_set"]["path"] in ["16EMnist_F5F"]:
                     self.subject_model = FreeFormInjectiveFlow.load_from_checkpoint(
-                            "GTs/16EMnist_F5F/checkpoints/last.ckpt"
+                            "subject_models/16EMnist_F5F/checkpoints/last.ckpt"
                     )
                 elif hparams["data_set"]["path"] in ["16EMnist_F3F_4"]:
                     self.subject_model = FreeFormInjectiveFlow.load_from_checkpoint(
-                            "GTs/16EMnist_F3F_4/checkpoints/last.ckpt"
+                            "subject_models/16EMnist_F3F_4/checkpoints/last.ckpt"
                     )
-
+            """
             self.subject_model.eval()
             for param in self.subject_model.parameters():
                 param.require_grad = False

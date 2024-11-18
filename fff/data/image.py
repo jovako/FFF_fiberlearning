@@ -33,10 +33,7 @@ def get_mnist_datasets(root: str, digit: int = None, conditional: bool = False) 
 
 
 def get_split_mnist(root: str, digit: int = None, conditional: bool = False, path: str = None, fix_noise: float = None):
-    if path != None:
-        df = pd.read_pickle(f"data/{path}")
-    else:
-        df = pd.read_pickle("data/Mnist_Class_data")
+    df = pd.read_pickle(f"data/{path}/data")
     # read targets and conditions from dataframe
     train_data, train_targets = (
         torch.from_numpy(df["train_x"]),
