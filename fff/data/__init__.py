@@ -53,6 +53,9 @@ def load_dataset(name: str, **kwargs) -> TrainValTest:
     elif name in ["moons_split"]:
         from .toy import get_split_moons
         return get_split_moons(**kwargs)
+    elif name == "precompiled_dataset":
+        from .saved_datasets import get_saved_dataset
+        return get_saved_dataset(**kwargs)
     else:
         from .toy import make_toy_data
         return make_toy_data(name, **kwargs)
