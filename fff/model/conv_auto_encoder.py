@@ -15,7 +15,7 @@ class ConvolutionalNeuralNetworkHParams(ModelHParams):
     density_inn: bool = False
 
     encoder_spec: list = [
-    #    [1, 4, 2, 1],
+        [1, 4, 2, 1],
         [2, 4, 2, 1],
         [4, 4, 2, 1],
         [8, 4, 2, 1],
@@ -23,8 +23,8 @@ class ConvolutionalNeuralNetworkHParams(ModelHParams):
     # This decodes MNIST to 1x28x28 -- other decoders must be specified
     decoder_spec: list = [
         [8, 4],
-        [4, 4, 2, 1],
-    #    [2, 3, 2, 1, 1],
+        [4, 3, 2, 1],
+        [2, 3, 2, 1, 1],
         [1, 3, 2, 1, 1],
     ]
     """

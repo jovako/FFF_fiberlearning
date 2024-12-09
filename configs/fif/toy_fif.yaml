@@ -2,27 +2,27 @@ model: fff.FreeFormInjectiveFlow
 
 latent_distribution:
   name: "normal"
+load_subject_model: True
 data_set:
   name: moons_split
   # num_simulations: ... must be specified in separate config file
   conditional: True
-  path: "fif_moons"
+  path: "2moons_demo1"
 
-noise: 0.
+noise: 0.01
 
 loss_weights:
   nll: 1
-  noisy_reconstruction: 10
+  noisy_reconstruction: 100
 
 train_models: True
 models:
   - name: fff.model.ResNet
     latent_dim: 1
     layers_spec:
-      - [256, 256]
-      - [256, 256]
-      - [256, 256]
-      - [256, 256]
+      - [512, 512]
+      - [512, 512]
+      - [512, 512]
 
 lr_scheduler: "onecyclelr"
 
@@ -36,4 +36,4 @@ max_epochs: 1000
 
 num_workers: 4
 gradient_clip: 3.0
-accelerator: "cpu"
+accelerator: "gpu"

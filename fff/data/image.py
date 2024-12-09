@@ -12,6 +12,7 @@ from tqdm import tqdm
 from PIL import Image, ImageFilter  # install 'pillow' to get PIL
 import pandas as pd
 import os
+import h5py
 
 from fff.data.utils import TrainValTest
 
@@ -19,18 +20,60 @@ CELEBA_CACHE = {}
 
 
 def get_mnist_datasets(root: str, digit: int = None, conditional: bool = False) -> TrainValTest:
+
+    # concatenate a few transforms
+    transform = Compose([
+        Grayscale(num_output_channels=1),
+        ToTensor()
+    ])
+
     try:
-        train_dataset = MNIST(root, train=True)
-        test_dataset = MNIST(root, train=False)
+        train_dataset = EMNIST(root=root, train=True, split="digits", transform=transform)
+        test_dataset = EMNIST(root=root, train=False, split="digits", transform=transform)
     except RuntimeError:
         # Input with timeout
         if input("Download dataset? [y/n] ").lower() != "y":
             raise RuntimeError("Dataset not downloaded")
-        train_dataset = MNIST(root, train=True, download=True)
-        test_dataset = MNIST(root, train=False, download=True)
+        """
+        raw_folder = 'data/EMNIST/raw'
+
+        url = 'https://biometrics.nist.gov/cs_links/EMNIST/gzip.zip'
+        md5 = "58c8d27c78d21e728a6bc7b3cc06412e"
+
+        version_numbers = list(map(int, torchvision.__version__.split('+')[0].split('.')))
+        if version_numbers[0] == 0 and version_numbers[1] < 10:
+            filename = "emnist.zip"
+        else:
+            filename = None
+
+        os.makedirs(raw_folder, exist_ok=True)
+
+        # download files
+        print('Downloading zip archive')
+        download_url(url, root=raw_folder, filename=filename, md5=md5)
+        """
+        train_dataset = EMNIST(root=root, train=True, split="digits", transform=transform, download=True)
+        test_dataset = EMNIST(root=root, train=False, split="digits", transform=transform, download=True)
+
 
     return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional)
 
+def get_saved_mnist(root: str, digit: int = None, conditional: bool = False) -> TrainValTest:
+    class dataset():
+        def __init__(self, data, targets):
+            self.data = data
+            self.targets = targets
+
+    with h5py.File(f"{root}/data.h5", "r") as f:
+        train_data = f["train_images"][:]
+        train_targets = f["train_z"][:]
+        test_data = f["test_images"][:]
+        test_targets = f["test_z"][:]
+
+    train_dataset = dataset(train_data, train_targets)
+    test_dataset = dataset(test_data, test_targets)
+
+    return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional)
 
 def get_split_mnist(root: str, digit: int = None, conditional: bool = False, path: str = None, fix_noise: float = None):
     df = pd.read_pickle(f"data/{path}/data")
@@ -209,13 +252,17 @@ def celeba_to_memory(root: str, split: str, image_size: None | int) -> MemoryCel
 
 def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, conditional: bool = False):
     # Data is (N, H, W, C)
-    #train_data = train_dataset.data
+    train_data = train_dataset.data
+    test_data = test_dataset.data
+    
+    """
     batch_size = train_dataset.data.shape[0]
     dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size)
     train_data, _ = next(iter(dataloader))
     batch_size = test_dataset.data.shape[0]
     dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size)
     test_data, _ = next(iter(dataloader))
+    """
     
     print(train_data.shape)
     if val_dataset is None:
@@ -283,9 +330,14 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
 
     # Conditions
     if conditional:
+        train_data.append(train_targets)
+        val_data.append(val_targets)
+        test_data.append(test_targets)
+        """
         train_data.append(one_hot(train_targets, -1))
         val_data.append(one_hot(val_targets, -1))
         test_data.append(one_hot(test_targets, -1))
+        """
 
     return TensorDataset(
         *train_data

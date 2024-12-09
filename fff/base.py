@@ -13,6 +13,7 @@ from torch.nn import Sequential, CrossEntropyLoss
 from torch.utils.data import DataLoader, IterableDataset
 
 import fff.data
+from fff.data.utils import Decolorize
 from fff.distributions.learnable import *
 from fff.distributions.multivariate_student_t import MultivariateStudentT
 from fff.loss import nll_surrogate
@@ -749,16 +750,21 @@ class FreeFormBase(Trainable):
                     c_random = c
                 x_random = self.decode(z_random, c_random)
                 # Try whether the model learns fibers and therefore has a subject model
-                try:
-                    # There might be no subject model
-                    cT = torch.empty(x_random.shape[0],0).to(x_random.device)
-                    c1 = ((self.subject_model.encode(x_random, cT) - self.data_shift)
-                          / self.data_scale)
-                    loss_values["fiber_loss"] = self._reduced_rec_loss(
-                        c_full, c1)
+                #try:
+                # There might be no subject model
+                cT = torch.empty(x_random.shape[0],0).to(x_random.device)
+                #c1 = ((self.subject_model.encode(x_random, cT) - self.data_shift)
+                #      / self.data_scale)
+                c1_img = Decolorize(x_random)
+                c1 = self.subject_model.encode(c1_img, cT)[0]
+
+                loss_values["fiber_loss"] = self._reduced_rec_loss(
+                    c_full, c1)
+                """
                 except:
                     loss_values["fiber_loss"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
+                """
                 try:
                     # Sanity checks might fail for random data
                     z1_random = self.encode(x_random, c_random)
@@ -802,7 +808,8 @@ class FreeFormBase(Trainable):
             if check_keys(key) and (self.training or key in loss_values)
         )
 
-        #metrics["lambda"] = self.lamb
+        if self.vae and not self.transform:
+            metrics["lambda"] = self.lamb
 
         # Metrics are averaged, non-weighted loss_values
         invalid_losses = []

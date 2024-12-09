@@ -7,13 +7,13 @@ data_set:
   name: moons_split
   # num_simulations: ... must be specified in separate config file
   conditional: True
-  path: "fif_moons"
+  path: "2moons_demo"
 
 noise: 0.
 
 loss_weights:
   nll: 1
-  noisy_reconstruction: 10
+  noisy_reconstruction: 100
 
 train_models: True
 models:
@@ -37,4 +37,4 @@ max_epochs: 1000
 
 num_workers: 4
 gradient_clip: 3.0
-accelerator: "cpu"
+accelerator: "gpu"
