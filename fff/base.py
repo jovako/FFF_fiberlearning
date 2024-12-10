@@ -482,7 +482,11 @@ class FreeFormBase(Trainable):
         return torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)
 
     def _reduced_rec_loss(self, a, b):
-        return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1) / float(a.shape[-1]))
+        #res = torch.nan_to_num(torch.log(torch.abs(a - b))).reshape(a.shape[0], -1)
+        #loss = torch.sum(res, -1) / float(a.shape[-1])
+        loss = torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1) / float(a.shape[-1])) 
+        #loss = torch.sqrt(l_2)
+        return loss
 
     def _l1_loss(self, a, b):
         return torch.sum(torch.abs(a - b).reshape(a.shape[0], -1), -1)
@@ -757,6 +761,7 @@ class FreeFormBase(Trainable):
                 #      / self.data_scale)
                 c1_img = Decolorize(x_random)
                 c1 = self.subject_model.encode(c1_img, cT)[0]
+                c1 = torch.nan_to_num(c1)
 
                 loss_values["fiber_loss"] = self._reduced_rec_loss(
                     c_full, c1)

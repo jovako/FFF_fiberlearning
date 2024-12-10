@@ -24,9 +24,9 @@ def Decolorize(x_colored):
         return background_colors, foreground_colors
 
     x_colored = x_colored.reshape(-1,3,28,28)
-    b_colors, d_colors = detect_colors(x_colored)
+    b_colors, d_colors = detect_colors(x_colored.detach())
     # C = X * DC + (1-X) * BC -> X = (C-BC)/(DC-BC) for all three color channels
     b_colors = b_colors.unsqueeze(-1).unsqueeze(-1).expand(-1,-1,28,28)
     d_colors = d_colors.unsqueeze(-1).unsqueeze(-1).expand(-1,-1,28,28)
     X = (x_colored-b_colors)/(d_colors-b_colors)
-    return torch.mean(X, 1)
+    return torch.mean(torch.clamp(X,0,1), 1)
