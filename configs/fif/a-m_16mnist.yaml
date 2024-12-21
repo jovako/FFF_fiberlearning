@@ -5,22 +5,21 @@ load_subject_model: True
 latent_distribution:
   name: "transformed_normal"
 data_set:
-  name: mnist_split
-  root: data
-  conditional: true
-  path: "EMnist_Class"
+  name: saved_mnist
+  root: /export/data/wjoran/FFF/data/cc_mnist
+  conditional: True
 
 loss_weights:
   nll: 1
-  coarse_supervised: 100
+  coarse_supervised: 10
     #z std: 1
-  masked_reconstruction: 1
+    #masked_reconstruction: 1
   #latent_reconstruction: 100
   #noisy_reconstruction: 100
-  fiber_loss: 100
+  #fiber_loss: 100
   #z_sample_reconstruction: 1
   #mask_dims: 32
-max_epochs: 50
+max_epochs: 100
   #warm_up_fiber: [2, 7]
 
 train_models: False
@@ -31,18 +30,21 @@ models:
     latent_dim: 100
     ch_factor: 32
     encoder_spec: 
-      - [2,4,2,1]
-      - [4,4,2,1]
-      - [8,4,2,1]
+      - [3, 4, 2, 1]
+      - [6, 4, 2, 1]
+      - [8, 4, 2, 1]
+      - [10, 4, 2, 1]
     decoder_spec:
-      - [8,4]
-      - [4,4,2,1]
-      - [1,3,2,1,1]
+      - [10, 4]
+      - [8, 3, 2, 1]
+      - [6, 3, 2, 1, 1]
+      - [3, 3, 2, 1, 1]
   - name: fff.model.VarResNet
-    latent_dim: &latent_dim 64
+    latent_dim: &latent_dim 54
     layers_spec:
-      - [512, 512]
-      - [512, 512]
+      - [512, 512, 512]
+      - [512, 512, 512]
+      - [512, 512, 512]
 transform:
   name: fff.model.MultilevelFlow
   data_dim: *latent_dim
@@ -77,6 +79,7 @@ optimizer:
   name: adam
   lr: 0.002
 
+gradient_clip: 3.0
 batch_size: 512
-load_models_path: "lightning_logs/E16VAE_3_wodo/version_0/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/Cnn_vae/version_2/checkpoints/last.ckpt"
 #load_transform_path: "lightning_logs/16aznc_i_lr2/version_0/checkpoints/last.ckpt"

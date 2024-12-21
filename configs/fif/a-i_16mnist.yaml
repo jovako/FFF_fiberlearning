@@ -5,20 +5,19 @@ load_subject_model: True
 latent_distribution:
   name: "transformed_normal"
 data_set:
-  name: mnist_split
-  root: data
+  name: saved_mnist
+  root: /export/data/wjoran/FFF/data/cc_mnist
   conditional: True
-  path: "EMnist_Class"
 
 loss_weights:
   nll: 1
-  masked_reconstruction: 1
+    #masked_reconstruction: 1
   #latent_reconstruction: 10
-  fiber_loss: 100
+  #fiber_loss: 1
   #z_sample_reconstruction: 1
   #mask_dims: 16
-max_epochs: 50
-#warm_up_fiber: [35, 40]
+max_epochs: 100
+  #warm_up_fiber: [10, 20]
 
 train_models: False
 train_transform: True
@@ -28,18 +27,21 @@ models:
     latent_dim: 100
     ch_factor: 32
     encoder_spec: 
-      - [2,4,2,1]
-      - [4,4,2,1]
-      - [8,4,2,1]
+      - [3, 4, 2, 1]
+      - [6, 4, 2, 1]
+      - [8, 4, 2, 1]
+      - [10, 4, 2, 1]
     decoder_spec:
-      - [8,4]
-      - [4,4,2,1]
-      - [1,3,2,1,1]
+      - [10, 4]
+      - [8, 3, 2, 1]
+      - [6, 3, 2, 1, 1]
+      - [3, 3, 2, 1, 1]
   - name: fff.model.VarResNet
-    latent_dim: &latent_dim 64
+    latent_dim: &latent_dim 54
     layers_spec:
-      - [512, 512]
-      - [512, 512]
+      - [512, 512, 512]
+      - [512, 512, 512]
+      - [512, 512, 512]
 transform:
   name: fff.model.InjectiveFlow
   data_dim: *latent_dim
@@ -92,9 +94,10 @@ transform:
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.002
+  lr: 0.001
+  weight_decay: 0.00002
 gradient_clip: 3.0
 
 batch_size: 512
-load_models_path: "lightning_logs/E16VAE_3_wodo/version_0/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/Cnn_vae/version_2/checkpoints/last.ckpt"
 #load_transform_path: "lightning_logs/16vae_if2/version_0/checkpoints/last.ckpt"

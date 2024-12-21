@@ -16,17 +16,22 @@ def split_dataset(data, seed=1241735):
 
 def Decolorize(x_colored):
     def detect_colors(x_data):
-        background_colors = x_data[:,:,0,0]
+        background_colors = torch.mean(x_data[:,:,:,0],-1)
+        """
         background_colors_e = background_colors.unsqueeze(-1).unsqueeze(-1).expand(-1,-1,28,28)
         foreground = torch.sum((x_data - background_colors_e)**2,1)
         foreground_pixel = torch.argmax(foreground.reshape(-1,28*28), -1)
         foreground_colors = x_data.reshape(-1,3,28*28)[torch.arange(x_data.shape[0]),:,foreground_pixel]
+        """
+        foreground_colors = torch.mean(x_data[:,:,:,-1],-1)
         return background_colors, foreground_colors
 
     x_colored = x_colored.reshape(-1,3,28,28)
-    b_colors, d_colors = detect_colors(x_colored.detach())
+    b_colors, d_colors = detect_colors(x_colored)
     # C = X * DC + (1-X) * BC -> X = (C-BC)/(DC-BC) for all three color channels
-    b_colors = b_colors.unsqueeze(-1).unsqueeze(-1).expand(-1,-1,28,28)
-    d_colors = d_colors.unsqueeze(-1).unsqueeze(-1).expand(-1,-1,28,28)
-    X = (x_colored-b_colors)/(d_colors-b_colors)
-    return torch.mean(torch.clamp(X,0,1), 1)
+    b_colors = b_colors.unsqueeze(-1).unsqueeze(-1).expand(-1,-1,28,14)
+    d_colors = d_colors.unsqueeze(-1).unsqueeze(-1).expand(-1,-1,28,14)
+    colors = torch.cat([b_colors, d_colors], -1)
+    #X = (x_colored-b_colors)/(d_colors-b_colors)
+    X = 1 - (torch.sum(x_colored,1)/torch.sum(colors,1))
+    return torch.clamp(X[:,:,:],0,1)

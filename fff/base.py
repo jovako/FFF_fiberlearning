@@ -642,6 +642,7 @@ class FreeFormBase(Trainable):
             else:
                 log_prob, log_det, z_dense = self._latent_log_prob(z_detach, c_full_n)
                 loss_values["nll"] = -(log_prob + log_det)
+                metrics["jac"] = log_det.mean()
             if isinstance(z_dense, tuple):
                 z_dense, z_coarse = z_dense
                 if check_keys("coarse_supervised"):
@@ -756,11 +757,11 @@ class FreeFormBase(Trainable):
                 # Try whether the model learns fibers and therefore has a subject model
                 #try:
                 # There might be no subject model
-                cT = torch.empty(x_random.shape[0],0).to(x_random.device)
+                #cT = torch.empty(x_random.shape[0],0).to(x_random.device)
                 #c1 = ((self.subject_model.encode(x_random, cT) - self.data_shift)
                 #      / self.data_scale)
                 c1_img = Decolorize(x_random)
-                c1 = self.subject_model.encode(c1_img, cT)[0]
+                c1 = self.subject_model.encode(c1_img)
                 c1 = torch.nan_to_num(c1)
 
                 loss_values["fiber_loss"] = self._reduced_rec_loss(

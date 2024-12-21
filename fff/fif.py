@@ -4,6 +4,7 @@ import torch
 
 from fff.base import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult
 from fff.utils.truncate import Truncate
+from fff.utils.subject_model import SubjectModel
 
 
 class FreeFormInjectiveFlowHParams(FreeFormBaseHParams):
@@ -25,10 +26,14 @@ class FreeFormInjectiveFlow(FreeFormBase):
         if load_sm:
             print("loading subject_model")
             sm_dir = hparams["data_set"]["root"]
-            self.subject_model = FreeFormInjectiveFlow.load_from_checkpoint(
-                f"{sm_dir}/subject_model/checkpoints/last.ckpt"
+            subject_model = FreeFormInjectiveFlow.load_from_checkpoint(
+                f"{sm_dir}/subject_model/checkpoints/best.ckpt"
             )
-                #self.subject_model = Truncate(Classifier)
+            subject_model.eval()
+            for param in subject_model.parameters():
+                param.require_grad = False
+            self.subject_model = SubjectModel(subject_model, subject_model.encode)
+            #self.subject_model = Truncate(Classifier)
             """
             else:
                 print("subject_model is Autoencoder")
@@ -49,9 +54,6 @@ class FreeFormInjectiveFlow(FreeFormBase):
                             "subject_models/16EMnist_F3F_4/checkpoints/last.ckpt"
                     )
             """
-            self.subject_model.eval()
-            for param in self.subject_model.parameters():
-                param.require_grad = False
         if self.data_dim <= self.latent_dim:
             raise ValueError("Latent dimension must be less than data dimension "
                              "for a FreeFormInjectiveFlow.")

@@ -30,14 +30,16 @@ class DenoisingFlow(nn.Module):
         self.hparams = hparams
         self.wavelet_inn = self.build_inn(hparams.latent_dim, cond_dim=hparams.cond_dim)
         self.coarse_dim = self.hparams.latent_dim - self.hparams.cond_dim
-        self.coarse_inn = self.build_inn(self.coarse_dim, cond_dim=2*hparams.cond_dim)
+        #self.coarse_dim = 4
+        self.details_dim = self.hparams.latent_dim - self.coarse_dim
+        self.coarse_inn = self.build_inn(self.coarse_dim, cond_dim=hparams.cond_dim+self.details_dim)
 
     def encode(self, x, c):
         #global wavelet
         out0, jac0 = self.wavelet_inn(x, [c], jac=True, rev=False)
 
-        _out0_coarse = out0[:, :-self.hparams.cond_dim]
-        _out0_details = out0[:, -self.hparams.cond_dim:]
+        _out0_coarse = out0[:, :self.coarse_dim]
+        _out0_details = out0[:, self.coarse_dim:]
         details = _out0_details
         #coarse split
         cond = torch.cat([details, c], dim=1)
@@ -65,7 +67,9 @@ class DenoisingFlow(nn.Module):
         return make_inn(self.hparams.inn_spec, dim, cond_dim=cond_dim,
                         cond=cond, zero_init=self.hparams.zero_init)
 
+    """
     def build_coarse(self) -> nn.Module:
         dim = self.hparams.latent_dim - self.hparams.cond_dim
         details_dim = self.hparams.cond_dim
         return make_inn(self.hparams.inn_spec, dim, cond_dim=details_dim, zero_init=self.hparams.zero_init)
+    """

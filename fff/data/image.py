@@ -296,10 +296,10 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
         test_data = test_data.reshape(-1, data_size)
 
     # Normalize to [0, 1]
-    if train_data.max() > 1:
-        train_data = train_data / 255.
-        val_data = val_data / 255.
-        test_data = test_data / 255.
+    if train_data.min() < 0:
+        train_data = (train_data + 1.)/2
+        val_data = (val_data + 1.)/2
+        test_data = (test_data + 1.)/2
 
     # Labels
     if label is not None or conditional:
