@@ -46,7 +46,7 @@ models:
 transform:
   name: fff.model.ResNet
   data_dim: *latent_dim
-  latent_dim: 3
+  latent_dim: 54
   layers_spec:
     - [512, 512]
     - [512, 512]
@@ -60,5 +60,5 @@ optimizer:
 gradient_clip: 3.0
 
 batch_size: 512
-load_models_path: "lightning_logs/Cnn_vae/version_2/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/C_vae__2000/version_0/checkpoints/last.ckpt"
   #load_transform_path: "lightning_logs/16_f48f_011_log/version_0/checkpoints/last.ckpt"

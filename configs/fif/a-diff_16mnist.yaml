@@ -2,7 +2,7 @@ model: fff.FreeFormInjectiveFlow
 
 noise: 0.
 load_subject_model: True
-betas_max: 0.08
+betas_max: 0.04
 beta_schedule: "linear"
 fiber_loss_every: 20
 latent_distribution:
@@ -36,7 +36,7 @@ models:
       - [6, 3, 2, 1, 1]
       - [3, 3, 2, 1, 1]
   - name: fff.model.VarResNet
-    latent_dim: &latent_dim 68
+    latent_dim: &latent_dim 54
     layers_spec:
       - [512, 512, 512]
       - [512, 512, 512]
@@ -44,9 +44,9 @@ models:
 transform:
   name: fff.model.DiffusionModel
   data_dim: *latent_dim
-  num_heads: 4
+  num_heads: 2
   time_dim: 8
-  hidden_dim: 68
+  hidden_dim: 54
   layers_spec:
     - [512, 512]
     - [512, 512]
@@ -65,5 +65,5 @@ optimizer:
   lr: 0.001
 
 batch_size: 512
-load_models_path: "lightning_logs/C_vae/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/C_vae__2000/version_0/checkpoints/last.ckpt"
   #load_transform_path: "lightning_logs/3_d/version_0/checkpoints/last.ckpt"

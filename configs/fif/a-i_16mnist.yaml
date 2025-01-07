@@ -13,11 +13,11 @@ loss_weights:
   nll: 1
     #masked_reconstruction: 1
   #latent_reconstruction: 10
-  #fiber_loss: 1
+  fiber_loss: 10
   #z_sample_reconstruction: 1
   #mask_dims: 16
 max_epochs: 100
-  #warm_up_fiber: [10, 20]
+  #warm_up_fiber: [50, 60]
 
 train_models: False
 train_transform: True
@@ -99,5 +99,5 @@ optimizer:
 gradient_clip: 3.0
 
 batch_size: 512
-load_models_path: "lightning_logs/Cnn_vae/version_2/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/C_vae__2000/version_0/checkpoints/last.ckpt"
 #load_transform_path: "lightning_logs/16vae_if2/version_0/checkpoints/last.ckpt"

@@ -14,7 +14,7 @@ loss_weights:
   latent_reconstruction: 10
   #latent_reconstruction: 100
   #noisy_reconstruction: 100
-  #fiber_loss: 10
+  fiber_loss: 1
   #z_sample_reconstruction: 1
   #mask_dims: 32
 max_epochs: 100
@@ -80,5 +80,5 @@ optimizer:
 
 batch_size: 512
 gradient_clip: 3.0
-load_models_path: "lightning_logs/Cnn_vae/version_2/checkpoints/last.ckpt"
+load_models_path: "lightning_logs/C_vae__2000/version_0/checkpoints/last.ckpt"
 #load_transform_path: "lightning_logs/16aznc_i_lr2/version_0/checkpoints/last.ckpt"

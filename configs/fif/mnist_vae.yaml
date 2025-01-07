@@ -11,7 +11,7 @@ loss_weights:
   noisy_reconstruction: 2000
   #sqr_reconstruction: 10
   kl: 1
-  #z std: 1
+  #z std: 2
   #nll: 1
 max_epochs: 500
 

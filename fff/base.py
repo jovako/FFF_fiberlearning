@@ -105,7 +105,7 @@ class FreeFormBase(Trainable):
             else:
                 self._data_cond_dim = data_sample[1].shape[0]
 
-        # Ask whether the latent variebles should be passed by another learning model and which model class to use
+        # Ask whether the latent variables should be passed by another learning model and which model class to use
         if self.hparams.transform:
             if (self.hparams.transform.name in [
                     "fff.model.InjectiveFlow", "fff.model.MultilevelFlow",
