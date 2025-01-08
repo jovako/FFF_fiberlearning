@@ -16,8 +16,8 @@ loss_weights:
 max_epochs: 653
 
   #vae: True
-train_models: True
-models:
+train_lossless_ae: True
+lossless_ae:
   - name: fff.model.ConvolutionalNeuralNetwork
     latent_dim: &latent_dim 100
     ch_factor: 32
