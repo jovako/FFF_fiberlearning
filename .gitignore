@@ -185,3 +185,9 @@ slurm-*.out
 *.swp
 *.swo
 saved_models/
+
+
+data/
+datasets/
+lossless_ae/
+subject_models/
