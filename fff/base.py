@@ -2,6 +2,7 @@ from collections import namedtuple, defaultdict
 from copy import deepcopy
 from importlib import import_module
 from math import prod, log10
+import ldctinv.pretrained
 
 import torch
 import lightning_trainable
@@ -35,12 +36,12 @@ class FreeFormBaseHParams(TrainableHParams):
     track_train_time: bool = False
     mask_dims: int = 0
 
-    models: list
+    lossless_ae: list
     transform: dict = {}
-    load_models_path: bool | str = False
+    load_lossless_ae_path: bool | str = False
     load_transform_path: bool | str = False
     load_subject_model: bool = False
-    train_models: bool = True
+    train_lossless_ae: bool = True
     train_transform: bool = True
     vae: bool = False
     betas_max: float = 0.2
@@ -120,41 +121,46 @@ class FreeFormBase(Trainable):
                 self.transform = "fif"
         else:
             self.transform = False
-        # Check whether self,models is a VAE
+        # Check whether self.lossless_ae is a VAE
         self.vae = self.hparams.vae
         try:
-            if self.hparams.models[1]["name"] == "fff.model.VarResNet":
+            if self.hparams.lossless_ae[1]["name"] == "fff.model.VarResNet":
                 self.vae = True
         except: 
             self.vae = False
 
         # Build model
-        self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
-        if self.hparams.load_models_path:
-            print("load models checkpoint")
-            checkpoint = torch.load(self.hparams.load_models_path)
-            models_weights = {k[7:]: v for k, v in checkpoint["state_dict"].items()
-                              if k.startswith("models.")}
-            self.models.load_state_dict(models_weights)
+        """
+        CT_nets, _ = ldctinv.pretrained.load_pretrained("cnn10")
+        self.lossless_ae = Sequential(CT_nets["vae"])
+        """
+        self.lossless_ae = build_model(self.hparams.lossless_ae, self.data_dim, self.cond_dim)
+        if self.hparams.load_lossless_ae_path:
+            print("load lossless_ae checkpoint")
+            checkpoint = torch.load(self.hparams.load_lossless_ae_path)
+            try:
+                lossless_ae_weights = {k[12:]: v for k, v in checkpoint["state_dict"].items()
+                                  if k.startswith("lossless_ae.")}
+                self.lossless_ae.load_state_dict(lossless_ae_weights)
+            except:
+                lossless_ae_weights = {k[7:]: v for k, v in checkpoint["state_dict"].items()
+                                  if k.startswith("models.")}
+                self.lossless_ae.load_state_dict(lossless_ae_weights)
+
 
         # Build transform_model that transforms the latent variables
         if self.transform:
             print("Only the transform_model will be trained while the model is kept fixed!")
             print("Also the noise is added only to the latent variables!")
             self.transform_model = build_model([self.hparams.transform],
-                                                self.models[-1].hparams.latent_dim,
+                                                self.lossless_ae[-1].hparams.latent_dim,
                                                 self._data_cond_dim)[0]
             if self.hparams.load_transform_path:
                 print("load transform checkpoint")
                 checkpoint = torch.load(self.hparams.load_transform_path)
-                try:
-                    transform_weights = {k[9:]: v for k, v in checkpoint["state_dict"].items()
-                                      if k.startswith("models.")}
-                    self.transform_model.load_state_dict(transform_weights)
-                except:
-                    transform_weights = {k[16:]: v for k, v in checkpoint["state_dict"].items()
-                                      if k.startswith("transform_model.")}
-                    self.transform_model.load_state_dict(transform_weights)
+                transform_weights = {k[16:]: v for k, v in checkpoint["state_dict"].items()
+                                  if k.startswith("transform_model.")}
+                self.transform_model.load_state_dict(transform_weights)
 
         # Learnt latent distribution
         self.latents = {}
@@ -277,7 +283,7 @@ class FreeFormBase(Trainable):
         if self.transform:
             return self.transform_model.hparams.latent_dim
         else:
-            return self.models[-1].hparams.latent_dim
+            return self.lossless_ae[-1].hparams.latent_dim
 
     def is_conditional(self):
         return self._data_cond_dim != 0
@@ -311,7 +317,7 @@ class FreeFormBase(Trainable):
         return callbacks
 
     def encode(self, x, c):
-        for model in self.models:
+        for model in self.lossless_ae:
             x = model.encode(x, c)
         if self.vae:
             # VAE latent sampling
@@ -322,7 +328,7 @@ class FreeFormBase(Trainable):
         return x
 
     def decode(self, z, c):
-        for model in self.models[::-1]:
+        for model in self.lossless_ae[::-1]:
             z = model.decode(z, c)
         return z
 
@@ -926,14 +932,14 @@ class FreeFormBase(Trainable):
 
     def configure_optimizers(self):
         params = []
-        if self.hparams.train_models:
-            params.extend(list(self.models.parameters()))
+        if self.hparams.train_lossless_ae:
+            params.extend(list(self.lossless_ae.parameters()))
             if self.vae:
                 params.append(self.lamb)
             if self.transform:
-                print("WARNING: model is not meant to be trained when a transform_model is included")
+                print("WARNING: lossless_ae is not meant to be trained when a transform_model is included")
         else:
-            print("WARNING: models get not trained")
+            print("WARNING: lossless_ae get not trained")
         if self.transform:
             if self.hparams.train_transform:
                 params.extend(list(self.transform_model.parameters()))
