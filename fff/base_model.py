@@ -32,7 +32,7 @@ class FreeFormBaseHParams(TrainableHParams):
     noise: float | list = 0.0
     track_train_time: bool = False
 
-    models: list
+    models: list | []
 
     loss_weights: dict
     log_det_estimator: dict = dict(
@@ -652,6 +652,8 @@ class FreeFormBase(Trainable):
 
 
 def build_model(models, data_dim: int, cond_dim: int):
+    if len(models)==0:
+        return None
     if not isinstance(models[0], dict):
         return Sequential(*models)
     models = deepcopy(models)
