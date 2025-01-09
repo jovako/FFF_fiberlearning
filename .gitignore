@@ -184,7 +184,7 @@ slurm-*.out
 # vim-files
 *.swp
 *.swo
-
+saved_models/
 data/
 datasets/
 lossless_ae/
