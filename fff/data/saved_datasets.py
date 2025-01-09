@@ -2,12 +2,11 @@ import torch
 import numpy as np
 import os
 
-def get_saved_dataset(root):
+def get_saved_dataset(root, **kwargs):
     # check if the dataset is present in root and whether it ends with .pt or .npz
     if not os.path.exists(root):
         raise FileNotFoundError(f"Dataset not found at {root}")
     
-    filenames = os.listdir(root)
     try:
         train_dataset = torch.load(f"{root}/train.pt")
         val_dataset = torch.load(f"{root}/val.pt")
@@ -33,3 +32,10 @@ def get_saved_dataset(root):
 
     return train_dataset, val_dataset, test_dataset, (0, 1) # center and std are not available
     
+def get_subject_model_path(root, **kwargs):
+    subject_model_path = f"{root}/subject_model.pt"
+    if not os.path.exists(subject_model_path):
+        subject_model_path = f"{root}/subject_model/checkpoints/last.ckpt"
+        if not os.path.exists(subject_model_path):
+            return None
+    return subject_model_path

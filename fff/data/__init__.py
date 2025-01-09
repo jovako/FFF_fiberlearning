@@ -1,5 +1,5 @@
 from .utils import TrainValTest
-
+import os
 
 def load_dataset(name: str, **kwargs) -> TrainValTest:
     if name in ["miniboone", "gas", "hepmass", "power"]:
@@ -61,3 +61,11 @@ def load_dataset(name: str, **kwargs) -> TrainValTest:
         return make_toy_data(name, **kwargs)
 
     raise ValueError(f"Unknown dataset {name} (unreachable code!)")
+
+
+def get_model_path(**dataset_kwargs):
+    if "subject_model_path" in dataset_kwargs:
+        return dataset_kwargs["subject_model_path"]
+    elif dataset_kwargs["name"] == "precompiled_dataset":
+        from .saved_datasets import get_subject_model_path
+        return get_subject_model_path(dataset_kwargs["root"])
