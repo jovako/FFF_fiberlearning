@@ -482,27 +482,13 @@ class FiberModel(FreeFormBase):
                     c_random = c
                 x_random = self.decode(z_random, c_random)
                 # Try whether the model learns fibers and therefore has a subject model
-                if self.hparams.load_sm:
+                try:
                     # There might be no subject model
                     cT = torch.empty(x_random.shape[0],0).to(x_random.device)
-<<<<<<< HEAD
                     c1 = ((self.subject_model.encode(x_random, cT))
                     loss_values["fiber_loss"] = self._reduced_rec_loss(c, c1)
-                else:
-||||||| ae356b1
-                    c1 = ((self.subject_model.encode(x_random, cT) - self.data_shift)
-                          / self.data_scale)
-                    loss_values["fiber_loss"] = self._reduced_rec_loss(
-                        c_full, c1)
-                except:
-=======
-                    c1 = ((self.subject_model.encode(x_random, cT) - self.data_shift)
-                          / self.data_scale)
-                    loss_values["fiber_loss"] = self._reduced_rec_loss(
-                        c_full, c1)
                 except Exception as e:
                     warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
->>>>>>> 2a105708f749faf3bfe20c62b87063723457a230
                     loss_values["fiber_loss"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
                 try:
