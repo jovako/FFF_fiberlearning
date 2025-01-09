@@ -40,15 +40,12 @@ def get_split_mnist(root: str, digit: int = None, conditional: bool = False, pat
         torch.from_numpy(df["train_y"]),
     )
 
-    center = torch.mean(train_targets)
-    std = torch.std(train_targets)
-
-    train_targets = (train_targets - center) / std
-    val_data = torch.from_numpy(df["val_x"])[:5000]
+    train_targets = train_targets
+    val_data = torch.from_numpy(df["val_x"])
     print(val_data.shape)
-    val_targets = ((torch.from_numpy(df["val_y"]) - center) / std)[:5000]
+    val_targets = torch.from_numpy(df["val_y"])
     test_data = torch.from_numpy(df["test_x"])
-    test_targets = ((torch.from_numpy(df["test_y"]) - center) / std)
+    test_targets = torch.from_numpy(df["test_y"])
     
     # Add fix noise to data
     if fix_noise is not None:
@@ -74,7 +71,7 @@ def get_split_mnist(root: str, digit: int = None, conditional: bool = False, pat
         *val_data
     ), TensorDataset(
         *test_data
-    ), (center, std)
+    )
 
 def get_mnist_downsampled(root: str, digit: int = None, conditional: bool = False) -> TrainValTest:
     class DownsampleTransform:
@@ -209,13 +206,15 @@ def celeba_to_memory(root: str, split: str, image_size: None | int) -> MemoryCel
 
 def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, conditional: bool = False):
     # Data is (N, H, W, C)
-    #train_data = train_dataset.data
+    train_data = train_dataset.data
+    """
     batch_size = train_dataset.data.shape[0]
     dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size)
     train_data, _ = next(iter(dataloader))
     batch_size = test_dataset.data.shape[0]
     dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size)
     test_data, _ = next(iter(dataloader))
+    """
     
     print(train_data.shape)
     if val_dataset is None:
@@ -227,7 +226,7 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
         train_data = train_data[:-val_data_split]
     else:
         val_data = val_dataset.data
-    #test_data = test_dataset.data
+    test_data = test_dataset.data
 
     # To PyTorch tensors
     if not torch.is_tensor(train_data):
