@@ -5,22 +5,22 @@ from fff.base import ModelHParams
 from .utils import batch_wrap, make_inn
 
 
-class InjectiveFlowHParams(ModelHParams):
+class INNHParams(ModelHParams):
     inn_spec: list
     zero_init: bool = True
 
 
-class InjectiveFlow(nn.Module):
+class INN(nn.Module):
     """
     This uses a INN to map from data to latent space and back.
     In the case that latent_dim < data_dim, the latent space is a subspace of the data space.
     For reverting, the latent space is padded with zeros.
     """
-    hparams: InjectiveFlowHParams
+    hparams: INNHParams
 
-    def __init__(self, hparams: dict | InjectiveFlowHParams):
-        if not isinstance(hparams, InjectiveFlowHParams):
-            hparams = InjectiveFlowHParams(**hparams)
+    def __init__(self, hparams: dict | INNHParams):
+        if not isinstance(hparams, INNHParams):
+            hparams = INNHParams(**hparams)
 
         super().__init__()
         self.hparams = hparams

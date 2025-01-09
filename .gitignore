@@ -186,6 +186,7 @@ slurm-*.out
 *.swo
 
 ./data/
+saved_models/
 datasets/
 lossless_ae/
 notebooks/FiberModels/

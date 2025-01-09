@@ -3,7 +3,7 @@ from math import prod
 import torch
 
 from fff.base import FreeFormBase, FreeFormBaseHParams, VolumeChangeResult, LogProbResult
-from fff.loss import nll_surrogate
+from fff.loss import volume_change_surrogate
 
 
 class ManifoldFreeFormFlowHParams(FreeFormBaseHParams):
@@ -85,7 +85,7 @@ class ManifoldFreeFormFlow(FreeFormBase):
         estimator_name = config.pop("name")
         assert estimator_name == "surrogate"
 
-        out = nll_surrogate(
+        out = volume_change_surrogate(
             x,
             lambda _x: self.encode(_x, c, project=False),
             lambda z: self.decode(z, c, project=False),
