@@ -14,114 +14,66 @@ from torch.distributions import Independent, Normal
 from torch.nn import Sequential, CrossEntropyLoss
 from torch.utils.data import DataLoader, IterableDataset
 
+from fff.base_model import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult
 import fff.data
 from fff.distributions.learnable import *
 from fff.distributions.multivariate_student_t import MultivariateStudentT
-from fff.loss import nll_surrogate
+from fff.loss import volume_change_surrogate
 from fff.model.utils import TrainWallClock
 from fff.utils.jacobian import compute_jacobian
 from fff.utils.diffusion import make_betas
 
-class ModelHParams(HParams):
-    data_dim: int
-    cond_dim: int
-    latent_dim: int | str = "data"
-
-
-class FreeFormBaseHParams(TrainableHParams):
-    latent_distribution: dict = dict(
-        name="normal"
-    )
-    data_set: dict
-    noise: float | list = 0.0
-    track_train_time: bool = False
-    mask_dims: int = 0
-
-    lossless_ae: list = []
-    transform: dict = {}
+class FiberModelHParams(FreeFormBaseHParams):
+    lossless_ae: list
+    density_model: dict = {}
     load_lossless_ae_path: bool | str = False
-    load_transform_path: bool | str = False
+    load_density_model_path: bool | str = False
     load_subject_model: bool = False
     train_lossless_ae: bool = True
-    train_transform: bool = True
+    train_density_model: bool = True
     vae: bool = False
     betas_max: float = 0.2
     beta_schedule: str = "linear"
 
-    loss_weights: dict
-    log_det_estimator: dict = dict(
-        name="surrogate",
-        hutchinson_samples=1
-    )
     eval_all: bool = True
-    skip_val_nll: bool | int = False
-    exact_train_nll_every: int | None = None
     fiber_loss_every: int = 1
     cnew_every: int = 1 #deprecated and not used anymore
 
     warm_up_fiber: int | list = 0
     warm_up_epochs: int | list = 0
 
-    exact_chunk_size: None | int = None
 
-
-LogProbResult = namedtuple("LogProbResult", ["z", "x1", "log_prob", "regularizations"])
-VolumeChangeResult = namedtuple("VolumeChangeResult", ["out", "volume_change", "regularizations"])
-ConditionedBatch = namedtuple("ConditionedBatch", [
-    "x0", "x_noisy", "loss_weights", "condition", "dequantization_jac"
-])
-
-
-class FreeFormBase(Trainable):
+class FiberModel(FreeFormBase):
     """
-    This class abstracts the joint functionalities of free-form flows (FFF)
-    and Free-form injective flows (FIF).
+    This class abstracts the functionalities of a model which learns
+    the fibers of a "subject model".
     """
-    hparams: FreeFormBaseHParams
+    hparams: FiberModelHParams
 
     def __init__(self, hparams: FreeFormBaseHParams | dict):
-        dataset = fff.data.load_dataset(**hparams["data_set"])
-        try:
-            train_data, val_data, test_data, norm = dataset
-            self.data_shift = norm[0]
-            self.data_scale = norm[1]
-        except:
-            train_data, val_data, test_data = dataset
-
-        super().__init__(hparams, train_data=train_data, val_data=val_data, test_data=test_data)
-
-        try:
-            self._data_dim = train_data.data_dim
-            self._data_cond_dim = train_data.cond_dim
-        except AttributeError:
-            data_sample = train_data[0]
-            self._data_dim = prod(data_sample[0].shape)
-            if len(data_sample) == 1:
-                self._data_cond_dim = 0
-            elif self.classification:
-                self._data_cond_dim = data_sample[1].shape[0]
-                self.cross_entropy = CrossEntropyLoss(reduction='none', label_smoothing=0.2)
-            elif len(data_sample[1].shape) != 1:
-                raise NotImplementedError("More than one condition dimension is not supported.")
-            else:
-                self._data_cond_dim = data_sample[1].shape[0]
+        super().__init__(hparams)
+        """
+        elif self.classification:
+        self._data_cond_dim = data_sample[1].shape[0]
+        self.cross_entropy = CrossEntropyLoss(reduction='none', label_smoothing=0.2)
+        """
 
         # Ask whether the latent variebles should be passed by another learning model and which model class to use
-        if self.hparams.transform:
-            if (self.hparams.transform.name in [
+        if self.hparams.density_model:
+            if (self.hparams.density_model.name in [
                     "fff.model.InjectiveFlow", "fff.model.MultilevelFlow",
                     "fff.model.DenoisingFlow"]):
-                self.transform = "inn"
-            elif self.hparams.transform.name == "fff.model.DiffusionModel":
-                self.transform = "diffusion"
+                self.density_model_name = "inn"
+            elif self.hparams.density_model.name == "fff.model.DiffusionModel":
+                self.density_model_name = "diffusion"
                 self.betas = make_betas(1000, self.hparams.betas_max, self.hparams.beta_schedule)
                 self.alphas_ = torch.cumprod((1 - self.betas), axis=0)
                 print(self.alphas_.shape)
                 self.sample_steps = torch.linspace(0, 1, 1000).flip(0)
             else:
-                self.transform = "fif"
+                self.density_model_name = "fif"
         else:
-            self.transform = False
+            self.density_model_name = False
         # Check whether self.lossless_ae is a VAE
         self.vae = self.hparams.vae
         try:
@@ -130,127 +82,36 @@ class FreeFormBase(Trainable):
         except: 
             self.vae = False
 
-        # Build model
+        # Build models
+        # First the lossless vae
         """
         CT_nets, _ = ldctinv.pretrained.load_pretrained("cnn10")
         self.lossless_ae = Sequential(CT_nets["vae"])
         """
-        self.lossless_ae = build_model(self.hparams.lossless_ae, self.data_dim, self.cond_dim)
+        self.lossless_ae = build_model(self.hparams.lossless_ae, self.data_dim, 0)
         if self.hparams.load_lossless_ae_path:
             print("load lossless_ae checkpoint")
             checkpoint = torch.load(self.hparams.load_lossless_ae_path)
-            try:
-                lossless_ae_weights = {k[12:]: v for k, v in checkpoint["state_dict"].items()
-                                  if k.startswith("lossless_ae.")}
-                self.lossless_ae.load_state_dict(lossless_ae_weights)
-            except:
-                lossless_ae_weights = {k[7:]: v for k, v in checkpoint["state_dict"].items()
-                                  if k.startswith("models.")}
-                self.lossless_ae.load_state_dict(lossless_ae_weights)
+            lossless_ae_weights = {k[12:]: v for k, v in checkpoint["state_dict"].items()
+                              if k.startswith("lossless_ae.")}
+            self.lossless_ae.load_state_dict(lossless_ae_weights)
 
-
-        # Build transform_model that transforms the latent variables
-        if self.transform:
-            print("Only the transform_model will be trained while the model is kept fixed!")
+        # Build density_model that operates in the latent space of the lossless_ae
+        if self.density_model_name:
+            print("Only the density_model will be trained while the model is kept fixed!")
             print("Also the noise is added only to the latent variables!")
-            self.transform_model = build_model([self.hparams.transform],
+            self.density_model = build_model([self.hparams.density_model],
                                                 self.lossless_ae[-1].hparams.latent_dim,
                                                 self._data_cond_dim)[0]
-            if self.hparams.load_transform_path:
-                print("load transform checkpoint")
-                checkpoint = torch.load(self.hparams.load_transform_path)
-                transform_weights = {k[16:]: v for k, v in checkpoint["state_dict"].items()
-                                  if k.startswith("transform_model.")}
-                self.transform_model.load_state_dict(transform_weights)
+            if self.hparams.load_density_model_path:
+                print("load density_model checkpoint")
+                checkpoint = torch.load(self.hparams.load_density_model_path)
+                density_model_weights = {k[16:]: v for k, v in checkpoint["state_dict"].items()
+                                  if k.startswith("density_model.")}
+                self.density_model.load_state_dict(density_model_weights)
 
-        # Learnt latent distribution
-        self.latents = {}
-        default_latent = self.get_latent(self.device)
-        if isinstance(default_latent, torch.nn.Module):
-            self.learnt_latent = default_latent
-        if self.vae:
-            # Add learnable parameter for standard deviation
-            self.lamb = torch.nn.Parameter(torch.ones(1), requires_grad=True)
-
-    def train_dataloader(self) -> DataLoader | list[DataLoader]:
-        """
-        Configures the Train DataLoader for Lightning. Uses the dataset you passed as train_data.
-
-        @return: The DataLoader Object.
-        """
-        if self.train_data is None:
-            return []
-        kwargs = {}
-        try:
-            kwargs["collate_fn"] = self.train_data.collate_fn
-        except AttributeError:
-            pass
-        return DataLoader(
-            dataset=self.train_data,
-            batch_size=self.hparams.batch_size,
-            shuffle=not isinstance(self.train_data, IterableDataset),
-            pin_memory=auto_pin_memory(self.hparams.pin_memory, self.hparams.accelerator),
-            num_workers=self.hparams.num_workers,
-            **kwargs,
-        )
-
-    def val_dataloader(self) -> DataLoader | list[DataLoader]:
-        """
-        Configures the Validation DataLoader for Lightning. Uses the dataset you passed as val_data.
-
-        @return: The DataLoader Object.
-        """
-        if self.val_data is None:
-            return []
-        kwargs = {}
-        try:
-            kwargs["collate_fn"] = self.train_data.collate_fn
-        except AttributeError:
-            pass
-        return DataLoader(
-            dataset=self.val_data,
-            batch_size=self.hparams.batch_size,
-            shuffle=False,
-            pin_memory=auto_pin_memory(self.hparams.pin_memory, self.hparams.accelerator),
-            num_workers=self.hparams.num_workers,
-            **kwargs,
-        )
-
-    def test_dataloader(self) -> DataLoader | list[DataLoader]:
-        """
-        Configures the Test DataLoader for Lightning. Uses the dataset you passed as test_data.
-
-        @return: The DataLoader Object.
-        """
-        if self.test_data is None:
-            return []
-        kwargs = {}
-        try:
-            kwargs["collate_fn"] = self.train_data.collate_fn
-        except AttributeError:
-            pass
-        return DataLoader(
-            dataset=self.test_data,
-            batch_size=self.hparams.batch_size,
-            shuffle=False,
-            pin_memory=auto_pin_memory(self.hparams.pin_memory, self.hparams.accelerator),
-            num_workers=self.hparams.num_workers,
-            **kwargs,
-        )
-
-    def get_latent(self, device):
-        # Learnable distributions should just be moved to the right device, so that parameters are shared
-        if self.latents and isinstance(next(iter(self.latents.values())), torch.nn.Module):
-            return next(iter(self.latents.values())).to(device)
-
-        if device not in self.latents:
-            latent_hparams = deepcopy(self.hparams.latent_distribution)
-            distribution_name = latent_hparams.pop("name")
-            latent = self._make_latent(distribution_name, device, **latent_hparams)
-            assert latent is not None, (f"Found None latent distribution for name {distribution_name}."
-                                        f"This is likely due to an error in the code, not the config.")
-            self.latents[device] = latent
-        return self.latents[device]
+        # Add learnable parameter for standard deviation for vae training
+        self.lamb = torch.nn.Parameter(torch.ones(1), requires_grad=True)
 
     def _make_latent(self, name, device, **kwargs):
         if name == "normal":
@@ -263,59 +124,16 @@ class FreeFormBase(Trainable):
         elif name == "student_t":
             df = self.hparams.latent_distribution["df"] * torch.ones(1, device=device)
             return MultivariateStudentT(df, self.latent_dim)
-        # Embed transform_model in the learning latent distribution and equip it with a normal latent distribution
-        elif name == "transformed_normal":
-            if not self.transform:
-                raise ValueError("You have to give a transform model")
-            elif self.transform == "fif":
-                return FIFTransformedDistribution(
-                    self.transform_model, self._make_latent("normal", device), self.hparams.mask_dims)
-            elif self.transform == "diffusion":
-                return DiffTransformedDistribution(
-                    self.transform_model, self._make_latent("normal", device), self.betas, 1000, eta=0.1)
-            else:
-                return TransformedDistribution(
-                    self.transform_model, self._make_latent("normal", device), self.hparams.mask_dims)
+        #DiffTransformedDistribution(self.density_model, self._make_latent("normal", device), self.betas, 1000, eta=0.1)
         else:
             raise ValueError(f"Unknown latent distribution: {name!r}")
 
     @property
     def latent_dim(self):
-        if self.transform:
-            return self.transform_model.hparams.latent_dim
+        if self.density_model_name:
+            return self.density_model[-1].hparams.latent_dim
         else:
             return self.lossless_ae[-1].hparams.latent_dim
-
-    def is_conditional(self):
-        return self._data_cond_dim != 0
-
-    @property
-    def cond_dim(self):
-        # For the fiber learning model we want an unconditional lossless autoencoder
-        # If we train a classifier, the labels are not to be used as conditions
-        if self.classification or self.transform:
-            return 0
-        else:
-            soft_flow_cond_dim = 1 if isinstance(self.hparams.noise, list) else 0
-            hp_aware_cond_dim = sum(
-                1 if isinstance(weight, list) else 0
-                for weight in self.hparams.loss_weights.values()
-            )
-            return self._data_cond_dim + soft_flow_cond_dim + hp_aware_cond_dim
-
-    @property
-    def classification(self):
-        return ("classification" in self.hparams.loss_weights)
-
-    @property
-    def data_dim(self):
-        return self._data_dim
-
-    def configure_callbacks(self):
-        callbacks = super().configure_callbacks()
-        if self.hparams.track_train_time:
-            callbacks.append(TrainWallClock())
-        return callbacks
 
     def encode(self, x, c):
         for model in self.lossless_ae:
@@ -334,9 +152,9 @@ class FreeFormBase(Trainable):
         return z
 
     def _encoder_jac(self, x, c, **kwargs):
-        if self.transform:
+        if self.density_model_name:
             return compute_jacobian(
-                x, self.transform_model.encode, c,
+                x, self.density_model.encode, c,
                 chunk_size=self.hparams.exact_chunk_size,
                 **kwargs
             )
@@ -348,9 +166,9 @@ class FreeFormBase(Trainable):
             )
 
     def _decoder_jac(self, z, c, **kwargs):
-        if self.transform:
+        if self.density_model_name:
             return compute_jacobian(
-                z, self.transform_model.decode, c,
+                z, self.density_model.decode, c,
                 chunk_size=self.hparams.exact_chunk_size,
                 **kwargs
             )
@@ -360,12 +178,6 @@ class FreeFormBase(Trainable):
                 chunk_size=self.hparams.exact_chunk_size,
                 **kwargs
             )
-
-    def _encoder_volume_change(self, x, c, **kwargs) -> VolumeChangeResult:
-        raise NotImplementedError
-
-    def _decoder_volume_change(self, z, c, **kwargs) -> VolumeChangeResult:
-        raise NotImplementedError
 
     def forward(self, x, c):
         return self.decode(self.encode(x, c), c)
@@ -380,7 +192,7 @@ class FreeFormBase(Trainable):
         """
         Sample via the decoder.
         """
-        # sample first via the transform_model, if included in the latent distribution
+        # sample first via the density_model, if included in the latent distribution
         try:
             z = self.get_latent(self.device).sample(sample_shape, condition)
         except TypeError:
@@ -389,61 +201,12 @@ class FreeFormBase(Trainable):
         batch = [z]
         if condition is not None:
             batch.append(condition)
-        if self.transform:
+        if self.density_model_name:
             c = torch.empty((z.shape[0], 0), device=z.device, dtype=z.dtype)
         else:
             c = self.apply_conditions(batch).condition
         x = self.decode(z, c)
         return x.reshape(sample_shape + x.shape[1:])
-
-    def exact_log_prob(self, x, c, jacobian_target="decoder",
-                       input_is_z=False, **kwargs) -> LogProbResult:
-        metrics = {}
-
-        if input_is_z:
-            if jacobian_target != "decoder":
-                raise NotImplementedError("Cannot compute encoder Jacobian for z input.")
-            z = x
-            vol_change_enc = None
-        else:
-            if jacobian_target in ["encoder", "both"]:
-                volume_change_enc = self._encoder_volume_change(x, c, **kwargs)
-                z = volume_change_enc.out
-                vol_change_enc = volume_change_enc.volume_change
-
-                metrics.update(volume_change_enc.regularizations)
-                metrics["vol_change_encoder"] = vol_change_enc
-            else:
-                z = self.encode(x, c)
-                vol_change_enc = None
-
-        if jacobian_target in ["decoder", "both"]:
-            volume_change_dec = self._decoder_volume_change(z, c, **kwargs)
-            x1 = volume_change_dec.out
-            vol_change_dec = -volume_change_dec.volume_change
-
-            metrics.update(volume_change_dec.regularizations)
-            metrics["vol_change_decoder"] = vol_change_dec
-        else:
-            x1 = self.decode(z, c)
-            vol_change_dec = None
-
-        if jacobian_target == "encoder":
-            volume_change = vol_change_enc
-        else:
-            # If "both" is specified, we prefer the decoder
-            volume_change = vol_change_dec
-
-        latent_log_prob = self._latent_log_prob(z, c)
-
-        # Add additional nll terms if requested
-        for key, value in list(metrics.items()):
-            if key.startswith("vol_change_"):
-                metrics[key.replace("vol_change_", "nll_")] = -(latent_log_prob + value)
-
-        return LogProbResult(
-            z, x1, latent_log_prob + volume_change, metrics
-        )
 
     def surrogate_log_prob(self, x, c, **kwargs) -> LogProbResult:
         # Then compute JtJ
@@ -451,21 +214,37 @@ class FreeFormBase(Trainable):
         estimator_name = config.pop("name")
         assert estimator_name == "surrogate"
         
-        if self.transform:
-            out = nll_surrogate(
+        if self.density_model_name:
+            out = volume_change_surrogate(
                 x,
-                lambda _x: self.transform_model.encode(_x, c),
-                lambda z: self.transform_model.decode(z, c),
+                lambda _x: self.density_model.encode(_x, c),
+                lambda z: self.density_model.decode(z, c),
                 **kwargs
             )
         else:
-            out = nll_surrogate(
+            encoder_intermediates = []
+            decoder_intermediates = []
+
+            def wrapped_encode(x):
+                z, intermediates = self.encode(x, c, intermediate=True)
+                encoder_intermediates.extend(intermediates)
+                return z
+
+            def wrapped_decode(z):
+                x, intermediates = self.decode(z, c, intermediate=True)
+                decoder_intermediates.extend(intermediates)
+                return x
+
+            out = volume_change_surrogate(
                 x,
-                lambda _x: self.encode(_x, c),
-                lambda z: self.decode(z, c),
+                wrapped_encode,
+                wrapped_decode,
                 **kwargs
             )
+            )
         volume_change = out.surrogate
+
+        out.regularizations.update(self.intermediate_reconstructions(decoder_intermediates, encoder_intermediates))
 
         latent_prob = self._latent_log_prob(out.z, c)
         return LogProbResult(
@@ -479,7 +258,7 @@ class FreeFormBase(Trainable):
 
     def _reconstruction_loss(self, a, b):
         #return (torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)) ** self.lamb - torch.log(self.lamb)
-        if self.vae and not self.transform:
+        if self.vae and not self.density_model_name:
             return (torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)) / self.lamb + torch.log(self.lamb)
         else:
             return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1))
@@ -532,16 +311,16 @@ class FreeFormBase(Trainable):
             )
 
         # For classification use c as targets
-        # or when the conditions are meant only for the transform_model
+        # or when the conditions are meant only for the density_model
         c_full = c.clone()
-        if self.classification or self.transform:
+        if self.classification or self.density_model_name:
             c = torch.empty((x.shape[0], 0), device=x.device, dtype=x.dtype)
 
         # Empty until computed
         x1 = z = z1 = None
         # Negative log-likelihood
         # exact
-        if (not self.transform or self.transform == "fif") and (self.hparams.eval_all and (
+        if (not self.density_model_name or self.density_model_name == "fif") and (self.hparams.eval_all and (
                 not self.training or (self.hparams.exact_train_nll_every is not None and
                 batch_idx % self.hparams.exact_train_nll_every == 0))):
             key = "nll_exact" if self.training else "nll"
@@ -551,7 +330,7 @@ class FreeFormBase(Trainable):
                     and batch_idx < self.hparams.skip_val_nll
             ))):
                 with torch.no_grad():
-                    if self.transform:
+                    if self.density_model_name:
                         z = self.encode(x, c)
                         if self.vae:
                             z, _, __ = z
@@ -568,7 +347,7 @@ class FreeFormBase(Trainable):
                 loss_weights["nll"] = 0
         
         # surrogate
-        if (not self.transform or self.transform == "fif") and self.training and check_keys("nll"):
+        if (not self.density_model_name or self.density_model_name == "fif") and self.training and check_keys("nll"):
             warm_up = self.hparams.warm_up_epochs
             if isinstance(warm_up, int):
                 warm_up = warm_up, warm_up + 1
@@ -587,7 +366,7 @@ class FreeFormBase(Trainable):
                 )
             loss_weights["nll"] *= nll_warmup
             if check_keys("nll"):
-                if self.transform:
+                if self.density_model_name:
                     z = self.encode(x, c)
                     if self.vae:
                         z, _, __ = z
@@ -608,10 +387,10 @@ class FreeFormBase(Trainable):
             z = self.encode(x, c)
             if self.vae:
                 z, mu, logvar = z
-            if self.transform == "diffusion":
+            if self.density_model_name == "diffusion":
                 t = torch.randint(0, 1000, (z.size(0),), device=z.device).long()
                 z_diff, epsilon = self.diffuse(z, t, self.alphas_.to(z.device))
-            elif self.transform:
+            elif self.density_model_name:
                 # Add noise on latent variables
                 z = z + torch.randn_like(z) * self.hparams.noise
             z_dense = z
@@ -623,8 +402,8 @@ class FreeFormBase(Trainable):
 
 
         # Diffusion model
-        if check_keys("diff_mse") and self.transform == "diffusion":
-            epsilon_pred = self.transform_model(z_diff.detach(), t, c_full)
+        if check_keys("diff_mse") and self.density_model_name == "diffusion":
+            epsilon_pred = self.density_model(z_diff.detach(), t, c_full)
             loss_values["diff_mse"] = self._reconstruction_loss(epsilon_pred, epsilon.detach())
 
         # KL-Divergence for VAE
@@ -633,14 +412,14 @@ class FreeFormBase(Trainable):
 
         # NLL loss for INN-architectures
         if ((val_all_metrics or check_keys("nll") or check_keys("coarse_supervised"))
-                and self.transform == "inn"):
+                and self.density_model_name == "inn"):
             z_detach = z.detach()
             if check_keys("coarse_supervised"):
                 c_full_n = c_full + torch.randn_like(c_full) * self.hparams.noise
             else: 
                 c_full_n = c_full
             if (not check_keys("nll") and check_keys("coarse_supervised")):
-                z_dense, _ = self.transform_model.encode(z_detach, c_full_n)
+                z_dense, _ = self.density_model.encode(z_detach, c_full_n)
             else:
                 log_prob, log_det, z_dense = self._latent_log_prob(z_detach, c_full_n)
                 loss_values["nll"] = -(log_prob + log_det)
@@ -650,19 +429,19 @@ class FreeFormBase(Trainable):
                     loss_values["coarse_supervised"] = self._reconstruction_loss(c_full, z_coarse)
             if check_keys("latent_reconstruction") or not self.training:
                 if self.hparams.mask_dims==0:
-                    z1 = self.transform_model.decode(z_dense, c_full) 
+                    z1 = self.density_model.decode(z_dense, c_full) 
                 else:
                     latent_mask = torch.ones(x.shape[0], self.latent_dim, device=x.device)
                     latent_mask[:, -self.hparams.mask_dims:] = 0
                     z_masked_dense = z_dense * latent_mask
-                    z1 = self.transform_model.decode(z_masked_dense, c_full) 
+                    z1 = self.density_model.decode(z_masked_dense, c_full) 
 
         
-        if ((self.transform and not self.transform=="diffusion") and 
+        if ((self.density_model_name and not self.density_model_name=="diffusion") and 
                 (val_all_metrics or check_keys("latent_reconstruction"))):
             if z1 is None:
-                z_dense = self.transform_model.encode(z.detach(), c_full)
-                z1 = self.transform_model.decode(z_dense, c_full)
+                z_dense = self.density_model.encode(z.detach(), c_full)
+                z1 = self.density_model.decode(z_dense, c_full)
             loss_values["latent_reconstruction"] = self._reconstruction_loss(z.detach(), z1)
 
         # Wasserstein distance of marginal to Gaussian
@@ -700,9 +479,9 @@ class FreeFormBase(Trainable):
         if val_all_metrics or check_keys("masked_reconstruction"):
             latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
             latent_mask[:, 0] = 1
-            if (self.transform and not self.transform=="diffusion"):
+            if (self.density_model_name and not self.density_model_name=="diffusion"):
                 z_masked_dense = z_dense * latent_mask
-                z_masked = self.transform_model.decode(z_masked_dense, c_full) 
+                z_masked = self.density_model.decode(z_masked_dense, c_full) 
             else:
                 z_masked = z * latent_mask
             x_masked = self.decode(z_masked, c)
@@ -711,9 +490,9 @@ class FreeFormBase(Trainable):
         # Cyclic consistency of latent code -- gradient only to encoder
         if val_all_metrics or check_keys("z_reconstruction_encoder"):
             # Not reusing x1 from above, as it does not detach z
-            if self.transform in ["fif"]:
+            if self.density_model_name in ["fif"]:
                 z1_detached = z1.detach()
-                z1_dense = self.transform_model.encode(z1_detached, c_full)
+                z1_dense = self.density_model.encode(z1_detached, c_full)
                 loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z_dense, z1_dense)
             else:
                 x1_detached = x1.detach()
@@ -838,66 +617,6 @@ class FreeFormBase(Trainable):
 
         return metrics
 
-    def on_train_epoch_end(self) -> None:
-        try:
-            for key, value in self.val_data.compute_metrics(self).items():
-                self.log(f"validation/{key}", value)
-        except AttributeError:
-            pass
-
-    def on_fit_end(self) -> None:
-        try:
-            if self.hparams.data_set["name"].startswith("sbi_"):
-                taskname = "_".join(self.hparams.data_set["name"].split("_")[1:])
-                from fff.evaluate.c2st import c2st
-                c2st_accuracy = c2st(self, taskname)
-                self.logger.experiment.add_scalar("C2ST", c2st_accuracy, self.global_step)
-        except Exception as e:
-            # No need to give up a good run because of a plotting error
-            print(e)
-            pass
-
-    def apply_conditions(self, batch) -> ConditionedBatch:
-        x0 = batch[0]
-        base_cond_shape = (x0.shape[0], 1)
-        device = x0.device
-        dtype = x0.dtype
-
-        conds = []
-
-        # Dataset condition
-        if len(batch) != (2 if self.is_conditional() else 1):
-            raise ValueError("You must pass a batch including conditions for each dataset condition")
-        if len(batch) > 1:
-            conds.append(batch[1])
-
-        # SoftFlow
-        noise_conds, x, dequantization_jac = self.dequantize(batch)
-        conds.extend(noise_conds)
-
-        # Loss weight aware
-        loss_weights = defaultdict(float, self.hparams.loss_weights)
-        for loss_key, loss_weight in self.hparams.loss_weights.items():
-            if isinstance(loss_weight, list):
-                min_weight, max_weight = loss_weight
-                if not self.training:
-                    # Per default, select the first value in the list
-                    max_weight = min_weight
-                weight_scale = rand_log_uniform(
-                    min_weight, max_weight,
-                    shape=base_cond_shape, device=device, dtype=dtype
-                )
-                loss_weights[loss_key] = (10 ** weight_scale).squeeze(1)
-                conds.append(weight_scale)
-
-        if len(conds) == 0:
-            c = torch.empty((x.shape[0], 0), device=x.device, dtype=x.dtype)
-        elif len(conds) == 1:
-            # This is a hack to pass through the info dict from QM9
-            c, = conds
-        else:
-            c = torch.cat(conds, -1)
-        return ConditionedBatch(x0, x, loss_weights, c, dequantization_jac)
 
     def dequantize(self, batch):
         x0 = batch[0]
@@ -917,7 +636,7 @@ class FreeFormBase(Trainable):
             x = x0 + torch.randn_like(x0) * (10 ** noise_scale)
             noise_conds = [noise_scale]
         else:
-            if noise > 0 and not self.transform:
+            if noise > 0 and not self.density_model_name:
                 x = x0 + torch.randn_like(x0) * noise
             else:
                 x = x0
@@ -938,15 +657,15 @@ class FreeFormBase(Trainable):
             params.extend(list(self.lossless_ae.parameters()))
             if self.vae:
                 params.append(self.lamb)
-            if self.transform:
-                print("WARNING: lossless_ae is not meant to be trained when a transform_model is included")
+            if self.density_model_name:
+                print("WARNING: lossless_ae is not meant to be trained when a density_model is included")
         else:
             print("WARNING: lossless_ae get not trained")
-        if self.transform:
-            if self.hparams.train_transform:
-                params.extend(list(self.transform_model.parameters()))
+        if self.density_model_name:
+            if self.hparams.train_density model:
+                params.extend(list(self.density_model.parameters()))
             else:
-                print("WARNING: transform model gets not trained")
+                print("WARNING: density model gets not trained")
         kwargs = dict()
 
         match self.hparams.optimizer:
