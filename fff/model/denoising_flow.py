@@ -61,6 +61,9 @@ class DenoisingFlow(nn.Module):
     #def decode(self, z, c=None):
     #    return z
 
+    def sample(self, u, c):
+        return self.decode(u, c)
+
     def build_inn(self, dim, cond_dim=0, cond=0) -> nn.Module:
         return make_inn(self.hparams.inn_spec, dim, cond_dim=cond_dim,
                         cond=cond, zero_init=self.hparams.zero_init)

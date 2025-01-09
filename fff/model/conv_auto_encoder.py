@@ -93,6 +93,9 @@ class ConvolutionalNeuralNetwork(nn.Module):
             u, c
         ], -1))
 
+    def sample(self, u, c):
+        return self.decode(u, c)
+
     def build_model(self):
         input_dim = self.hparams.data_dim
         input_shape = guess_image_shape(input_dim)

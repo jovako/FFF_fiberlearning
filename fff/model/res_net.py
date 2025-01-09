@@ -55,6 +55,9 @@ class ResNet(nn.Module):
     def decode(self, z, c):
         return self.model.decoder(torch.cat([z, c], -1))[..., :self.hparams.data_dim]
 
+    def sample(self, u, c):
+        return self.decode(u, c)
+
     def build_model(self) -> nn.Module:
         data_dim = self.hparams.data_dim
         cond_dim = self.hparams.cond_dim

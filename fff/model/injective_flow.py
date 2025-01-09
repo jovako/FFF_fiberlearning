@@ -35,6 +35,9 @@ class InjectiveFlow(nn.Module):
     def decode(self, u, c):
         return self.model(u, [c], jac=False, rev=True)[0]
 
+    def sample(self, u, c):
+        return self.decode(u, c)
+
     #def decode(self, z, c=None):
     #    return z
 
