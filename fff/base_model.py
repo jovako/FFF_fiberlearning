@@ -32,7 +32,7 @@ class FreeFormBaseHParams(TrainableHParams):
     noise: float | list = 0.0
     track_train_time: bool = False
 
-    models: list | []
+    models: list 
 
     loss_weights: dict
     log_det_estimator: dict = dict(

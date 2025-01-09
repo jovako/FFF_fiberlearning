@@ -5,11 +5,11 @@ import torch
 from fff.base import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult
 from fff.utils.truncate import Truncate
 from fff.subject_model import SubjectModel
-
+from fff.data import get_model_path
 
 class FiberModelHParams(FreeFormBaseHParams):
-    subject_model_type: str = "FreeFormFlow"
-
+    subject_model_type: str | None = None
+    load_subject_model: bool = True
 
 class FiberModel(FreeFormBase):
     """
@@ -25,12 +25,12 @@ class FiberModel(FreeFormBase):
         load_sm = hparams["load_subject_model"]
         if load_sm:
             print("loading subject_model")
-            sm_dir = hparams["data_set"]["path"]
+            sm_dir = get_model_path(**hparams["data_set"])
             # self.subject_model = FreeFormInjectiveFlow.load_from_checkpoint(
             #     f"data/{sm_dir}/subject_model/checkpoints/last.ckpt"
             # )
             self.subject_model = SubjectModel(
-                f"data/{sm_dir}/subject_model/checkpoints/last.ckpt",
+                sm_dir,
                 model_type=hparams["subject_model_type"],
             )
                 #self.subject_model = Truncate(Classifier)
