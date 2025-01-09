@@ -2,7 +2,8 @@ from collections import namedtuple, defaultdict
 from copy import deepcopy
 from importlib import import_module
 from math import prod, log10
-import ldctinv.pretrained
+# import ldctinv.pretrained
+from warnings import warn
 
 import torch
 import lightning_trainable
@@ -36,7 +37,7 @@ class FreeFormBaseHParams(TrainableHParams):
     track_train_time: bool = False
     mask_dims: int = 0
 
-    lossless_ae: list
+    lossless_ae: list = []
     transform: dict = {}
     load_lossless_ae_path: bool | str = False
     load_transform_path: bool | str = False
@@ -762,7 +763,8 @@ class FreeFormBase(Trainable):
                           / self.data_scale)
                     loss_values["fiber_loss"] = self._reduced_rec_loss(
                         c_full, c1)
-                except:
+                except Exception as e:
+                    warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
                     loss_values["fiber_loss"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
                 try:
