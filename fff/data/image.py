@@ -18,7 +18,7 @@ from fff.data.utils import TrainValTest
 CELEBA_CACHE = {}
 
 
-def get_mnist_datasets(root: str, digit: int = None, conditional: bool = False) -> TrainValTest:
+def get_mnist_datasets(root: str, digit: int = None, conditional: bool = False, patch_size=None, num_patches_per_image=None) -> TrainValTest:
     try:
         train_dataset = MNIST(root, train=True)
         test_dataset = MNIST(root, train=False)
@@ -29,7 +29,7 @@ def get_mnist_datasets(root: str, digit: int = None, conditional: bool = False) 
         train_dataset = MNIST(root, train=True, download=True)
         test_dataset = MNIST(root, train=False, download=True)
 
-    return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional)
+    return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional, patch_size=patch_size, num_patches_per_image=num_patches_per_image)
 
 
 def get_split_mnist(root: str, digit: int = None, conditional: bool = False, path: str = None, fix_noise: float = None):
@@ -73,7 +73,7 @@ def get_split_mnist(root: str, digit: int = None, conditional: bool = False, pat
         *test_data
     )
 
-def get_mnist_downsampled(root: str, digit: int = None, conditional: bool = False) -> TrainValTest:
+def get_mnist_downsampled(root: str, digit: int = None, conditional: bool = False, patch_size=None, num_patches_per_image=None) -> TrainValTest:
     class DownsampleTransform:
         def __init__(self, target_shape, algorithm=Image.Resampling.LANCZOS):
             self.width, self.height = target_shape
@@ -120,9 +120,9 @@ def get_mnist_downsampled(root: str, digit: int = None, conditional: bool = Fals
         train_dataset = EMNIST(root=root, train=True, split="digits", transform=transform, download=True)
         test_dataset = EMNIST(root=root, train=False, split="digits", transform=transform, download=True)
 
-    return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional)
+    return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional, patch_size=patch_size, num_patches_per_image=num_patches_per_image)
 
-def get_cifar10_datasets(root: str, label: int = None, conditional: bool = False) -> TrainValTest:
+def get_cifar10_datasets(root: str, label: int = None, conditional: bool = False, patch_size=None, num_patches_per_image=None) -> TrainValTest:
     try:
         train_dataset = CIFAR10(root, train=True)
         test_dataset = CIFAR10(root, train=False)
@@ -133,10 +133,13 @@ def get_cifar10_datasets(root: str, label: int = None, conditional: bool = False
         train_dataset = CIFAR10(root, train=True, download=True)
         test_dataset = CIFAR10(root, train=False, download=True)
 
-    return _process_img_data(train_dataset, None, test_dataset, label=label, conditional=conditional)
+    return _process_img_data(train_dataset, None, test_dataset, label=label, conditional=conditional, patch_size=patch_size, num_patches_per_image=num_patches_per_image)
 
 
-def get_celeba_datasets(root: str, image_size: None | int = 64, load_to_memory: bool = False) -> TrainValTest:
+def get_celeba_datasets(root: str, image_size: None | int = 64, load_to_memory: bool = False, patch_size=None, num_patches_per_image=None) -> TrainValTest:
+    if patch_size is not None or num_patches_per_image is not None:
+        raise NotImplementedError("Patching not supported for CelebA")
+
     cache_key = (root, image_size, load_to_memory)
     if cache_key not in CELEBA_CACHE:
         if load_to_memory:
@@ -204,18 +207,15 @@ def celeba_to_memory(root: str, split: str, image_size: None | int) -> MemoryCel
     return MemoryCelebA(torch.cat(batches, 0))
 
 
-def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, conditional: bool = False):
+def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, conditional: bool = False, patch_size=None, num_patches_per_image=None):
     # Data is (N, H, W, C)
-    train_data = train_dataset.data
-    """
+    #train_data = train_dataset.data
     batch_size = train_dataset.data.shape[0]
     dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size)
     train_data, _ = next(iter(dataloader))
     batch_size = test_dataset.data.shape[0]
     dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size)
     test_data, _ = next(iter(dataloader))
-    """
-    
     print(train_data.shape)
     if val_dataset is None:
         if len(train_data) > 40000:
@@ -226,7 +226,7 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
         train_data = train_data[:-val_data_split]
     else:
         val_data = val_dataset.data
-    test_data = test_dataset.data
+    #test_data = test_dataset.data
 
     # To PyTorch tensors
     if not torch.is_tensor(train_data):
@@ -275,6 +275,11 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
             val_data = val_data[val_targets == label]
             test_data = test_data[test_targets == label]
 
+    if patch_size is not None:
+        train_data = patch_image_data(train_data, num_patches_per_image, patch_size)
+        val_data = patch_image_data(val_data, num_patches_per_image, patch_size)
+        test_data = patch_image_data(test_data, num_patches_per_image, patch_size)
+
     # Collect tensors for TensorDatasets
     train_data = [train_data]
     val_data = [val_data]
@@ -293,3 +298,28 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
     ), TensorDataset(
         *test_data
     )
+
+
+def patch_image_data(data: torch.Tensor, num_patches_per_image: int, patch_size: int) -> torch.Tensor:
+    """
+    Samples num_samples random patches of size patch_size x patch_size from each image in data.
+    """
+    # Reshape to (N, C, H, W)
+    if data.shape[-1] in [1, 2, 3]:
+        data = data.permute(0, 3, 1, 2)
+
+    N, C, H, W = data.shape
+    patches = torch.zeros((N, num_patches_per_image, C, patch_size, patch_size))
+
+    # Generate random top and left positions for all patches at once
+    top_positions = torch.randint(0, H - patch_size + 1, (N, num_patches_per_image))
+    left_positions = torch.randint(0, W - patch_size + 1, (N, num_patches_per_image))
+
+    for i in range(N):
+        for j in range(num_patches_per_image):
+            top = top_positions[i, j]
+            left = left_positions[i, j]
+            patches[i, j] = data[i, :, top:top + patch_size, left:left + patch_size]
+
+    patches = patches.reshape(N * num_patches_per_image, C, patch_size, patch_size)
+    return patches
