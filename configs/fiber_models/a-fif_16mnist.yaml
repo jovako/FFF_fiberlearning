@@ -1,7 +1,7 @@
 model: fff.FiberModel
 
 noise: 0.01
-load_subject_model: False
+load_subject_model: True
 latent_distribution:
   name: "normal"
 data_set:
@@ -10,6 +10,7 @@ data_set:
   conditional: True
   path: "16EMNIST_F5F_demo"
   subject_model_path: "data/16EMNIST_F5F_demo/subject_model/checkpoints/last.ckpt"
+  subject_model_type: FreeFormInjectiveFlow
 
 loss_weights:
   nll: 1
