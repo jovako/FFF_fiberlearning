@@ -1,6 +1,6 @@
 from math import prod
 
-from .base_model import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult
+from .base import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult
 from .fif import FreeFormInjectiveFlow
 
 

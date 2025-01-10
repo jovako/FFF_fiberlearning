@@ -10,10 +10,11 @@ from lightning_trainable.trainable.trainable import auto_pin_memory, SkipBatch
 from torch.distributions import Independent, Normal
 from torch.nn import Sequential, CrossEntropyLoss
 
-from fff.base_model import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult, build_model
-from fff.base_model import wasserstein2_distance_gaussian_approximation, rand_log_uniform, soft_heaviside
+from fff.base import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult, build_model
+from fff.base import wasserstein2_distance_gaussian_approximation, rand_log_uniform, soft_heaviside
+from fff.base import LogProbResult
 from fff.lossless_ae import LosslessAE
-from fff.distributions.learnable import *
+from fff.subject_model import SubjectModel
 from fff.loss import volume_change_surrogate
 from fff.utils.jacobian import compute_jacobian
 from fff.utils.diffusion import make_betas
@@ -25,7 +26,7 @@ class FiberModelHParams(FreeFormBaseHParams):
     load_density_model_path: bool | str = False
     load_subject_model: bool = False
     train_lossless_ae: bool = True
-    train_density_model: bool = True
+    ae_conditional: bool = False
     vae: bool = False
     betas_max: float = 0.2
     beta_schedule: str = "linear"
@@ -47,29 +48,27 @@ class FiberModel(FreeFormBase):
 
     def __init__(self, hparams: FreeFormBaseHParams | dict):
         super().__init__(hparams)
-        """
-        elif self.classification:
-        self._data_cond_dim = data_sample[1].shape[0]
-        self.cross_entropy = CrossEntropyLoss(reduction='none', label_smoothing=0.2)
-        """
+        
+        # Add learnable parameter for standard deviation for vae training
+        self.lamb = torch.nn.Parameter(torch.ones(1), requires_grad=True)
 
+    def init_models(self):
         # Ask whether the latent variebles should be passed by another learning model and which model class to use
-        if self.hparams.density_model:
-            if (self.hparams.density_model[-1].name in [
-                    "fff.model.InjectiveFlow", "fff.model.MultilevelFlow",
-                    "fff.model.DenoisingFlow"]):
-                self.density_model_name = "inn"
-            elif self.hparams.density_model[-1].name == "fff.model.DiffusionModel":
-                self.density_model_name = "diffusion"
-                self.betas = make_betas(1000, self.hparams.betas_max, self.hparams.beta_schedule)
-                self.hparams.density_model[-1]["betas"] = (self.betas,)
-                self.alphas_ = torch.cumprod((1 - self.betas), axis=0)
-                print(self.alphas_.shape)
-                self.sample_steps = torch.linspace(0, 1, 1000).flip(0)
-            else:
-                self.density_model_name = "fif"
-        else:
+        if (self.hparams.density_model[-1]["name"] == "fff.model.Identity"):
             self.density_model_name = None
+        elif (self.hparams.density_model[-1]["name"] in [
+                "fff.model.InjectiveFlow", "fff.model.MultilevelFlow",
+                "fff.model.DenoisingFlow"]):
+            self.density_model_name = "inn"
+        elif self.hparams.density_model[-1]["name"] == "fff.model.DiffusionModel":
+            self.density_model_name = "diffusion"
+            self.betas = make_betas(1000, self.hparams.betas_max, self.hparams.beta_schedule)
+            self.hparams.density_model[-1]["betas"] = (self.betas,)
+            self.alphas_ = torch.cumprod((1 - self.betas), axis=0)
+            print(self.alphas_.shape)
+            self.sample_steps = torch.linspace(0, 1, 1000).flip(0)
+        else:
+            self.density_model_name = "fif"
         # Check whether self.lossless_ae is a VAE
         self.vae = self.hparams.vae
         try:
@@ -94,46 +93,36 @@ class FiberModel(FreeFormBase):
         self.lossless_ae = LosslessAE(ae_hparams)
 
         # Build density_model that operates in the latent space of the lossless_ae
-        if self.density_model_name:
-            print("Only the density_model will be trained while the lossless_ae is kept fixed!")
-            print("Also the noise is added only to the latent variables!")
-            self.density_model = build_model(self.hparams.density_model,
-                                                self.lossless_ae[-1].hparams.latent_dim,
-                                                self._data_cond_dim)
-            if self.hparams.load_density_model_path:
-                print("load density_model checkpoint")
-                checkpoint = torch.load(self.hparams.load_density_model_path)
-                density_model_weights = {k[16:]: v for k, v in checkpoint["state_dict"].items()
-                                  if k.startswith("density_model.")}
-                self.density_model.load_state_dict(density_model_weights)
+        self.density_model = build_model(self.hparams.density_model,
+                                            self.lossless_ae.latent_dim,
+                                            self._data_cond_dim)
+        if self.hparams.load_density_model_path:
+            print("load density_model checkpoint")
+            checkpoint = torch.load(self.hparams.load_density_model_path)
+            density_model_weights = {k[16:]: v for k, v in checkpoint["state_dict"].items()
+                              if k.startswith("density_model.")}
+            self.density_model.load_state_dict(density_model_weights)
 
-        if self.hparams.load_sm:
+        if self.hparams.load_subject_model:
             print("loading subject_model")
-            sm_dir = self.hparams["data_set"]["path"]
-            self.subject_model = FreeFormInjectiveFlow.load_from_checkpoint(
-                f"data/{sm_dir}/subject_model/checkpoints/last.ckpt"
-            )
-            self.subject_model.eval()
-
-        # Add learnable parameter for standard deviation for vae training
-        self.lamb = torch.nn.Parameter(torch.ones(1), requires_grad=True)
-        #DiffTransformedDistribution(self.density_model, self._make_latent("normal", device), self.betas, 1000, eta=0.1)
+            data_dir = self.hparams["data_set"]["path"]
+            self.subject_model = SubjectModel(f"data/{data_dir}/subject_model/checkpoints/last.ckpt")
 
     @property
     def latent_dim(self):
         if self.density_model_name:
             return self.density_model[-1].hparams.latent_dim
         else:
-            return self.lossless_ae[-1].hparams.latent_dim
+            return self.lossless_ae.latent_dim
 
     def encode_lossless(self, x, c, mu_var=True):
-        return lossless_ae.encode(x, c, mu_var=mu_var)
+        return self.lossless_ae.encode(x, c, mu_var=mu_var)
 
     def encode_density(self, z, c, jac=False):
         jacs = []
         for net in self.density_model:
             z = net.encode(z, c)
-            if z isinstance(tuple):
+            if isinstance(z, tuple):
                 z, jac_i = z
                 jacs.append(jac_i)
         if jac:
@@ -145,7 +134,7 @@ class FiberModel(FreeFormBase):
         return z_dense
 
     def decode_lossless(self, z, c):
-        return lossless_ae.decode(z, c)
+        return self.lossless_ae.decode(z, c)
 
     def decode_density(self, z_dense, c):
         for net in self.density_model:
@@ -153,7 +142,7 @@ class FiberModel(FreeFormBase):
         return z_dense
 
     def decode(self, z_dense, c):
-        x = self.decode_density(self.decode_lossless(z_dense, c), c)
+        x = self.decode_lossless(self.decode_density(z_dense, c), c)
         return x
 
     def _encoder_jac(self, x, c, **kwargs):
@@ -221,6 +210,7 @@ class FiberModel(FreeFormBase):
             lambda _x: self.encode_density(_x, c),
             lambda z: self.decode_density(z, c),
             **kwargs
+        )
 
         volume_change = out.surrogate
 
@@ -339,13 +329,14 @@ class FiberModel(FreeFormBase):
         # In case they were skipped above
         if z is None:
             z, mu, logvar = self.encode_lossless(x, c, mu_var=True)
-            x1 = self.decode_lossless(z, c)
             if self.density_model_name == "diffusion":
                 t = torch.randint(0, 1000, (z.size(0),), device=z.device).long()
                 z_diff, epsilon = self.diffuse(z, t, self.alphas_.to(z.device))
             elif self.density_model_name:
                 # Add noise on latent variables
                 z = z + torch.randn_like(z) * self.hparams.noise
+        if x1 is None:
+            x1 = self.decode_lossless(z, c)
 
         # KL-Divergence for VAE
         if check_keys("kl"):
@@ -416,7 +407,9 @@ class FiberModel(FreeFormBase):
         """
 
         # Reconstruction
-        if val_all_metrics or check_keys("reconstruction", "noisy_reconstruction", "sqr_reconstruction"):
+        if val_all_metrics or check_keys(
+                "reconstruction", "noisy_reconstruction", 
+                "sqr_reconstruction", "lamb_reconstruction"):
             loss_values["reconstruction"] = self._reconstruction_loss(x0, x1)
             loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
             loss_values["sqr_reconstruction"] = self._sqr_reconstruction_loss(x, x1)
@@ -426,20 +419,19 @@ class FiberModel(FreeFormBase):
         if val_all_metrics or check_keys("1d-masked_reconstruction"):
             latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
             latent_mask[:, 0] = 1
-            if (self.density_model_name and not self.density_model_name=="diffusion"):
+            if not self.density_model_name=="diffusion":
                 z_masked_dense = z_dense * latent_mask
-                z_masked = self.density_model.decode(z_masked_dense, c) 
+                x_zmask = self.decode(z_masked_dense, c) 
+                loss_values["1d-masked_reconstruction"] = self._reconstruction_loss(x, x_zmask)
             else:
-                z_masked = z * latent_mask
-            x_masked = self.decode(z_masked, c)
-            loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_masked)
+                loss_values["1d-masked_reconstruction"] = float("nan") * torch.ones(z.shape[0])
 
         # Cyclic consistency of latent code -- gradient only to encoder
         if val_all_metrics or check_keys("z_reconstruction_encoder"):
             # Not reusing x1 from above, as it does not detach z
             if self.density_model_name in ["fif"]:
                 z1_detached = z1.detach()
-                z1_dense = self.density_model.encode(z1_detached, c)
+                z1_dense = self.encode_density(z1_detached, c)
                 loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z_dense, z1_dense)
             else:
                 x1_detached = x1.detach()
@@ -485,7 +477,7 @@ class FiberModel(FreeFormBase):
                 try:
                     # There might be no subject model
                     cT = torch.empty(x_random.shape[0],0).to(x_random.device)
-                    c1 = ((self.subject_model.encode(x_random, cT))
+                    c1 = self.subject_model.encode(x_random, cT)
                     loss_values["fiber_loss"] = self._reduced_rec_loss(c, c1)
                 except Exception as e:
                     warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
@@ -605,10 +597,9 @@ class FiberModel(FreeFormBase):
         else:
             print("WARNING: lossless_ae gets not trained")
         if self.density_model_name:
-            if self.hparams.train_density model:
-                params.extend(list(self.density_model.parameters()))
-            else:
-                print("WARNING: density model gets not trained")
+            params.extend(list(self.density_model.parameters()))
+        else:
+            print("WARNING: density model gets not trained")
         kwargs = dict()
 
         match self.hparams.optimizer:

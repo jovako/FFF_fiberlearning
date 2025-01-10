@@ -2,7 +2,7 @@ from math import prod
 
 import torch
 
-from fff.base_model import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult
+from fff.base import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult
 from fff.utils.truncate import Truncate
 
 
