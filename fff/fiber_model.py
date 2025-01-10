@@ -303,8 +303,15 @@ class FiberModel(FreeFormBase):
                 for loss_key in keys
             )
 
+        z, mu, logvar = self.encode_lossless(x, c, mu_var=True)
+
+        # KL-Divergence for VAE
+        if check_keys("kl"):
+            loss_values["kl"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
+
         # Empty until computed
-        x1 = z = z1 = z_dense = None
+        x1 = z1 = z_dense = None
+
         # Negative log-likelihood
         if (self.hparams.eval_all or check_keys("nll")):
             # exact
@@ -318,7 +325,6 @@ class FiberModel(FreeFormBase):
                         and batch_idx < self.hparams.skip_val_nll
                 ))):
                     with torch.no_grad():
-                        z, mu, logvar = self.encode_lossless(x, c, mu_var=True)
                         log_prob_result = self.exact_log_prob(x=z.detach(), c=c, jacobian_target="both")
                         z_dense = log_prob_result.z
                         z1 = log_prob_result.x1
@@ -347,7 +353,6 @@ class FiberModel(FreeFormBase):
                     )
                 loss_weights["nll"] *= nll_warmup
                 if check_keys("nll"):
-                    z, mu, logvar = self.encode_lossless(x, c, mu_var=True)
                     log_prob_result = self.surrogate_log_prob(x=z.detach(), c=c)
                     z_dense = log_prob_result.z
                     z1 = log_prob_result.x1
@@ -356,15 +361,8 @@ class FiberModel(FreeFormBase):
 
 
         # In case they were skipped above
-        if z is None:
-            z, mu, logvar = self.encode_lossless(x, c, mu_var=True)
-
         if x1 is None:
             x1 = self.decode_lossless(z, c)
-
-        # KL-Divergence for VAE
-        if check_keys("kl"):
-            loss_values["kl"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
 
         # Diffusion model
         if check_keys("diff_mse"):
