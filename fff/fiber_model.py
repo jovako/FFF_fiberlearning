@@ -155,6 +155,13 @@ class FiberModel(FreeFormBase):
         x = self.decode_lossless(self.decode_density(z_dense, c), c)
         return x
 
+    def sample_density(self, z_dense, c):
+        # Diffusion sampler we need seperate sampling function
+        for net in self.density_model:
+            z_dense = net.sample(z_dense, c)
+        return z_dense
+
+
     def _encoder_jac(self, x, c, **kwargs):
         return compute_jacobian(
             x, self.encode_density, c,
@@ -196,16 +203,15 @@ class FiberModel(FreeFormBase):
         """
         # sample first via the density_model, if included in the latent distribution
         try:
-            z = self.get_latent(self.device).sample(sample_shape, condition)
+            z_dense = self.get_latent(self.device).sample(sample_shape, condition)
         except TypeError:
-            z = self.get_latent(self.device).sample(sample_shape)
-        z = z.reshape(prod(sample_shape), *z.shape[len(sample_shape):])
+            z_dense = self.get_latent(self.device).sample(sample_shape)
+        z_dense = z_dense.reshape(prod(sample_shape), *z_dense.shape[len(sample_shape):])
         batch = [z]
         if condition is not None:
             batch.append(condition)
         c = self.apply_conditions(batch).condition
-        for net in self.density_model:
-            z = net.sample(z, c)
+        z = self.sample_density(z_dense, c)
         x = self.decode_lossless(z, c)
         return x.reshape(sample_shape + x.shape[1:])
 
@@ -354,7 +360,7 @@ class FiberModel(FreeFormBase):
 
         # Diffusion model
         if check_keys("diff_mse") and self.density_model_name == "diffusion":
-            epsilon_pred = self.density_model(z_diff.detach(), t, c)
+            epsilon_pred = self.decode_density(z_diff.detach(), (t, c))
             loss_values["diff_mse"] = self._reconstruction_loss(epsilon_pred, epsilon.detach())
 
         # NLL loss for INN-architectures
@@ -475,14 +481,15 @@ class FiberModel(FreeFormBase):
             if val_all_metrics or check_keys(
                     "fiber_loss", "z_sample_reconstruction"):
                 try:
-                    z_random = self.get_latent(z.device).sample((z.shape[0],), c)
+                    z_dense_random = self.get_latent(z.device).sample((z.shape[0],), c)
                 except TypeError:
-                    z_random = self.get_latent(z.device).sample((z.shape[0],))
-                if isinstance(z_random, tuple):
-                    z_random, c_random = z_random
+                    z_dense_random = self.get_latent(z.device).sample((z.shape[0],))
+                if isinstance(z_dense_random, tuple):
+                    z_dense_random, c_random = z_dense_random
                 else:
                     c_random = c
-                x_random = self.decode(z_random, c_random)
+                z_random = self.sample_density(z_dense_random, c_random)
+                x_random = self.decode_lossless(z_random, c_random)
                 # Try whether the model learns fibers and therefore has a subject model
                 try:
                     # There might be no subject model

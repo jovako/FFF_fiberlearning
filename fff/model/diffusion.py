@@ -51,11 +51,16 @@ class DiffusionModel(nn.Module):
         self.betas = self.hparams.betas[0]
         self.alphas = 1.0 - self.betas
         self.alpha_cumprod = torch.cumprod(self.alphas, dim=0)
-        self.alpha_cumprod_prev = torch.cat([torch.tensor([1.0], device=betas.device), self.alpha_cumprod[:-1]])
+        self.alpha_cumprod_prev = torch.cat([torch.tensor([1.0], device=self.betas.device), self.alpha_cumprod[:-1]])
         self.sqrt_1malpha_cumprod = torch.sqrt(1 - self.alpha_cumprod)
+        self.eta = self.hparams.eta
+
+    def encode(self, x, *args):
+        return x
         
-    def forward(self, x_in, time_step, condition, guidance_scale=1.0, conditional=True):
+    def decode(self, x_in, time_step_condition, guidance_scale=1.0, conditional=True):
         # Embed the time step
+        time_step, condition = time_step_condition
         time_embedding = self.time_embedding(time_step)
         #condition = torch.zeros_like(x_in)
         
@@ -125,16 +130,17 @@ class DiffusionModel(nn.Module):
 
     def sample(self, x, condition, guidance_scale=1.0):
         device = x.device
-        num_steps = self.num_timesteps
+        num_steps = self.hparams.num_timesteps
+        shape = x.shape[0]
 
         for i in reversed(range(num_steps)):
-            t = torch.full(shape, i, device=device, dtype=torch.long)
+            t = torch.full([shape], i, device=device, dtype=torch.long)
             alpha_t = self.alpha_cumprod[i]
             alpha_t_prev = self.alpha_cumprod_prev[i]
             beta_t = self.betas[i]
 
             # Predict noise
-            eps_pred = self.forward(x, t, condition, guidance_scale)
+            eps_pred = self.decode(x, (t, condition), guidance_scale)
 
             # Compute the mean for the reverse process
             pred_x0 = (

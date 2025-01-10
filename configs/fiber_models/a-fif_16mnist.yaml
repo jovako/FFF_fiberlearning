@@ -1,7 +1,7 @@
 model: fff.FiberModel
 
 noise: 0.01
-load_subject_model: True
+load_subject_model: False
 latent_distribution:
   name: "normal"
 data_set:
@@ -16,7 +16,7 @@ loss_weights:
   latent_reconstruction: 10
   #noisy_reconstruction: 100
   1d-masked_reconstruction: 1
-  fiber_loss: 1
+    #fiber_loss: 1
   #z_sample_reconstruction: 1000
 max_epochs: 5
 #warm_up_epochs: [15, 100]
