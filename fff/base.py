@@ -368,7 +368,7 @@ class FreeFormBase(Trainable):
         regularizations = {}
         if len(decoder_intermediates) > 1:
             regularizations["intermediate_reconstruction_all"] = 0.0
-        for idx, (a, b) in enumerate(zip(encoder_intermediates[:-1], decoder_intermediates[-1:0:-1])):
+        for idx, (a, b) in enumerate(zip(encoder_intermediates[:-1], decoder_intermediates[:-1])):
             if a.shape != b.shape:
                 try:
                     b = b.view(a.shape)

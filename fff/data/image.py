@@ -32,7 +32,7 @@ def get_mnist_datasets(root: str, digit: int = None, conditional: bool = False, 
     return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional, patch_size=patch_size, num_patches_per_image=num_patches_per_image)
 
 
-def get_split_mnist(root: str, digit: int = None, conditional: bool = False, path: str = None, fix_noise: float = None):
+def get_split_mnist(root: str, digit: int = None, conditional: bool = False, path: str = None, fix_noise: float = None, **kwargs):
     df = pd.read_pickle(f"data/{path}/data")
     # read targets and conditions from dataframe
     train_data, train_targets = (
@@ -216,6 +216,7 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
     batch_size = test_dataset.data.shape[0]
     dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size)
     test_data, _ = next(iter(dataloader))
+
     print(train_data.shape)
     if val_dataset is None:
         if len(train_data) > 40000:
@@ -276,9 +277,16 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
             test_data = test_data[test_targets == label]
 
     if patch_size is not None:
+        if num_patches_per_image is None:
+            raise ValueError("num_patches_per_image must be set if patch_size is set")
+        if patch_size > train_data.shape[-1]:
+            raise ValueError("Patch size must be smaller than image size")
         train_data = patch_image_data(train_data, num_patches_per_image, patch_size)
         val_data = patch_image_data(val_data, num_patches_per_image, patch_size)
         test_data = patch_image_data(test_data, num_patches_per_image, patch_size)
+        train_targets = train_targets.repeat_interleave(num_patches_per_image)
+        val_targets = val_targets.repeat_interleave(num_patches_per_image)
+        test_targets = test_targets.repeat_interleave(num_patches_per_image)
 
     # Collect tensors for TensorDatasets
     train_data = [train_data]
@@ -290,6 +298,7 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
         train_data.append(one_hot(train_targets, -1))
         val_data.append(one_hot(val_targets, -1))
         test_data.append(one_hot(test_targets, -1))
+
 
     return TensorDataset(
         *train_data

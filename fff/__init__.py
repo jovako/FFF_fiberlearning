@@ -18,6 +18,6 @@ import fff.loss as loss
 import fff.data as data
 import fff.model as model
 from .fiber_model import FiberModelHParams, FiberModel
-#from .fif import FreeFormInjectiveFlowHParams, FreeFormInjectiveFlow
+from .fif import FreeFormInjectiveFlowHParams, FreeFormInjectiveFlow
+from .fff import FreeFormFlowHParams, FreeFormFlow
 from .m_fff import ManifoldFreeFormFlowHParams, ManifoldFreeFormFlow
-#from .fiber_model_dummy import FiberModelHParams, FiberModel

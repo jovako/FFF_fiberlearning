@@ -18,6 +18,7 @@ from fff.subject_model import SubjectModel
 from fff.loss import volume_change_surrogate
 from fff.utils.jacobian import compute_jacobian
 from fff.utils.diffusion import make_betas
+from fff.data import get_model_path
 
 class FiberModelHParams(FreeFormBaseHParams):
     lossless_ae: list
@@ -37,6 +38,12 @@ class FiberModelHParams(FreeFormBaseHParams):
 
     warm_up_fiber: int | list = 0
     warm_up_epochs: int | list = 0
+
+    def __post__init__(self):
+        # delete models list
+        if "models" in self:    
+            del self["models"]
+
 
 
 class FiberModel(FreeFormBase):
@@ -105,9 +112,12 @@ class FiberModel(FreeFormBase):
 
         if self.hparams.load_subject_model:
             print("loading subject_model")
-            data_dir = self.hparams["data_set"]["path"]
-            self.subject_model = SubjectModel(f"data/{data_dir}/subject_model/checkpoints/last.ckpt")
-
+            sm_dir = get_model_path(**self.hparams["data_set"])
+            self.subject_model = SubjectModel(sm_dir)
+            self.subject_model.eval()
+            for param in self.subject_model.parameters():
+                param.require_grad = False
+                
     @property
     def latent_dim(self):
         if self.density_model_name:
