@@ -9,6 +9,7 @@ data_set:
   root: data
   conditional: True
   path: "16EMNIST_F5F_demo"
+  subject_model_path: "data/16EMNIST_F5F_demo/subject_model/checkpoints/last.ckpt"
 
 loss_weights:
   nll: 1
@@ -56,5 +57,5 @@ optimizer:
   lr: 0.002
 
 batch_size: 512
-load_lossless_ae_path: "lightning_logs/test/version_0/checkpoints/last.ckpt"
+load_lossless_ae_path: "lightning_logs/MNIST_VAE/version_0/checkpoints/last.ckpt"
   #load_transform_path: "lightning_logs/16_f48f_011_log/version_0/checkpoints/last.ckpt"
