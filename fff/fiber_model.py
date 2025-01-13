@@ -310,23 +310,23 @@ class FiberModel(FreeFormBase):
         # Losses for lossless ae:
         # Reconstruction
         if val_all_metrics or check_keys(
-                "reconstruction", "noisy_reconstruction", 
-                "sqr_reconstruction", "lamb_reconstruction"):
-            loss_values["reconstruction"] = self._reconstruction_loss(x0, x1)
-            loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
-            loss_values["sqr_reconstruction"] = self._sqr_reconstruction_loss(x, x1)
-            loss_values["lamb_reconstruction"] = self._lamb_reconstruction_loss(x, x1)
+                "ae_reconstruction", "ae_noisy_reconstruction", 
+                "ae_sqr_reconstruction", "ae_lamb_reconstruction"):
+            loss_values["ae_reconstruction"] = self._reconstruction_loss(x0, x1)
+            loss_values["ae_noisy_reconstruction"] = self._reconstruction_loss(x, x1)
+            loss_values["ae_sqr_reconstruction"] = self._sqr_reconstruction_loss(x, x1)
+            loss_values["ae_lamb_reconstruction"] = self._lamb_reconstruction_loss(x, x1)
             #loss_values["reconstruction"] = self._l1_loss(x0, x1)
 
         # KL-Divergence for VAE
-        if check_keys("kl"):
-            loss_values["kl"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
+        if check_keys("ae_elbo"):
+            loss_values["ae_elbo"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
 
         # Cyclic consistency of latent code -- gradient only to encoder
-        if val_all_metrics or check_keys("z_reconstruction_encoder"):
+        if val_all_metrics or check_keys("ae_cycle_loss"):
             x1_detached = x1.detach()
             z_cycle = self.encode_lossless(x1_detached, c, mu_var=False)
-            loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z_cycle)
+            loss_values["ae_cycle_loss"] = self._reconstruction_loss(z, z_cycle)
 
         # Losses for density model:
         # Empty until computed
@@ -410,16 +410,11 @@ class FiberModel(FreeFormBase):
             z_dense = self.encode_density(z.detach(), c)
 
         # Reconstruction of latent z
-        if (not self.density_model_type=="diffusion" and 
-                (val_all_metrics or check_keys("latent_reconstruction"))):
+        if (val_all_metrics or check_keys("latent_reconstruction")):
+            if self.density_model_type=="diffusion":
+                raise ValueError("latent_reconstruction is not available for diffusion models")
             if z1 is None:
-                if self.hparams.mask_dims==0:
-                    z1 = self.decode_density(z_dense, c) 
-                else:
-                    latent_mask = torch.ones(x.shape[0], self.latent_dim, device=x.device)
-                    latent_mask[:, -self.hparams.mask_dims:] = 0
-                    z_masked_dense = z_dense * latent_mask
-                    z1 = self.decode_density(z_masked_dense, c) 
+                z1 = self.decode_density(z_dense, c) 
             loss_values["latent_reconstruction"] = self._reconstruction_loss(z.detach(), z1)
 
         # Wasserstein distance of marginal to Gaussian
@@ -438,31 +433,20 @@ class FiberModel(FreeFormBase):
             std = torch.mean(torch.abs(torch.std(z_details, dim=0) - 1))
             loss_values["z std"] = torch.ones_like(x[:,0]) * std
 
-        """
-        # Classification
-        if check_keys("classification"):
-            loss_values["classification"] = self.cross_entropy(z,c.float())
-            if not self.training:
-                oneminusacc = 0.5 * torch.sum(
-                    torch.abs(c - torch.nn.functional.one_hot(torch.argmax(z,dim=1), num_classes=10)), 
-                    dim=1)
-                loss_values["accuracy"] = 1 - oneminusacc
-        """
-
-        if (val_all_metrics or check_keys("1d-masked_reconstruction"))
-                and not self.density_model_type=="diffusion":
+        if (val_all_metrics or check_keys("masked_reconstruction")):
+            if self.density_model_type=="diffusion":
+                raise ValueError("masked_reconstruction is not available for diffusion models")
             latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
             latent_mask[:, self.hparams.mask_dims:] = 1
             z_masked_dense = z_dense * latent_mask
             x_zmask = self.decode(z_masked_dense, c) 
-            loss_values["1d-masked_reconstruction"] = self._reconstruction_loss(x, x_zmask)
-            #loss_values["1d-masked_reconstruction"] = float("nan") * torch.ones(z.shape[0])
+            loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_zmask)
 
         # Cyclic consistency of latent code -- gradient only to encoder
-        if val_all_metrics or check_keys("z_dense_reconstruction"):
+        if val_all_metrics or check_keys("cycle_loss"):
             z1_detached = z1.detach()
             z_dense1 = self.encode_density(z1_detached, c)
-            loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z_dense, z_dense1)
+            loss_values["cycle_loss"] = self._reconstruction_loss(z_dense, z_dense1)
 
         # Cyclic consistency of latent code sampled from Gaussian and fiber loss
         if ((val_all_metrics or
@@ -514,33 +498,9 @@ class FiberModel(FreeFormBase):
                     loss_values["z_sample_reconstruction"] = self._reconstruction_loss(
                         z_random, z1_random)
                 except:
+                    warn("Error in computing z_sample_reconstruction, setting to nan.")
                     loss_values["z_sample_reconstruction"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
-
-        """
-        # Reconstruction of Gauss with double std -- for invertibility
-        if not self.training or check_keys("x_sample_reconstruction"):
-            # As we only care about the reconstruction, can ignore noise scale
-            x_random = self.get_latent(z.device).sample((z.shape[0],))
-            if isinstance(x_random, tuple):
-                x_random, c_random = x_random
-            else:
-                c_random = c
-            try:
-                # Sanity checks might fail for random data
-                x1_random = self.decode(self.encode(x_random, c_random), c_random)
-                loss_values["x_sample_reconstruction"] = self._reconstruction_loss(x_random, x1_random)
-            except:
-                loss_values["x_sample_reconstruction"] = float("nan") * torch.ones(x_random.shape[0])
-
-        # Reconstruction of Gauss with double std -- for invertibility
-        if not self.training or check_keys("shuffled_reconstruction"):
-            # Make noise scale independent of applied noise, reconstruction should still be fine
-            x_shuffled = x[torch.randperm(x.shape[0])]
-            z_shuffled = self.encode(x_shuffled, c)
-            x_shuffled1 = self.decode(z_shuffled, c)
-            loss_values["shuffled_reconstruction"] = self._reconstruction_loss(x_shuffled, x_shuffled1)
-        """
 
         # Compute loss as weighted loss
         metrics["loss"] = sum(
@@ -548,8 +508,6 @@ class FiberModel(FreeFormBase):
             for key, weight in loss_weights.items()
             if check_keys(key) and (self.training or key in loss_values)
         )
-
-        #metrics["lambda"] = self.lamb
 
         # Metrics are averaged, non-weighted loss_values
         invalid_losses = []
