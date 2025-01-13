@@ -304,20 +304,57 @@ class FiberModel(FreeFormBase):
             )
 
         z, mu, logvar = self.encode_lossless(x, c, mu_var=True)
+        # Reconstruction of lossless latent variables z
+        x1 = self.decode_lossless(z, c)
+
+        # Losses for lossless ae:
+        # Reconstruction
+        if val_all_metrics or check_keys(
+                "reconstruction", "noisy_reconstruction", 
+                "sqr_reconstruction", "lamb_reconstruction"):
+            loss_values["reconstruction"] = self._reconstruction_loss(x0, x1)
+            loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
+            loss_values["sqr_reconstruction"] = self._sqr_reconstruction_loss(x, x1)
+            loss_values["lamb_reconstruction"] = self._lamb_reconstruction_loss(x, x1)
+            #loss_values["reconstruction"] = self._l1_loss(x0, x1)
 
         # KL-Divergence for VAE
         if check_keys("kl"):
             loss_values["kl"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
 
-        # Empty until computed
-        x1 = z1 = z_dense = None
+        # Cyclic consistency of latent code -- gradient only to encoder
+        if val_all_metrics or check_keys("z_reconstruction_encoder"):
+            x1_detached = x1.detach()
+            z_cycle = self.encode_lossless(x1_detached, c, mu_var=False)
+            loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z_cycle)
 
-        # Negative log-likelihood
-        if (self.hparams.eval_all or check_keys("nll")):
-            # exact
-            if self.density_model_type == "fff" and (self.hparams.eval_all and (
+        # Losses for density model:
+        # Empty until computed
+        z1 = z_dense = None
+
+        # NLL losses
+        if (val_all_metrics or check_keys("nll") or check_keys("coarse_supervised")):
+            # NLL loss for INN-architectures
+            if self.density_model_type == "inn":
+                if check_keys("coarse_supervised"):
+                    c_n = c + torch.randn_like(c) * self.hparams.condition_noise
+                else: 
+                    c_n = c
+                z_combined, log_det = self.encode_density(z.detach(), c_n, jac=True)
+                if isinstance(z_combined, tuple):
+                    z_dense, z_coarse = z_combined
+                    if check_keys("coarse_supervised"):
+                        loss_values["coarse_supervised"] = self._reconstruction_loss(c, z_coarse)
+                else:
+                    z_dense = z_combined
+                log_prob = self._latent_log_prob(z_dense, c_n)
+                loss_values["nll"] = -(log_prob + log_det)
+
+            # Freeform loss
+            elif self.density_model_type == "fff" and (self.hparams.eval_all and (
                     not self.training or (self.hparams.exact_train_nll_every is not None and
                     batch_idx % self.hparams.exact_train_nll_every == 0))):
+                # exact
                 key = "nll_exact" if self.training else "nll"
                 # todo unreadable
                 if self.training or (self.hparams.skip_val_nll is not True and (self.hparams.skip_val_nll is False or (
@@ -334,7 +371,7 @@ class FiberModel(FreeFormBase):
                     loss_weights["nll"] = 0
             
             # surrogate
-            if (self.density_model_type == "fff") and self.training and check_keys("nll"):
+            elif (self.density_model_type == "fff") and self.training and check_keys("nll"):
                 warm_up = self.hparams.warm_up_epochs
                 if isinstance(warm_up, int):
                     warm_up = warm_up, warm_up + 1
@@ -360,11 +397,7 @@ class FiberModel(FreeFormBase):
                     loss_values.update(log_prob_result.regularizations)
 
 
-        # In case they were skipped above
-        if x1 is None:
-            x1 = self.decode_lossless(z, c)
-
-        # Diffusion model
+        # Diffusion model mean squared error
         if check_keys("diff_mse"):
             if not self.density_model_type == "diffusion":
                 raise ValueError("diff_mse is only available for diffusion models")
@@ -373,38 +406,20 @@ class FiberModel(FreeFormBase):
             epsilon_pred = self.decode_density(z_diff.detach(), (t, c))
             loss_values["diff_mse"] = self._reconstruction_loss(epsilon_pred, epsilon.detach())
 
-        # NLL loss for INN-architectures
-        if ((val_all_metrics or check_keys("nll") or check_keys("coarse_supervised"))
-                and self.density_model_type == "inn"):
-            if check_keys("coarse_supervised"):
-                c_n = c + torch.randn_like(c) * self.hparams.condition_noise
-            else: 
-                c_n = c
-            z_combined, log_det = self.encode_density(z.detach(), c_n, jac=True)
-            if isinstance(z_combined, tuple):
-                z_dense, z_coarse = z_combined
-                if check_keys("coarse_supervised"):
-                    loss_values["coarse_supervised"] = self._reconstruction_loss(c, z_coarse)
-            else:
-                z_dense = z_combined
-            log_prob = self._latent_log_prob(z_dense, c_n)
-            loss_values["nll"] = -(log_prob + log_det)
-                
         if z_dense is None:
             z_dense = self.encode_density(z.detach(), c)
 
+        # Reconstruction of latent z
         if (not self.density_model_type=="diffusion" and 
                 (val_all_metrics or check_keys("latent_reconstruction"))):
             if z1 is None:
-                #if self.hparams.mask_dims==0:
-                z1 = self.decode_density(z_dense, c) 
-                """
+                if self.hparams.mask_dims==0:
+                    z1 = self.decode_density(z_dense, c) 
                 else:
                     latent_mask = torch.ones(x.shape[0], self.latent_dim, device=x.device)
                     latent_mask[:, -self.hparams.mask_dims:] = 0
                     z_masked_dense = z_dense * latent_mask
                     z1 = self.decode_density(z_masked_dense, c) 
-                """
             loss_values["latent_reconstruction"] = self._reconstruction_loss(z.detach(), z1)
 
         # Wasserstein distance of marginal to Gaussian
@@ -434,39 +449,20 @@ class FiberModel(FreeFormBase):
                 loss_values["accuracy"] = 1 - oneminusacc
         """
 
-        # Reconstruction
-        if val_all_metrics or check_keys(
-                "reconstruction", "noisy_reconstruction", 
-                "sqr_reconstruction", "lamb_reconstruction"):
-            loss_values["reconstruction"] = self._reconstruction_loss(x0, x1)
-            loss_values["noisy_reconstruction"] = self._reconstruction_loss(x, x1)
-            loss_values["sqr_reconstruction"] = self._sqr_reconstruction_loss(x, x1)
-            loss_values["lamb_reconstruction"] = self._lamb_reconstruction_loss(x, x1)
-            #loss_values["reconstruction"] = self._l1_loss(x0, x1)
-
-        if val_all_metrics or check_keys("1d-masked_reconstruction"):
+        if (val_all_metrics or check_keys("1d-masked_reconstruction"))
+                and not self.density_model_type=="diffusion":
             latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
-            latent_mask[:, 0] = 1
-            if not self.density_model_type=="diffusion":
-                z_masked_dense = z_dense * latent_mask
-                x_zmask = self.decode(z_masked_dense, c) 
-                loss_values["1d-masked_reconstruction"] = self._reconstruction_loss(x, x_zmask)
-            else:
-                loss_values["1d-masked_reconstruction"] = float("nan") * torch.ones(z.shape[0])
+            latent_mask[:, self.hparams.mask_dims:] = 1
+            z_masked_dense = z_dense * latent_mask
+            x_zmask = self.decode(z_masked_dense, c) 
+            loss_values["1d-masked_reconstruction"] = self._reconstruction_loss(x, x_zmask)
+            #loss_values["1d-masked_reconstruction"] = float("nan") * torch.ones(z.shape[0])
 
         # Cyclic consistency of latent code -- gradient only to encoder
-        if val_all_metrics or check_keys("z_reconstruction_encoder"):
-            # Not reusing x1 from above, as it does not detach z
-            if self.density_model_type in ["fff"]:
-                z1_detached = z1.detach()
-                z1_dense = self.encode_density(z1_detached, c)
-                loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z_dense, z1_dense)
-            else:
-                x1_detached = x1.detach()
-                z1 = self.encode(x1_detached, c)
-                if self.vae:
-                    z1 = z1[0]
-                loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z, z1)
+        if val_all_metrics or check_keys("z_dense_reconstruction"):
+            z1_detached = z1.detach()
+            z_dense1 = self.encode_density(z1_detached, c)
+            loss_values["z_reconstruction_encoder"] = self._reconstruction_loss(z_dense, z_dense1)
 
         # Cyclic consistency of latent code sampled from Gaussian and fiber loss
         if ((val_all_metrics or
