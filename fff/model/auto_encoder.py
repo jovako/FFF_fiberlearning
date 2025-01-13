@@ -91,7 +91,6 @@ class FullyConnectedNetwork(nn.Module):
     def build_model(self) -> nn.Module:
         data_dim = self.hparams.data_dim
         cond_dim = self.hparams.cond_dim
-        print(cond_dim)
 
         # Nonlinear projection
         widths = [

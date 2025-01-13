@@ -37,6 +37,8 @@ class FiberModelHParams(FreeFormBaseHParams):
     fiber_loss_every: int = 1
     cnew_every: int = 1 #deprecated and not used anymore
 
+    mask_dims: int = 0
+
     warm_up_fiber: int | list = 0
     warm_up_epochs: int | list = 0
 
@@ -66,7 +68,6 @@ class FiberModel(FreeFormBase):
         # Ask whether the latent variebles should be passed by another learning model and which model class to use
         if all([model_hparams["name"] == "fff.model.Identity" for model_hparams in self.hparams.density_model]):
             self.density_model_type = None
-
         elif any([model_hparams["name"] in ["fff.model.DenoisingFlow",
                                             "fff.model.MultilevelFlow",
                                             "fff.model.INN"] for model_hparams in self.hparams.density_model]):
@@ -75,7 +76,6 @@ class FiberModel(FreeFormBase):
                                             "fff.model.MultilevelFlow",
                                             "fff.model.INN"] for model_hparams in self.hparams.density_model]), \
             "Coupling Flows cannot be mixed with other models for now."
-
         elif any([model_hparams["name"] == "fff.model.Diffusion" for model_hparams in self.hparams.density_model]):
             assert len(self.hparams.density_model) == 1, "Diffusion model must be the only model in the density model"
             self.density_model_type = "diffusion"
@@ -96,6 +96,13 @@ class FiberModel(FreeFormBase):
                 self.vae = True
         except: 
             self.vae = False
+
+        # Build condition embedder
+        self.condition_embedder = build_model(self.hparams.condition_embedder, self.cond_dim, 0)
+        if self.condition_embedder is not None:
+            self._data_cond_dim = self.condition_embedder[-1].hparams.latent_dim
+            for model in self.condition_embedder:
+                del model.model.decoder
 
         # Build models
         # First the lossless vae
@@ -487,7 +494,11 @@ class FiberModel(FreeFormBase):
                     # There might be no subject model
                     cT = torch.empty(x_random.shape[0],0).to(x_random.device)
                     c1 = self.subject_model.encode(x_random, cT)
-                    loss_values["fiber_loss"] = self._reduced_rec_loss(c, c1)
+                    try: 
+                        c0 = batch[1]
+                    except:
+                        c0 = self.subject_model.encode(x0, cT)
+                    loss_values["fiber_loss"] = self._reduced_rec_loss(c0, c1)
                 except Exception as e:
                     warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
                     loss_values["fiber_loss"] = (
@@ -497,8 +508,8 @@ class FiberModel(FreeFormBase):
                     z1_random = self.encode(x_random, c_random)
                     loss_values["z_sample_reconstruction"] = self._reconstruction_loss(
                         z_random, z1_random)
-                except:
-                    warn("Error in computing z_sample_reconstruction, setting to nan.")
+                except Exception as e:
+                    warn("Error in computing z_sample_reconstruction, setting to nan. Error: " + str(e))
                     loss_values["z_sample_reconstruction"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
 

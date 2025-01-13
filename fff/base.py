@@ -34,6 +34,8 @@ class FreeFormBaseHParams(TrainableHParams):
 
     models: list = []
 
+    condition_embedder: list = []
+
     loss_weights: dict
     log_det_estimator: dict = dict(
         name="surrogate",
@@ -80,6 +82,8 @@ class FreeFormBase(Trainable):
                 if len(data_sample[1].shape) != 1:
                     raise NotImplementedError("More than one condition dimension is not supported.")
                 self._data_cond_dim = data_sample[1].shape[0]
+        if not self.is_conditional() and not len(self.hparams.condition_embedder) == 0:
+            raise ValueError("Condition embedder is only supported for conditional models")
 
         # Build model
         self.init_models()
@@ -91,7 +95,13 @@ class FreeFormBase(Trainable):
             self.learnt_latent = default_latent
 
     def init_models(self):
+        self.condition_embedder = build_model(self.hparams.condition_embedder, self.cond_dim, 0)
+        if self.condition_embedder is not None:
+            self._data_cond_dim = self.condition_embedder[-1].hparams.latent_dim
+            for model in self.condition_embedder:
+                del model.model.decoder
         self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
+
 
     def train_dataloader(self) -> DataLoader | list[DataLoader]:
         """
@@ -598,7 +608,11 @@ class FreeFormBase(Trainable):
         if len(batch) != (2 if self.is_conditional() else 1):
             raise ValueError("You must pass a batch including conditions for each dataset condition")
         if len(batch) > 1:
-            conds.append(batch[1])
+            dataset_cond = batch[1]
+            if self.condition_embedder is not None:
+                for model in self.condition_embedder:
+                    dataset_cond = model.encode(dataset_cond, torch.empty((dataset_cond.shape[0], 0), device=device, dtype=dtype))
+            conds.append(dataset_cond)
 
         # SoftFlow
         noise_conds, x, dequantization_jac = self.dequantize(batch)
