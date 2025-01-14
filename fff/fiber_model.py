@@ -91,11 +91,6 @@ class FiberModel(FreeFormBase):
             
         # Check whether self.lossless_ae is a VAE
         self.vae = self.hparams.vae
-        try:
-            if self.hparams.lossless_ae[1]["name"] == "fff.model.VarResNet":
-                self.vae = True
-        except: 
-            self.vae = False
 
         # Build condition embedder
         self.condition_embedder = build_model(self.hparams.condition_embedder, self.cond_dim, 0)
@@ -141,7 +136,7 @@ class FiberModel(FreeFormBase):
     @property
     def latent_dim(self):
         if self.density_model_type:
-            return self.density_model[-1].hparams.latent_dim
+            latent_dim = self.density_model[-1].hparams.latent_dim
         else:
             return self.lossless_ae.latent_dim
 
