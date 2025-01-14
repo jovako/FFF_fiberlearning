@@ -577,13 +577,6 @@ class FreeFormBase(Trainable):
 
         return metrics
 
-    def on_train_epoch_end(self) -> None:
-        try:
-            for key, value in self.val_data.compute_metrics(self).items():
-                self.log(f"validation/{key}", value)
-        except (AttributeError, TypeError):
-            pass
-
     def on_fit_end(self) -> None:
         try:
             if self.hparams.data_set["name"].startswith("sbi_"):
