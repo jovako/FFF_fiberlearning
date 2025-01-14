@@ -4,9 +4,9 @@ import torch
 from fff.base import ModelHParams, build_model
 
 class LosslessAEHParams(ModelHParams):
-    model_spec: list
+    model_spec: list = []
     cond_dim: int = 0
-    path: bool | str = False
+    path: str | None = None
     vae: bool = True
     data_dim: int
 
@@ -14,6 +14,11 @@ class LosslessAE(Module):
 
     hparams: LosslessAEHParams
     def __init__(self, hparams: LosslessAEHParams | dict):
+        if "path" in hparams and hparams["path"] is not None:
+            print("Loading lossless_ae checkpoint from: ", hparams["path"])
+            checkpoint = torch.load(hparams["path"])
+            hparams["model_spec"] = checkpoint["hyper_parameters"]["lossless_ae"]
+
         if not isinstance(hparams, LosslessAEHParams):
             hparams = LosslessAEHParams(**hparams)
         super().__init__()
@@ -23,8 +28,6 @@ class LosslessAE(Module):
             self.hparams.model_spec, self.data_dim, self.hparams.cond_dim
         )
         if self.hparams.path:
-            print("load lossless_ae checkpoint")
-            checkpoint = torch.load(self.hparams.path)
             lossless_ae_weights = {k[19:]: v for k, v in checkpoint["state_dict"].items()
                               if k.startswith("lossless_ae.models.")}
             self.models.load_state_dict(lossless_ae_weights)
