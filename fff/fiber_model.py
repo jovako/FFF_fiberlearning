@@ -21,10 +21,10 @@ from fff.utils.diffusion import make_betas
 from fff.data import get_model_path
 
 class FiberModelHParams(FreeFormBaseHParams):
-    lossless_ae: list
     density_model: list
-    load_lossless_ae_path: bool | str = False
-    load_density_model_path: bool | str = False
+    lossless_ae: list | None = None
+    load_lossless_ae_path: str | None = None
+    load_density_model_path: str | None = None
     load_subject_model: bool = False
     subject_model_type: str | None = None
     train_lossless_ae: bool = True
@@ -106,7 +106,10 @@ class FiberModel(FreeFormBase):
         self.lossless_ae = Sequential(CT_nets["vae"])
         """
         ae_hparams = {}
-        ae_hparams["model_spec"] = self.hparams.lossless_ae
+        if self.hparams.load_lossless_ae_path is None:
+            ae_hparams["model_spec"] = self.hparams.lossless_ae
+        elif self.hparams.lossless_ae is not None:
+            warn("Overwriting model_spec from config with loaded model!")
         ae_hparams["data_dim"] = self.data_dim
         if self.hparams.ae_conditional:
             ae_hparams["cond_dim"] = self._data_cond_dim
