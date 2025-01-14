@@ -2,6 +2,7 @@ model: fff.FiberModel
 
 noise: 0.01
 load_subject_model: True
+load_lossless_ae_path: "lightning_logs/version_9/checkpoints/last.ckpt"
 latent_distribution:
   name: "normal"
 data_set:
