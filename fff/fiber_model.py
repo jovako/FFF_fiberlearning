@@ -30,8 +30,8 @@ class FiberModelHParams(FreeFormBaseHParams):
     train_lossless_ae: bool = True
     ae_conditional: bool = False
     vae: bool = False
-    betas_max: float = 0.2
-    beta_schedule: str = "linear"
+    diffusion_betas_max: float = 0.2
+    diffusion_beta_schedule: str = "linear"
 
     eval_all: bool = True
     fiber_loss_every: int = 1
@@ -79,7 +79,7 @@ class FiberModel(FreeFormBase):
         elif any([model_hparams["name"] == "fff.model.Diffusion" for model_hparams in self.hparams.density_model]):
             assert len(self.hparams.density_model) == 1, "Diffusion model must be the only model in the density model"
             self.density_model_type = "diffusion"
-            self.betas = make_betas(1000, self.hparams.betas_max, self.hparams.beta_schedule)
+            self.betas = make_betas(1000, self.hparams.diffusion_betas_max, self.hparams.diffusion_beta_schedule)
             self.hparams.density_model[-1]["betas"] = (self.betas,)
             self.alphas_ = torch.cumprod((1 - self.betas), axis=0)
             print(self.alphas_.shape)
