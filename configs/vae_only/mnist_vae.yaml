@@ -8,9 +8,9 @@ data_set:
   conditional: False
 
 loss_weights:
-  lamb_reconstruction: 1
+  ae_lamb_reconstruction: 1000
   #sqr_reconstruction: 10
-  #kl: 1
+  ae_elbo: 1
   #z std: 1
   #nll: 1
 max_epochs: 653

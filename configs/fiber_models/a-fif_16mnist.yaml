@@ -16,10 +16,11 @@ loss_weights:
   nll: 1
   latent_reconstruction: 10
   #noisy_reconstruction: 100
-  1d-masked_reconstruction: 1
-    #fiber_loss: 1
+  masked_reconstruction: 1
+  fiber_loss: 1
   #z_sample_reconstruction: 1000
 max_epochs: 5
+mask_dims: 0
 #warm_up_epochs: [15, 100]
 #warm_up_fiber: [35, 40]
 
@@ -46,7 +47,7 @@ lossless_ae:
 density_model:
   - name: fff.model.ResNet
     data_dim: *latent_dim
-    latent_dim: 61
+    latent_dim: 59
     layers_spec:
       - [512, 512]
       - [512, 512]
