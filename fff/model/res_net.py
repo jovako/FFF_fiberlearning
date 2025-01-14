@@ -63,7 +63,7 @@ class ResNet(nn.Module):
         cond_dim = self.hparams.cond_dim
         print("cond_dim: ", cond_dim)
         latent_dim = self.hparams.latent_dim
-        print("latent_dim: ", latent_dim)
+        print("output_dim: ", latent_dim)
 
         # ResNet in data space + projection to latent space
         activation = self.hparams.activation

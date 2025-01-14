@@ -31,8 +31,8 @@ class FiberModelHParams(FreeFormBaseHParams):
     ae_conditional: bool = False
     vae: bool = False
     mask_dims: int = 1
-    betas_max: float = 0.2
-    beta_schedule: str = "linear"
+    diffusion_betas_max: float = 0.2
+    diffusion_beta_schedule: str = "linear"
 
     eval_all: bool = True
     fiber_loss_every: int = 1
@@ -67,7 +67,6 @@ class FiberModel(FreeFormBase):
         # Ask whether the latent variebles should be passed by another learning model and which model class to use
         if all([model_hparams["name"] == "fff.model.Identity" for model_hparams in self.hparams.density_model]):
             self.density_model_type = None
-
         elif any([model_hparams["name"] in ["fff.model.DenoisingFlow",
                                             "fff.model.MultilevelFlow",
                                             "fff.model.INN"] for model_hparams in self.hparams.density_model]):
@@ -80,7 +79,7 @@ class FiberModel(FreeFormBase):
         elif any([model_hparams["name"] == "fff.model.DiffusionModel" for model_hparams in self.hparams.density_model]):
             assert len(self.hparams.density_model) == 1, "Diffusion model must be the only model in the density model"
             self.density_model_type = "diffusion"
-            self.betas = make_betas(1000, self.hparams.betas_max, self.hparams.beta_schedule)
+            self.betas = make_betas(1000, self.hparams.diffusion_betas_max, self.hparams.diffusion_beta_schedule)
             self.hparams.density_model[-1]["betas"] = (self.betas,)
             self.alphas_ = torch.cumprod((1 - self.betas), axis=0)
             print(self.alphas_.shape)
@@ -97,6 +96,13 @@ class FiberModel(FreeFormBase):
                 self.vae = True
         except: 
             self.vae = False
+
+        # Build condition embedder
+        self.condition_embedder = build_model(self.hparams.condition_embedder, self.cond_dim, 0)
+        if self.condition_embedder is not None:
+            self._data_cond_dim = self.condition_embedder[-1].hparams.latent_dim
+            for model in self.condition_embedder:
+                del model.model.decoder
 
         # Build models
         # First the lossless vae
@@ -490,24 +496,26 @@ class FiberModel(FreeFormBase):
                     # There might be no subject model
                     cT = torch.empty(x_random.shape[0],0).to(x_random.device)
                     c1 = self.subject_model.encode(x_random, cT)
-                    loss_values["fiber_loss"] = self._reduced_rec_loss(c, c1)
+                    try: 
+                        c0 = batch[1]
+                    except:
+                        c0 = self.subject_model.encode(x0, cT)
+                    loss_values["fiber_loss"] = self._reduced_rec_loss(c0, c1)
                 except Exception as e:
                     warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
                     loss_values["fiber_loss"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
-                #try:
-                # Sanity checks might fail for random data
-                z1_random = self.encode(x_random, c_random)
-                if isinstance(z1_random, tuple):
-                    z1_random, _ = z1_random
-                loss_values["z_sample_reconstruction"] = self._reconstruction_loss(
-                    z_dense_random, z1_random)
-                """
+                try:
+                    # Sanity checks might fail for random data
+                    z1_random = self.encode(x_random, c_random)
+                    if isinstance(z1_random, tuple):
+                        z1_random, _ = z1_random
+                    loss_values["z_sample_reconstruction"] = self._reconstruction_loss(
+                        z_dense_random, z1_random)
                 except Exception as e:
                     warn("Error in computing z_sample_reconstruction, setting to nan. Error: " + str(e))
                     loss_values["z_sample_reconstruction"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
-                """
 
         # Compute loss as weighted loss
         metrics["loss"] = sum(

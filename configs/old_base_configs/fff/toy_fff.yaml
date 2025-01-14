@@ -2,12 +2,10 @@ model: fff.FreeFormFlow
 
 latent_distribution:
   name: "normal"
-load_subject_model: True
 data_set:
-  name: moons_split
+  name: 2moons
   # num_simulations: ... must be specified in separate config file
   conditional: True
-  path: "fif_moons"
 
 noise: 0.
 
@@ -15,7 +13,6 @@ loss_weights:
   nll: 1
   noisy_reconstruction: 10
 
-train_models: True
 models:
   - name: fff.model.ResNet
     latent_dim: 2
@@ -25,6 +22,13 @@ models:
       - [256, 256]
       - [256, 256]
 
+condition_embedder:
+  - name: fff.model.ResNet
+    latent_dim: 16
+    layers_spec:
+      - [256, 256]
+
+
 lr_scheduler: "onecyclelr"
 
 batch_size: 128
@@ -33,7 +37,7 @@ optimizer:
   lr: 0.0004
   #weight_decay: 0.0001
 
-max_epochs: 1000
+max_epochs: 100
 
 num_workers: 4
 gradient_clip: 3.0

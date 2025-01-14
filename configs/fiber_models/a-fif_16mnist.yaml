@@ -16,11 +16,10 @@ loss_weights:
   nll: 1
   latent_reconstruction: 10
   #noisy_reconstruction: 100
-  masked_reconstruction: 1
   fiber_loss: 1
   #z_sample_reconstruction: 1000
 max_epochs: 5
-mask_dims: 0
+mask_dims: 1
 #warm_up_epochs: [15, 100]
 #warm_up_fiber: [35, 40]
 
@@ -52,6 +51,12 @@ density_model:
       - [512, 512]
       - [512, 512]
       - [512, 512]
+
+condition_embedder:
+  - name: fff.model.ResNet
+    latent_dim: 16
+    layers_spec:
+      - [256, 256]
 
 lr_scheduler: "onecyclelr"
 optimizer:
