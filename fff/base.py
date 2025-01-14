@@ -95,7 +95,7 @@ class FreeFormBase(Trainable):
             self.learnt_latent = default_latent
 
     def init_models(self):
-        self.condition_embedder = build_model(self.hparams.condition_embedder, self.cond_dim, 0)
+        self.condition_embedder = build_model(self.hparams.condition_embedder, self._data_cond_dim, 0)
         if self.condition_embedder is not None:
             self._data_cond_dim = self.condition_embedder[-1].hparams.latent_dim
             for model in self.condition_embedder:

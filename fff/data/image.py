@@ -17,7 +17,6 @@ from fff.data.utils import TrainValTest
 
 CELEBA_CACHE = {}
 
-
 def get_mnist_datasets(root: str, digit: int = None, conditional: bool = False, patch_size=None, num_patches_per_image=None) -> TrainValTest:
     try:
         train_dataset = MNIST(root, train=True)
@@ -42,7 +41,6 @@ def get_split_mnist(root: str, digit: int = None, conditional: bool = False, pat
 
     train_targets = train_targets
     val_data = torch.from_numpy(df["val_x"])
-    print(val_data.shape)
     val_targets = torch.from_numpy(df["val_y"])
     test_data = torch.from_numpy(df["test_x"])
     test_targets = torch.from_numpy(df["test_y"])

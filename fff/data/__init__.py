@@ -56,6 +56,9 @@ def load_dataset(name: str, **kwargs) -> TrainValTest:
     elif name == "precompiled_dataset":
         from .saved_datasets import get_saved_dataset
         return get_saved_dataset(**kwargs)
+    elif name == "ldct":
+        from .ldct import get_ldct_datasets
+        return get_ldct_datasets(**kwargs)
     else:
         from .toy import make_toy_data
         return make_toy_data(name, **kwargs)
