@@ -24,7 +24,7 @@ class LosslessAE(Module):
         super().__init__()
         self.hparams = hparams
         self.data_dim = self.hparams.data_dim
-        if self.hparams.vae:
+        if self.hparams.vae and hparams["path"] is None:
             lat_dim = self.hparams.model_spec[-1]["latent_dim"]
             self.hparams.model_spec[-1]["latent_dim"] = lat_dim * 2
         self.models = build_model(
