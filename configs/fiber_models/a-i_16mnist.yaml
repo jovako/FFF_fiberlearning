@@ -1,7 +1,7 @@
 model: fff.FiberModel
 
 noise: 0.01
-load_subject_model: False
+load_subject_model: True
 latent_distribution:
   name: "normal"
 data_set:
@@ -9,6 +9,8 @@ data_set:
   root: data
   conditional: True
   path: "16EMNIST_F5F_demo"
+  subject_model_path: "data/16EMNIST_F5F_demo/subject_model/checkpoints/last.ckpt"
+  subject_model_type: FreeFormInjectiveFlow
 
 loss_weights:
   nll: 1
@@ -96,5 +98,5 @@ optimizer:
 gradient_clip: 3.0
 
 batch_size: 512
-load_lossless_ae_path: "lightning_logs/test/version_0/checkpoints/last.ckpt"
+load_lossless_ae_path: "lightning_logs/MNIST_VAE/version_0/checkpoints/last.ckpt"
 #load_transform_path: "lightning_logs/16vae_if2/version_0/checkpoints/last.ckpt"

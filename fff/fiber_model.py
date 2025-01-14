@@ -30,14 +30,13 @@ class FiberModelHParams(FreeFormBaseHParams):
     train_lossless_ae: bool = True
     ae_conditional: bool = False
     vae: bool = False
+    mask_dims: int = 1
     diffusion_betas_max: float = 0.2
     diffusion_beta_schedule: str = "linear"
 
     eval_all: bool = True
     fiber_loss_every: int = 1
     cnew_every: int = 1 #deprecated and not used anymore
-
-    mask_dims: int = 0
 
     warm_up_fiber: int | list = 0
     warm_up_epochs: int | list = 0
@@ -76,7 +75,8 @@ class FiberModel(FreeFormBase):
                                             "fff.model.MultilevelFlow",
                                             "fff.model.INN"] for model_hparams in self.hparams.density_model]), \
             "Coupling Flows cannot be mixed with other models for now."
-        elif any([model_hparams["name"] == "fff.model.Diffusion" for model_hparams in self.hparams.density_model]):
+
+        elif any([model_hparams["name"] == "fff.model.DiffusionModel" for model_hparams in self.hparams.density_model]):
             assert len(self.hparams.density_model) == 1, "Diffusion model must be the only model in the density model"
             self.density_model_type = "diffusion"
             self.betas = make_betas(1000, self.hparams.diffusion_betas_max, self.hparams.diffusion_beta_schedule)
@@ -136,7 +136,7 @@ class FiberModel(FreeFormBase):
         if self.hparams.load_subject_model:
             print("loading subject_model")
             sm_dir = get_model_path(**self.hparams["data_set"])
-            self.subject_model = SubjectModel(sm_dir, self.hparams.subject_model_type)
+            self.subject_model = SubjectModel(sm_dir, self.hparams.data_set.subject_model_type)
             self.subject_model.eval()
             for param in self.subject_model.parameters():
                 param.require_grad = False
@@ -163,7 +163,7 @@ class FiberModel(FreeFormBase):
         return z
 
     def encode(self, x, c):
-        z_dense = self.encode_density(self.lossless_ae.encode(x, c)[0], c)
+        z_dense = self.encode_density(self.encode_lossless(x, c, mu_var=False), c)
         return z_dense
 
     def decode_lossless(self, z, c):
@@ -319,7 +319,7 @@ class FiberModel(FreeFormBase):
 
         # Losses for lossless ae:
         # Reconstruction
-        if val_all_metrics or check_keys(
+        if not self.training or check_keys(
                 "ae_reconstruction", "ae_noisy_reconstruction", 
                 "ae_sqr_reconstruction", "ae_lamb_reconstruction"):
             loss_values["ae_reconstruction"] = self._reconstruction_loss(x0, x1)
@@ -333,7 +333,7 @@ class FiberModel(FreeFormBase):
             loss_values["ae_elbo"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
 
         # Cyclic consistency of latent code -- gradient only to encoder
-        if val_all_metrics or check_keys("ae_cycle_loss"):
+        if not self.training or check_keys("ae_cycle_loss"):
             x1_detached = x1.detach()
             z_cycle = self.encode_lossless(x1_detached, c, mu_var=False)
             loss_values["ae_cycle_loss"] = self._reconstruction_loss(z, z_cycle)
@@ -456,10 +456,12 @@ class FiberModel(FreeFormBase):
         if val_all_metrics or check_keys("cycle_loss"):
             z1_detached = z1.detach()
             z_dense1 = self.encode_density(z1_detached, c)
+            if isinstance(z_dense1, tuple):
+                z_dense1, _ = z_dense1
             loss_values["cycle_loss"] = self._reconstruction_loss(z_dense, z_dense1)
 
         # Cyclic consistency of latent code sampled from Gaussian and fiber loss
-        if ((val_all_metrics or
+        if ((not self.training or
                 check_keys("fiber_loss", "z_sample_reconstruction")) and 
                 self.current_epoch % self.hparams.fiber_loss_every == 0):
             warm_up = self.hparams.warm_up_fiber
@@ -509,8 +511,10 @@ class FiberModel(FreeFormBase):
                 try:
                     # Sanity checks might fail for random data
                     z1_random = self.encode(x_random, c_random)
+                    if isinstance(z1_random, tuple):
+                        z1_random, _ = z1_random
                     loss_values["z_sample_reconstruction"] = self._reconstruction_loss(
-                        z_random, z1_random)
+                        z_dense_random, z1_random)
                 except Exception as e:
                     warn("Error in computing z_sample_reconstruction, setting to nan. Error: " + str(e))
                     loss_values["z_sample_reconstruction"] = (
