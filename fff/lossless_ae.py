@@ -24,6 +24,9 @@ class LosslessAE(Module):
         super().__init__()
         self.hparams = hparams
         self.data_dim = self.hparams.data_dim
+        if self.hparams.vae and hparams["path"] is None:
+            lat_dim = self.hparams.model_spec[-1]["latent_dim"]
+            self.hparams.model_spec[-1]["latent_dim"] = lat_dim * 2
         self.models = build_model(
             self.hparams.model_spec, self.data_dim, self.hparams.cond_dim
         )
@@ -34,11 +37,17 @@ class LosslessAE(Module):
 
     @property
     def latent_dim(self):
-        return self.models[-1].hparams.latent_dim
+        latent_dim = self.models[-1].hparams.latent_dim
+        if self.hparams.vae:
+            return latent_dim//2
+        else:
+            return latent_dim
 
     def decode(self, z, c):
         if self.hparams.cond_dim == 0:
             c = torch.empty((z.shape[0], 0), device=z.device, dtype=z.dtype)
+        if self.hparams.vae:
+            z = torch.nn.functional.pad(z, (0, z.shape[1]))
         for model in self.models[::-1]:
             z = model.decode(z, c)
         return z
@@ -51,7 +60,8 @@ class LosslessAE(Module):
         mu, logvar = None, None
         if self.hparams.vae:
             # VAE latent sampling
-            mu, logvar = x
+            mu = x[:,:x.shape[1]//2]
+            logvar = x[:,x.shape[1]//2:]
             epsilon = torch.randn_like(logvar).to(mu.device)
             x = mu + torch.exp(0.5 * logvar) * epsilon
         if mu_var:

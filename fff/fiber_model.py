@@ -19,6 +19,7 @@ from fff.loss import volume_change_surrogate
 from fff.utils.jacobian import compute_jacobian
 from fff.utils.diffusion import make_betas
 from fff.data import get_model_path
+from fff.evaluate.plot_fiber_model import plot_mnist
 
 class FiberModelHParams(FreeFormBaseHParams):
     density_model: list
@@ -91,11 +92,6 @@ class FiberModel(FreeFormBase):
             
         # Check whether self.lossless_ae is a VAE
         self.vae = self.hparams.vae
-        try:
-            if self.hparams.lossless_ae[1]["name"] == "fff.model.VarResNet":
-                self.vae = True
-        except: 
-            self.vae = False
 
         # Build condition embedder
         self.condition_embedder = build_model(self.hparams.condition_embedder, self.cond_dim, 0)
@@ -140,6 +136,7 @@ class FiberModel(FreeFormBase):
             self.subject_model.eval()
             for param in self.subject_model.parameters():
                 param.require_grad = False
+
 
     @property
     def latent_dim(self):
@@ -497,13 +494,26 @@ class FiberModel(FreeFormBase):
                 # Try whether the model learns fibers and therefore has a subject model
                 try:
                     # There might be no subject model
-                    cT = torch.empty(x_random.shape[0],0).to(x_random.device)
-                    c1 = self.subject_model.encode(x_random, cT)
+                    c_sm = torch.empty(x_random.shape[0],0).to(x_random.device)
+                    c1 = self.subject_model.encode(x_random, c_sm)
                     try: 
                         c0 = batch[1]
                     except:
-                        c0 = self.subject_model.encode(x0, cT)
+                        print("Hello")
+                        c0 = self.subject_model.encode(x0, c_sm)
                     loss_values["fiber_loss"] = self._reduced_rec_loss(c0, c1)
+                    try:
+                        # tensorboard plots
+                        x0_sm = self.subject_model.decode(c0, c_sm)
+                        x_random_sm = self.subject_model.decode(c1, c_sm)
+                        writer = self.logger.experiment
+                        fig = plot_mnist(x0_sm)
+                        writer.add_figure(f"{plot_name}", fig, current_epoch)
+                        fig = plot_mnist(x_random_sm)
+                        writer.add_figure(f"{plot_name}", fig, current_epoch)
+                    except:
+                        pass
+
                 except Exception as e:
                     warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
                     loss_values["fiber_loss"] = (
