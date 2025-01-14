@@ -502,18 +502,6 @@ class FiberModel(FreeFormBase):
                         print("Hello")
                         c0 = self.subject_model.encode(x0, c_sm)
                     loss_values["fiber_loss"] = self._reduced_rec_loss(c0, c1)
-                    try:
-                        # tensorboard plots
-                        x0_sm = self.subject_model.decode(c0, c_sm)
-                        x_random_sm = self.subject_model.decode(c1, c_sm)
-                        writer = self.logger.experiment
-                        fig = plot_mnist(x0_sm)
-                        writer.add_figure(f"{plot_name}", fig, current_epoch)
-                        fig = plot_mnist(x_random_sm)
-                        writer.add_figure(f"{plot_name}", fig, current_epoch)
-                    except:
-                        pass
-
                 except Exception as e:
                     warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
                     loss_values["fiber_loss"] = (
@@ -529,6 +517,16 @@ class FiberModel(FreeFormBase):
                     warn("Error in computing z_sample_reconstruction, setting to nan. Error: " + str(e))
                     loss_values["z_sample_reconstruction"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
+                #try:
+                # tensorboard plots
+                if batch_idx==0:
+                    x0_sm = self.subject_model.decode(c0, c_sm)
+                    x_random_sm = self.subject_model.decode(c1, c_sm)
+                    writer = self.logger.experiment
+                    fig = plot_mnist(x0_sm)
+                    writer.add_figure(f"SM(original)", fig, self.current_epoch)
+                    fig = plot_mnist(x_random_sm)
+                    writer.add_figure(f"SM(samples)", fig, self.current_epoch)
 
         # Compute loss as weighted loss
         metrics["loss"] = sum(
@@ -562,6 +560,22 @@ class FiberModel(FreeFormBase):
             raise SkipBatch
 
         return metrics
+
+    def on_train_epoch_start(self) -> None:
+        val_data = self.trainer.val_dataloaders
+        batch = next(iter(val_data))
+        for i in len(batch):
+            batch[i] = batch[i]to(self.device)
+        conditioned = self.apply_conditions(batch)
+        loss_weights = conditioned.loss_weights
+        x = conditioned.x_noisy
+        c = conditioned.condition
+        x_samples = self.sample(x.shape[0], c)
+        c_sm = torch.empty(x_random.shape[0],0).to(x_random.device)
+        c_samples = self.subject_model.encode(x_samples, c_sm)
+        x_samples_sm = self.subject_model.decode(c_samples, c_sm)
+
+
 
     def diffuse(self, x, t, alphas_):
         noise = torch.randn_like(x)
