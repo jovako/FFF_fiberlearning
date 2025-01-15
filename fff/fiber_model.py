@@ -31,7 +31,7 @@ class FiberModelHParams(FreeFormBaseHParams):
     train_lossless_ae: bool = True
     ae_conditional: bool = False
     vae: bool = False
-    mask_dims: int = 1
+    reconstruct_dims: int = 1
     diffusion_betas_max: float = 0.2
     diffusion_beta_schedule: str = "linear"
 
@@ -444,7 +444,7 @@ class FiberModel(FreeFormBase):
             if self.density_model_type=="diffusion":
                 raise ValueError("masked_reconstruction is not available for diffusion models")
             latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
-            latent_mask[:, self.hparams.mask_dims:] = 1
+            latent_mask[:, :self.hparams.reconstruct_dims] = 1
             z_masked_dense = z_dense * latent_mask
             x_zmask = self.decode(z_masked_dense, c) 
             loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_zmask)
