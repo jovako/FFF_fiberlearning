@@ -19,7 +19,7 @@ from fff.loss import volume_change_surrogate
 from fff.utils.jacobian import compute_jacobian
 from fff.utils.diffusion import make_betas
 from fff.data import get_model_path
-from fff.evaluate.plot_fiber_model import plot_mnist
+from fff.evaluate.plot_fiber_model import *
 
 class FiberModelHParams(FreeFormBaseHParams):
     density_model: list
@@ -227,7 +227,7 @@ class FiberModel(FreeFormBase):
         except TypeError:
             z_dense = self.get_latent(self.device).sample(sample_shape)
         z_dense = z_dense.reshape(prod(sample_shape), *z_dense.shape[len(sample_shape):])
-        batch = [z]
+        batch = [z_dense]
         if condition is not None:
             batch.append(condition)
         c = self.apply_conditions(batch).condition
@@ -502,18 +502,6 @@ class FiberModel(FreeFormBase):
                         print("Hello")
                         c0 = self.subject_model.encode(x0, c_sm)
                     loss_values["fiber_loss"] = self._reduced_rec_loss(c0, c1)
-                    try:
-                        # tensorboard plots
-                        x0_sm = self.subject_model.decode(c0, c_sm)
-                        x_random_sm = self.subject_model.decode(c1, c_sm)
-                        writer = self.logger.experiment
-                        fig = plot_mnist(x0_sm)
-                        writer.add_figure(f"{plot_name}", fig, current_epoch)
-                        fig = plot_mnist(x_random_sm)
-                        writer.add_figure(f"{plot_name}", fig, current_epoch)
-                    except:
-                        pass
-
                 except Exception as e:
                     warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
                     loss_values["fiber_loss"] = (
@@ -562,6 +550,32 @@ class FiberModel(FreeFormBase):
             raise SkipBatch
 
         return metrics
+
+    def on_train_epoch_end(self) -> None:
+        if self.current_epoch%10==0:
+            val_data = self.trainer.val_dataloaders
+            batch = next(iter(val_data))
+            for i in range(len(batch)):
+                batch[i] = batch[i].to(self.device)
+            conditioned = self.apply_conditions(batch)
+            x = conditioned.x_noisy
+            c = conditioned.condition
+            x_samples = self.sample(torch.Size([x.shape[0]]), batch[1])
+            c_sm = torch.empty(x_samples.shape[0],0).to(x_samples.device)
+            c_samples = self.subject_model.encode(x_samples, c_sm)
+            x_samples_sm = self.subject_model.decode(c_samples, c_sm)
+            c_orig = self.subject_model.encode(x, c_sm)
+            x_orig_sm = self.subject_model.decode(c_orig, c_sm)
+            writer = self.logger.experiment
+            x_plot = [x, x_samples]
+            titles = ["x_orig", "x_sampled"]
+            fig = plot_mnist(x_plot, titles)
+            writer.add_figure(f"Fiber samples", fig, self.current_epoch)
+            x_plot = [x_orig_sm, x_samples_sm, torch.abs(x_orig_sm-x_samples_sm)]
+            titles = ["SM(x_orig)", "SM(x_sampled)", "Residual"]
+            fig = plot_mnist(x_plot, titles)
+            writer.add_figure(f"Verify samples", fig, self.current_epoch)
+
 
     def diffuse(self, x, t, alphas_):
         noise = torch.randn_like(x)
