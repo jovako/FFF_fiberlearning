@@ -553,28 +553,29 @@ class FiberModel(FreeFormBase):
 
     def on_train_epoch_end(self) -> None:
         if self.current_epoch%10==0 or self.current_epoch==self.hparams.max_epochs-1:
-            val_data = self.trainer.val_dataloaders
-            batch = next(iter(val_data))
-            for i in range(len(batch)):
-                batch[i] = batch[i].to(self.device)
-            conditioned = self.apply_conditions(batch)
-            x = conditioned.x_noisy
-            c = conditioned.condition
-            x_samples = self.sample(torch.Size([x.shape[0]]), batch[1])
-            c_sm = torch.empty(x_samples.shape[0],0).to(x_samples.device)
-            c_samples = self.subject_model.encode(x_samples, c_sm)
-            x_samples_sm = self.subject_model.decode(c_samples, c_sm)
-            c_orig = self.subject_model.encode(x, c_sm)
-            x_orig_sm = self.subject_model.decode(c_orig, c_sm)
-            writer = self.logger.experiment
-            x_plot = [x, x_samples]
-            titles = ["x_orig", "x_sampled"]
-            fig = plot_mnist(x_plot, titles)
-            writer.add_figure(f"Fiber samples", fig, self.current_epoch)
-            x_plot = [x_orig_sm, x_samples_sm, torch.abs(x_orig_sm-x_samples_sm)]
-            titles = ["SM(x_orig)", "SM(x_sampled)", "Residual"]
-            fig = plot_mnist(x_plot, titles)
-            writer.add_figure(f"Verify samples", fig, self.current_epoch)
+            with torch.no_grad():
+                val_data = self.trainer.val_dataloaders
+                batch = next(iter(val_data))
+                for i in range(len(batch)):
+                    batch[i] = batch[i].to(self.device)
+                conditioned = self.apply_conditions(batch)
+                x = conditioned.x_noisy
+                c = conditioned.condition
+                x_samples = self.sample(torch.Size([x.shape[0]]), batch[1])
+                c_sm = torch.empty(x_samples.shape[0],0).to(x_samples.device)
+                c_samples = self.subject_model.encode(x_samples, c_sm)
+                x_samples_sm = self.subject_model.decode(c_samples, c_sm)
+                c_orig = self.subject_model.encode(x, c_sm)
+                x_orig_sm = self.subject_model.decode(c_orig, c_sm)
+                writer = self.logger.experiment
+                x_plot = [x, x_samples]
+                titles = ["x_orig", "x_sampled"]
+                fig = plot_mnist(x_plot, titles)
+                writer.add_figure(f"Fiber samples", fig, self.current_epoch)
+                x_plot = [x_orig_sm, x_samples_sm, torch.abs(x_orig_sm-x_samples_sm)]
+                titles = ["SM(x_orig)", "SM(x_sampled)", "Residual"]
+                fig = plot_mnist(x_plot, titles)
+                writer.add_figure(f"Verify samples", fig, self.current_epoch)
 
 
     def diffuse(self, x, t, alphas_):

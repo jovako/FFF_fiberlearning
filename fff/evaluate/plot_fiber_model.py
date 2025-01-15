@@ -21,7 +21,6 @@ def plot_mnist(xs, titles, n=8, mark_first=False):
             for spine in axes[0].spines.values():
                 spine.set_edgecolor('red')
             spine.set_linewidth(2)
-    fig.tight_layout()
     return fig
 
 def plot_sm(model, i_sample, x, x_orig, i_plot, n, name="learned"):
