@@ -552,7 +552,7 @@ class FiberModel(FreeFormBase):
         return metrics
 
     def on_train_epoch_end(self) -> None:
-        if self.current_epoch%10==0:
+        if self.current_epoch%10==0 or self.epochs==self.hparams.max_epochs-1:
             val_data = self.trainer.val_dataloaders
             batch = next(iter(val_data))
             for i in range(len(batch)):
