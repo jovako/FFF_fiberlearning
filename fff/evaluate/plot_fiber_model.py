@@ -5,21 +5,24 @@ import matplotlib
 import pandas as pd
 import os
 
-def plot_mnist(x_plot, n=8, mark_first=False):
-    fig, axes = plt.subplots(nrows=1, ncols=n, figsize=(15, 3))
-    for i in range(n):
-        axes[i].imshow(x_plot[i].detach().cpu().reshape(16, 16).T, cmap='gray', vmin=0, vmax=1)
-        axes[i].xaxis.set_tick_params(labelbottom=False)
-        axes[i].yaxis.set_tick_params(labelleft=False)
-        axes[i].set_xticks([])
-        axes[i].set_yticks([])
-    if mark_first:
-        for spine in axes[0].spines.values():
-            spine.set_edgecolor('red')
+def plot_mnist(xs, titles, n=8, mark_first=False):
+    fig = plt.figure(constrained_layout=True)
+    subfigs = fig.subfigures(nrows=len(xs), ncols=1)
+    for j, subfig in enumerate(subfigs):
+        subfig.suptitle(f"{titles[j]}")
+        axes = subfig.subplots(nrows=1, ncols=n)
+        for i in range(n):
+            axes[i].imshow(xs[j][i].detach().cpu().reshape(16, 16).T, cmap='gray', vmin=0, vmax=1)
+            axes[i].xaxis.set_tick_params(labelbottom=False)
+            axes[i].yaxis.set_tick_params(labelleft=False)
+            axes[i].set_xticks([])
+            axes[i].set_yticks([])
+        if mark_first:
+            for spine in axes[0].spines.values():
+                spine.set_edgecolor('red')
             spine.set_linewidth(2)
     fig.tight_layout()
     return fig
-
 
 def plot_sm(model, i_sample, x, x_orig, i_plot, n, name="learned"):
     subject_model = model.subject_model
