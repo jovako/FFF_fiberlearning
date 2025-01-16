@@ -96,6 +96,8 @@ class FiberModel(FreeFormBase):
         # Build condition embedder
         self.condition_embedder = build_model(self.hparams.condition_embedder, self.cond_dim, 0)
         if self.condition_embedder is not None:
+            assert not any([loss == "coarse_supervised" for loss, _ in self.hparams.loss_weights.items()]), \
+            "coarse_supervised loss is not applicable for a model with condition embedder."
             self._data_cond_dim = self.condition_embedder[-1].hparams.latent_dim
             for model in self.condition_embedder:
                 del model.model.decoder
@@ -479,7 +481,7 @@ class FiberModel(FreeFormBase):
                 )
             loss_weights["z_sample_reconstruction"] *= fl_warmup
             loss_weights["fiber_loss"] *= fl_warmup
-            if val_all_metrics or check_keys(
+            if not self.training or check_keys(
                     "fiber_loss", "z_sample_reconstruction"):
                 try:
                     z_dense_random = self.get_latent(z.device).sample((z.shape[0],), c)
