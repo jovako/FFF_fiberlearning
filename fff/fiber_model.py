@@ -1,4 +1,5 @@
 from copy import deepcopy
+from collections import namedtuple, defaultdict
 from importlib import import_module
 from math import prod, log10
 # import ldctinv.pretrained
@@ -12,7 +13,7 @@ from torch.nn import Sequential, CrossEntropyLoss
 
 from fff.base import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult, build_model
 from fff.base import wasserstein2_distance_gaussian_approximation, rand_log_uniform, soft_heaviside
-from fff.base import LogProbResult
+from fff.base import LogProbResult, ConditionedBatch
 from fff.lossless_ae import LosslessAE
 from fff.subject_model import SubjectModel
 from fff.loss import volume_change_surrogate
@@ -22,6 +23,8 @@ from fff.data import get_model_path
 from fff.evaluate.plot_fiber_model import *
 
 class FiberModelHParams(FreeFormBaseHParams):
+    cond_dim: int | None = None
+    compute_c_on_fly: bool = False
     density_model: list
     lossless_ae: list | None = None
     load_lossless_ae_path: str | None = None
@@ -93,12 +96,21 @@ class FiberModel(FreeFormBase):
         # Check whether self.lossless_ae is a VAE
         self.vae = self.hparams.vae
 
+        if self.hparams.load_subject_model:
+            print("loading subject_model")
+            sm_dir = get_model_path(**self.hparams["data_set"])
+            self.subject_model = SubjectModel(sm_dir, self.hparams.subject_model_type)
+            self.subject_model.eval()
+            for param in self.subject_model.parameters():
+                param.require_grad = False
+        else:
+            self.subject_model = None
+
         # Build condition embedder
-        self.condition_embedder = build_model(self.hparams.condition_embedder, self.cond_dim, 0)
+        self.condition_embedder = build_model(self.hparams.condition_embedder, self.ae_cond_dim, 0)
         if self.condition_embedder is not None:
             assert not any([loss == "coarse_supervised" for loss, _ in self.hparams.loss_weights.items()]), \
             "coarse_supervised loss is not applicable for a model with condition embedder."
-            self._data_cond_dim = self.condition_embedder[-1].hparams.latent_dim
             for model in self.condition_embedder:
                 del model.model.decoder
 
@@ -115,30 +127,22 @@ class FiberModel(FreeFormBase):
             warn("Overwriting model_spec from config with loaded model!")
         ae_hparams["data_dim"] = self.data_dim
         if self.hparams.ae_conditional:
-            ae_hparams["cond_dim"] = self._data_cond_dim
+            ae_hparams["cond_dim"] = self.ae_cond_dim
         ae_hparams["vae"] = self.vae
         ae_hparams["path"] = self.hparams.load_lossless_ae_path
+        ae_hparams["train"] = self.hparams.train_lossless_ae
         self.lossless_ae = LosslessAE(ae_hparams)
 
         # Build density_model that operates in the latent space of the lossless_ae
         self.density_model = build_model(self.hparams.density_model,
                                             self.lossless_ae.latent_dim,
-                                            self._data_cond_dim)
+                                            self.cond_dim)
         if self.hparams.load_density_model_path:
             print("load density_model checkpoint")
             checkpoint = torch.load(self.hparams.load_density_model_path)
             density_model_weights = {k[16:]: v for k, v in checkpoint["state_dict"].items()
                               if k.startswith("density_model.")}
             self.density_model.load_state_dict(density_model_weights)
-
-        if self.hparams.load_subject_model:
-            print("loading subject_model")
-            sm_dir = get_model_path(**self.hparams["data_set"])
-            self.subject_model = SubjectModel(sm_dir, self.hparams.data_set.subject_model_type)
-            self.subject_model.eval()
-            for param in self.subject_model.parameters():
-                param.require_grad = False
-
 
     @property
     def latent_dim(self):
@@ -147,10 +151,31 @@ class FiberModel(FreeFormBase):
         else:
             return self.lossless_ae.latent_dim
 
+    @property
+    def cond_dim(self):
+        if self.condition_embedder is not None:
+            return self.condition_embedder[-1].hparams.latent_dim
+        else:
+            return self.ae_cond_dim
+
+    @property
+    def ae_cond_dim(self):
+        if self.hparams.compute_c_on_fly:
+            assert self.subject_model!= None, "No subject model loaded!"
+            return self.hparams.cond_dim
+        else:
+            return self._data_cond_dim
+
+    def is_conditional(self):
+        return self.cond_dim != 0
+
     def encode_lossless(self, x, c, mu_var=True):
         return self.lossless_ae.encode(x, c, mu_var=mu_var)
 
     def encode_density(self, z, c, jac=False):
+        if self.condition_embedder is not None:
+            for model in self.condition_embedder:
+                c = model.encode(c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype))
         jacs = []
         for net in self.density_model:
             z = net.encode(z, c)
@@ -169,6 +194,9 @@ class FiberModel(FreeFormBase):
         return self.lossless_ae.decode(z, c)
 
     def decode_density(self, z_dense, c):
+        if self.condition_embedder is not None:
+            for model in self.condition_embedder:
+                c = model.encode(c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype))
         for net in self.density_model:
             z_dense = net.decode(z_dense, c)
         return z_dense
@@ -179,6 +207,9 @@ class FiberModel(FreeFormBase):
 
     def sample_density(self, z_dense, c):
         # Diffusion sampler we need seperate sampling function
+        if self.condition_embedder is not None:
+            for model in self.condition_embedder:
+                c = model.encode(c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype))
         for net in self.density_model:
             z_dense = net.sample(z_dense, c)
         return z_dense
@@ -231,8 +262,9 @@ class FiberModel(FreeFormBase):
         z_dense = z_dense.reshape(prod(sample_shape), *z_dense.shape[len(sample_shape):])
         batch = [z_dense]
         if condition is not None:
-            batch.append(condition)
-        c = self.apply_conditions(batch).condition
+            c = condition
+        else:
+            c = torch.empty(z_dense.shape[0],0).to(z_dense.device)
         z = self.sample_density(z_dense, c)
         x = self.decode_lossless(z, c)
         return x.reshape(sample_shape + x.shape[1:])
@@ -312,9 +344,11 @@ class FiberModel(FreeFormBase):
                 for loss_key in keys
             )
 
-        z, mu, logvar = self.encode_lossless(x, c, mu_var=True)
-        # Reconstruction of lossless latent variables z
-        x1 = self.decode_lossless(z, c)
+        #if self.hparams.train_lossless_ae:
+        with torch.no_grad():
+            z, mu, logvar = self.encode_lossless(x, c, mu_var=True)
+            # Reconstruction of lossless latent variables z
+            x1 = self.decode_lossless(z, c)
 
         # Losses for lossless ae:
         # Reconstruction
@@ -501,7 +535,6 @@ class FiberModel(FreeFormBase):
                     try: 
                         c0 = batch[1]
                     except:
-                        print("Hello")
                         c0 = self.subject_model.encode(x0, c_sm)
                     loss_values["fiber_loss"] = self._reduced_rec_loss(c0, c1)
                 except Exception as e:
@@ -554,6 +587,7 @@ class FiberModel(FreeFormBase):
         return metrics
 
     def on_train_epoch_end(self) -> None:
+        """
         if self.current_epoch%10==0 or self.current_epoch==self.hparams.max_epochs-1:
             with torch.no_grad():
                 val_data = self.trainer.val_dataloaders
@@ -566,9 +600,9 @@ class FiberModel(FreeFormBase):
                 x_samples = self.sample(torch.Size([x.shape[0]]), batch[1])
                 c_sm = torch.empty(x_samples.shape[0],0).to(x_samples.device)
                 c_samples = self.subject_model.encode(x_samples, c_sm)
-                x_samples_sm = self.subject_model.decode(c_samples, c_sm)
+                #x_samples_sm = self.subject_model.decode(c_samples, c_sm)
                 c_orig = self.subject_model.encode(x, c_sm)
-                x_orig_sm = self.subject_model.decode(c_orig, c_sm)
+                #x_orig_sm = self.subject_model.decode(c_orig, c_sm)
                 writer = self.logger.experiment
                 x_plot = [x, x_samples]
                 titles = ["x_orig", "x_sampled"]
@@ -578,6 +612,7 @@ class FiberModel(FreeFormBase):
                 titles = ["SM(x_orig)", "SM(x_sampled)", "Residual"]
                 fig = plot_mnist(x_plot, titles)
                 writer.add_figure(f"Verify samples", fig, self.current_epoch)
+        """
 
 
     def diffuse(self, x, t, alphas_):
@@ -587,6 +622,55 @@ class FiberModel(FreeFormBase):
         noisy_x = alpha_t.sqrt() * x + (1 - alpha_t).sqrt() * noise
         #noisy_x = alpha_t.sqrt() * x + noise
         return noisy_x, noise
+
+    def apply_conditions(self, batch) -> ConditionedBatch:
+        x0 = batch[0]
+        base_cond_shape = (x0.shape[0], 1)
+        device = x0.device
+        dtype = x0.dtype
+
+        conds = []
+
+        # Dataset condition
+        if len(batch) != (2 if self.is_conditional() else 1):
+            if self.hparams.compute_c_on_fly:
+                batch.append(self.subject_model.encode(x0).detach())
+            else:
+                raise ValueError("You must pass a batch including conditions for each dataset condition")
+        if len(batch) > 1:
+            if self.hparams.compute_c_on_fly:
+                dataset_cond = self.subject_model.encode(x0).detach()
+            else:
+                dataset_cond = batch[1]
+            conds.append(dataset_cond)
+
+        # SoftFlow
+        noise_conds, x, dequantization_jac = self.dequantize(batch)
+        conds.extend(noise_conds)
+
+        # Loss weight aware
+        loss_weights = defaultdict(float, self.hparams.loss_weights)
+        for loss_key, loss_weight in self.hparams.loss_weights.items():
+            if isinstance(loss_weight, list):
+                min_weight, max_weight = loss_weight
+                if not self.training:
+                    # Per default, select the first value in the list
+                    max_weight = min_weight
+                weight_scale = rand_log_uniform(
+                    min_weight, max_weight,
+                    shape=base_cond_shape, device=device, dtype=dtype
+                )
+                loss_weights[loss_key] = (10 ** weight_scale).squeeze(1)
+                conds.append(weight_scale)
+
+        if len(conds) == 0:
+            c = torch.empty((x.shape[0], 0), device=x.device, dtype=x.dtype)
+        elif len(conds) == 1:
+            # This is a hack to pass through the info dict from QM9
+            c, = conds
+        else:
+            c = torch.cat(conds, -1)
+        return ConditionedBatch(x0, x, loss_weights, c, dequantization_jac)
 
     def configure_optimizers(self):
         params = []

@@ -1,7 +1,9 @@
 import torch
+import torch.nn as nn
 from fff.utils.truncate import Truncate
 from fff.fif import FreeFormInjectiveFlow
 from fff.fff import FreeFormFlow
+from ldctbench.hub import load_model
 import os
 from warnings import warn
 
@@ -9,11 +11,18 @@ class SubjectModel(torch.nn.Module):
     def __init__(self, subject_model_path, model_type=None, truncate=False):
         super(SubjectModel, self).__init__()
     
+        if model_type in ["cnn10", "redcnn", "wganvgg", "dugan"]:
+            self.model = nn.Sequential(
+                nn.Unflatten(-1, (1, 128, 128)),
+                load_model(model_type, eval=True),
+                nn.Flatten(),
+            )
+            return
+
         if subject_model_path is None:
             self.model = None
             warn("No subject model path given, continuing without subject model")
             return
-        
         if not os.path.exists(subject_model_path):
             f"Subject model path {subject_model_path} given, but does not exist"
 
@@ -38,12 +47,16 @@ class SubjectModel(torch.nn.Module):
     def forward(self, x, *c, **kwargs):
         if self.model is None:
             raise RuntimeError("No subject model loaded")
-        return self.model(x, *c, **kwargs)
+        #return self.model(x, *c, **kwargs)
+        return self.model(x)
 
     def encode(self, x, *c, **kwargs):
         if self.model is None:
             raise RuntimeError("No subject model loaded")
-        return self.model.encode(x, *c, **kwargs)
+        try:
+            return self.model.encode(x, *c, **kwargs)
+        except:
+            return self.forward(x, *c, **kwargs)
     
     def decode(self, z, *c, **kwargs):
         if self.model is None:

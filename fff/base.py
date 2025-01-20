@@ -82,8 +82,10 @@ class FreeFormBase(Trainable):
                 if len(data_sample[1].shape) != 1:
                     raise NotImplementedError("More than one condition dimension is not supported.")
                 self._data_cond_dim = data_sample[1].shape[0]
-        if not self.is_conditional() and not len(self.hparams.condition_embedder) == 0:
+        """
+        if not self._data_cond_dim==0 and not len(self.hparams.condition_embedder) == 0:
             raise ValueError("Condition embedder is only supported for conditional models")
+        """
 
         # Build model
         self.init_models()
