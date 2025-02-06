@@ -30,7 +30,9 @@ class LDCTMayo(Dataset):
                  patchsize: int = 128, 
                  data_subset: float = 1.0, 
                  data_norm: str = "meanstd", 
-                 return_tuple: bool = True):
+                 return_tuple: bool = True,
+                 **kwargs):
+
         """Init function
 
         Parameters

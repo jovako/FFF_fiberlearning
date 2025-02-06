@@ -112,7 +112,7 @@ class ConvolutionalNeuralNetwork(nn.Module):
             if self.hparams.instance_norm:
                 encoder.append(nn.InstanceNorm2d(out_channels))
             n_channels = out_channels
-            encoder.append(nn.ReLU())
+            encoder.append(nn.LeakyReLU())
 
             tmp = conv(tmp)
             if tmp.nelement() < self.hparams.latent_dim:

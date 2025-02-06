@@ -4,6 +4,7 @@ import torch
 
 from fff.base import ModelHParams, build_model
 from ldctinv.pretrained import load_pretrained
+from ldctinv import utils
 from fff.model.utils import guess_image_shape, wrap_batch_norm2d
 
 class LosslessAEHParams(ModelHParams):
@@ -19,8 +20,8 @@ class LosslessAE(Module):
     hparams: LosslessAEHParams
     def __init__(self, hparams: LosslessAEHParams | dict):
         self.ldct = False
-        if hparams["path"] in ["cnn10", "redcnn", "wganvgg", "dugan"]:
-            self.ldct = True 
+        #if hparams["path"] in ["cnn10", "redcnn", "wganvgg", "dugan"]:
+        self.ldct = True 
         if "path" in hparams and hparams["path"] is not None and not self.ldct:
             print("Loading lossless_ae checkpoint from: ", hparams["path"])
             checkpoint = torch.load(hparams["path"])
@@ -41,8 +42,20 @@ class LosslessAE(Module):
             self.unflatten = nn.Unflatten(-1, (input_shape[0] + cond_shape[0], *input_shape[1:]))
             self.flatten = nn.Flatten()
             self.unflatten_c = nn.Unflatten(-1, cond_shape)
+            """
+            vae, vae_args = utils.setup_trained_model(
+                hparams["path"],
+                network_name="BigAE",
+                state_dict="generator",
+                in_ch=2,
+                out_ch=1,
+                cond_ch=1,
+                return_args=True,
+            )
+            """
             self.models = nn.Sequential(
-                load_pretrained(hparams["path"], eval=not self.train)[0]["vae"],
+                #vae.eval(),
+                load_pretrained(hparams["path"], eval=not self.hparams.train)[0]["vae"],
             )
         else:
             self.models = build_model(
@@ -52,10 +65,11 @@ class LosslessAE(Module):
                 lossless_ae_weights = {k[19:]: v for k, v in checkpoint["state_dict"].items()
                                   if k.startswith("lossless_ae.models.")}
                 self.models.load_state_dict(lossless_ae_weights)
+        if not self.hparams.train:
+            self.models.eval()
 
     @property
     def latent_dim(self):
-        print(self.models[-1].encoder.z_dim)
         if not self.ldct:
             latent_dim = self.models[-1].hparams.latent_dim
             if self.hparams.vae:
@@ -83,21 +97,19 @@ class LosslessAE(Module):
             c = torch.empty((x.shape[0], 0), device=x.device, dtype=x.dtype)
         if self.ldct:
             x = self.cat_x_c(x,c)
-            x = [self.unflatten(x)]
+            x = self.unflatten(x)
+            for model in self.models:
+                x = model.encode(x).sample().squeeze()
         else:
-            x = (x,c)
-        for model in self.models:
-                x = [model.encode(*x)]
-        x = x[0]
+            for model in self.models:
+                x = model.encode(x,c)
         mu, logvar = None, None
         if self.hparams.vae and not self.ldct:
             # VAE latent sampling
-            mu = x[:,:x.shape[1]//2]
-            logvar = x[:,x.shape[1]//2:]
+            mu = x[:,:x.shape[1]//2].reshape(-1,x.shape[1]//2)
+            logvar = x[:,x.shape[1]//2:].reshape(-1,x.shape[1]//2)
             epsilon = torch.randn_like(logvar).to(mu.device)
             x = mu + torch.exp(0.5 * logvar) * epsilon
-        if self.ldct:
-            x = x.sample().squeeze(-1).squeeze(-1)
         if mu_var:
             x = x, mu, logvar
         return x

@@ -102,9 +102,9 @@ def make_inn(inn_spec, *data_dim, cond_dim=0, zero_init=True, cond=0):
             module_name = "ElementwiseRationalQuadraticSpline"
         module_class = getattr(FrEIA.modules, module_name)
         extra_module_args = dict()
-        if "subnet_constructor" not in module_args and module_name!="PermuteRandom":
+        if "subnet_constructor" not in module_args and module_name not in ["PermuteRandom", "ActNorm", "InvAutoActTwoSided"]:
             extra_module_args["subnet_constructor"] = subnet_factory(
-                subnet_widths, "silu", zero_init=zero_init
+                subnet_widths, "leakyrelu", zero_init=zero_init
             )
             extra_module_args["cond"] = cond
             extra_module_args["cond_shape"] = (cond_dim,)

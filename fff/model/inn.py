@@ -7,7 +7,7 @@ from .utils import batch_wrap, make_inn
 
 class INNHParams(ModelHParams):
     inn_spec: list
-    zero_init: bool = True
+    zero_init: bool = False
 
 
 class INN(nn.Module):

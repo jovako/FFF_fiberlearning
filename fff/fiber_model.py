@@ -10,6 +10,7 @@ import lightning_trainable
 from lightning_trainable.trainable.trainable import auto_pin_memory, SkipBatch
 from torch.distributions import Independent, Normal
 from torch.nn import Sequential, CrossEntropyLoss
+import torch.nn as nn
 
 from fff.base import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult, build_model
 from fff.base import wasserstein2_distance_gaussian_approximation, rand_log_uniform, soft_heaviside
@@ -21,8 +22,10 @@ from fff.utils.jacobian import compute_jacobian
 from fff.utils.diffusion import make_betas
 from fff.data import get_model_path
 from fff.evaluate.plot_fiber_model import *
+from ldctinv.pretrained import load_pretrained
 
 class FiberModelHParams(FreeFormBaseHParams):
+    val_every_n_epoch: int = 1
     cond_dim: int | None = None
     compute_c_on_fly: bool = False
     density_model: list
@@ -30,7 +33,6 @@ class FiberModelHParams(FreeFormBaseHParams):
     load_lossless_ae_path: str | None = None
     load_density_model_path: str | None = None
     load_subject_model: bool = False
-    subject_model_type: str | None = None
     train_lossless_ae: bool = True
     ae_conditional: bool = False
     vae: bool = False
@@ -61,7 +63,9 @@ class FiberModel(FreeFormBase):
     """
     hparams: FiberModelHParams
 
-    def __init__(self, hparams: FreeFormBaseHParams | dict):
+    def __init__(self, hparams: FiberModelHParams | dict):
+        if not isinstance(hparams, FiberModelHParams):
+            hparams = FiberModelHParams(**hparams)
         super().__init__(hparams)
         
         # Add learnable parameter for standard deviation for vae training
@@ -99,7 +103,7 @@ class FiberModel(FreeFormBase):
         if self.hparams.load_subject_model:
             print("loading subject_model")
             sm_dir = get_model_path(**self.hparams["data_set"])
-            self.subject_model = SubjectModel(sm_dir, self.hparams.subject_model_type)
+            self.subject_model = SubjectModel(sm_dir, self.hparams.data_set.subject_model_type)
             self.subject_model.eval()
             for param in self.subject_model.parameters():
                 param.require_grad = False
@@ -113,6 +117,8 @@ class FiberModel(FreeFormBase):
             "coarse_supervised loss is not applicable for a model with condition embedder."
             for model in self.condition_embedder:
                 del model.model.decoder
+        self.condition_embedder = Sequential(load_pretrained("cnn10", eval=True)[0]["cinn"].embedder,)
+        self.unflatten_ce = nn.Unflatten(-1, (128,128))
 
         # Build models
         # First the lossless vae
@@ -134,15 +140,19 @@ class FiberModel(FreeFormBase):
         self.lossless_ae = LosslessAE(ae_hparams)
 
         # Build density_model that operates in the latent space of the lossless_ae
+        print(self.lossless_ae.latent_dim)
+        print(self.cond_dim)
         self.density_model = build_model(self.hparams.density_model,
                                             self.lossless_ae.latent_dim,
                                             self.cond_dim)
         if self.hparams.load_density_model_path:
             print("load density_model checkpoint")
             checkpoint = torch.load(self.hparams.load_density_model_path)
-            density_model_weights = {k[16:]: v for k, v in checkpoint["state_dict"].items()
+            density_model_weights = {k[14:]: v for k, v in checkpoint["state_dict"].items()
                               if k.startswith("density_model.")}
             self.density_model.load_state_dict(density_model_weights)
+        #self.density_model = Sequential(load_pretrained("cnn10", eval=False)[0]["cinn"].flow,)
+        print(self.density_model)
 
     @property
     def latent_dim(self):
@@ -154,7 +164,8 @@ class FiberModel(FreeFormBase):
     @property
     def cond_dim(self):
         if self.condition_embedder is not None:
-            return self.condition_embedder[-1].hparams.latent_dim
+            return 256
+            #return self.condition_embedder[-1].hparams.latent_dim
         else:
             return self.ae_cond_dim
 
@@ -173,9 +184,11 @@ class FiberModel(FreeFormBase):
         return self.lossless_ae.encode(x, c, mu_var=mu_var)
 
     def encode_density(self, z, c, jac=False):
+        c = self.unflatten_ce(c).unsqueeze(1)
         if self.condition_embedder is not None:
             for model in self.condition_embedder:
-                c = model.encode(c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype))
+                c = model(c)
+                #c = model.encode(c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype))
         jacs = []
         for net in self.density_model:
             z = net.encode(z, c)
@@ -194,9 +207,11 @@ class FiberModel(FreeFormBase):
         return self.lossless_ae.decode(z, c)
 
     def decode_density(self, z_dense, c):
+        c = self.unflatten_ce(c).unsqueeze(1)
         if self.condition_embedder is not None:
             for model in self.condition_embedder:
-                c = model.encode(c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype))
+                #c = model(c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype))
+                c = model(c)
         for net in self.density_model:
             z_dense = net.decode(z_dense, c)
         return z_dense
@@ -344,11 +359,9 @@ class FiberModel(FreeFormBase):
                 for loss_key in keys
             )
 
-        #if self.hparams.train_lossless_ae:
-        with torch.no_grad():
-            z, mu, logvar = self.encode_lossless(x, c, mu_var=True)
-            # Reconstruction of lossless latent variables z
-            x1 = self.decode_lossless(z, c)
+        z, mu, logvar = self.encode_lossless(x, c, mu_var=True)
+        # Reconstruction of lossless latent variables z
+        x1 = self.decode_lossless(z, c)
 
         # Losses for lossless ae:
         # Reconstruction
@@ -445,7 +458,7 @@ class FiberModel(FreeFormBase):
             if not self.density_model_type == "diffusion":
                 raise ValueError("diff_mse is only available for diffusion models")
             t = torch.randint(0, 1000, (z.size(0),), device=z.device).long()
-            z_diff, epsilon = self.diffuse(z, t, self.alphas_.to(z.device))
+            z_diff, epsilon = self.diffuse(z.detach(), t, self.alphas_.to(z.device))
             epsilon_pred = self.decode_density(z_diff.detach(), (t, c))
             loss_values["diff_mse"] = self._reconstruction_loss(epsilon_pred, epsilon.detach())
 
@@ -515,7 +528,7 @@ class FiberModel(FreeFormBase):
                 )
             loss_weights["z_sample_reconstruction"] *= fl_warmup
             loss_weights["fiber_loss"] *= fl_warmup
-            if not self.training or check_keys(
+            if check_keys(
                     "fiber_loss", "z_sample_reconstruction"):
                 try:
                     z_dense_random = self.get_latent(z.device).sample((z.shape[0],), c)
@@ -532,11 +545,8 @@ class FiberModel(FreeFormBase):
                     # There might be no subject model
                     c_sm = torch.empty(x_random.shape[0],0).to(x_random.device)
                     c1 = self.subject_model.encode(x_random, c_sm)
-                    try: 
-                        c0 = batch[1]
-                    except:
-                        c0 = self.subject_model.encode(x0, c_sm)
-                    loss_values["fiber_loss"] = self._reduced_rec_loss(c0, c1)
+                    #c0 = self.subject_model.encode(x0, c_sm)
+                    loss_values["fiber_loss"] = self._reduced_rec_loss(c_random, c1)
                 except Exception as e:
                     warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
                     loss_values["fiber_loss"] = (
@@ -630,16 +640,20 @@ class FiberModel(FreeFormBase):
         dtype = x0.dtype
 
         conds = []
+        if self.hparams["data_set"]["data"]=="highdose":
+            x_ld = batch[1]
+        else:
+            x_ld = x0
 
         # Dataset condition
         if len(batch) != (2 if self.is_conditional() else 1):
             if self.hparams.compute_c_on_fly:
-                batch.append(self.subject_model.encode(x0).detach())
+                batch.append(self.subject_model.encode(x_ld).detach())
             else:
                 raise ValueError("You must pass a batch including conditions for each dataset condition")
         if len(batch) > 1:
             if self.hparams.compute_c_on_fly:
-                dataset_cond = self.subject_model.encode(x0).detach()
+                dataset_cond = self.subject_model.encode(x_ld).detach()
             else:
                 dataset_cond = batch[1]
             conds.append(dataset_cond)
@@ -686,6 +700,11 @@ class FiberModel(FreeFormBase):
             params.extend(list(self.density_model.parameters()))
         else:
             print("WARNING: density model gets not trained")
+        if self.condition_embedder is not None:
+            params.extend(list(self.condition_embedder.parameters()))
+        else:
+            print("WARNING: no condition embedder for optimizer")
+
         kwargs = dict()
 
         match self.hparams.optimizer:
@@ -717,3 +736,10 @@ class FiberModel(FreeFormBase):
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
         )
+
+    def validation_step(self, batch, batch_idx):
+        if self.current_epoch%self.hparams.val_every_n_epoch==0:
+            metrics = self.compute_metrics(batch, batch_idx)
+            for key, value in metrics.items():
+                self.log(f"validation/{key}", value,
+                         prog_bar=key == self.hparams.loss)
