@@ -6,6 +6,7 @@ from math import prod, log10
 from warnings import warn
 
 import torch
+import torch.nn as nn
 import lightning_trainable
 from lightning_trainable.trainable.trainable import auto_pin_memory, SkipBatch
 from torch.distributions import Independent, Normal
@@ -21,6 +22,7 @@ from fff.utils.jacobian import compute_jacobian
 from fff.utils.diffusion import make_betas
 from fff.data import get_model_path
 from fff.evaluate.plot_fiber_model import *
+from ldctinv.pretrained import load_pretrained
 
 class FiberModelHParams(FreeFormBaseHParams):
     val_every_n_epoch: int = 1
@@ -115,6 +117,8 @@ class FiberModel(FreeFormBase):
             "coarse_supervised loss is not applicable for a model with condition embedder."
             for model in self.condition_embedder:
                 del model.model.decoder
+        #self.condition_embedder = Sequential(load_pretrained("cnn10", eval=True)[0]["cinn"].embedder,)
+        #self.unflatten_ce = nn.Unflatten(-1, (128,128))
 
         # Build models
         # First the lossless vae
@@ -156,6 +160,7 @@ class FiberModel(FreeFormBase):
     @property
     def cond_dim(self):
         if self.condition_embedder is not None:
+            #return 256
             return self.condition_embedder[-1].hparams.latent_dim
         else:
             return self.ae_cond_dim
@@ -175,8 +180,10 @@ class FiberModel(FreeFormBase):
         return self.lossless_ae.encode(x, c, mu_var=mu_var)
 
     def encode_density(self, z, c, jac=False):
+        #c = self.unflatten_ce(c).unsqueeze(1)
         if self.condition_embedder is not None:
             for model in self.condition_embedder:
+                #c = model(c)
                 c = model.encode(c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype))
         jacs = []
         for net in self.density_model:
@@ -196,8 +203,10 @@ class FiberModel(FreeFormBase):
         return self.lossless_ae.decode(z, c)
 
     def decode_density(self, z_dense, c):
+        #c = self.unflatten_ce(c).unsqueeze(1)
         if self.condition_embedder is not None:
             for model in self.condition_embedder:
+                #c = model(c)
                 c = model.encode(c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype))
         for net in self.density_model:
             z_dense = net.decode(z_dense, c)
@@ -209,8 +218,10 @@ class FiberModel(FreeFormBase):
 
     def sample_density(self, z_dense, c):
         # Diffusion sampler we need seperate sampling function
+        #c = self.unflatten_ce(c).unsqueeze(1)
         if self.condition_embedder is not None:
             for model in self.condition_embedder:
+                #c = model(c)
                 c = model.encode(c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype))
         for net in self.density_model:
             z_dense = net.sample(z_dense, c)

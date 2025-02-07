@@ -4,6 +4,7 @@ from torch import nn
 from fff.base import ModelHParams
 from .utils import batch_wrap, make_inn
 from ldctinv.cinn.blocks import ConditionalFlow, FeatureLayer
+from ldctinv.pretrained import load_pretrained
 
 
 class INNHParams(ModelHParams):
@@ -35,10 +36,10 @@ class INN(nn.Module):
     """
     def encode(self, x, c):
         z, jac = self.model(x.unsqueeze(-1).unsqueeze(-1), c, reverse=False)
-        return z.squeeze(), jac
+        return z.squeeze(-1).squeeze(-1), jac
 
     def decode(self, u, c):
-        return self.model(u.unsqueeze(-1).unsqueeze(-1), c, jac=False, reverse=True).squeeze()
+        return self.model(u.unsqueeze(-1).unsqueeze(-1), c, reverse=True).squeeze(-1).squeeze(-1)
     """
 
     def sample(self, u, c):
@@ -59,4 +60,5 @@ class INN(nn.Module):
             activation="lrelu",
         )
         """
-        #return make_inn(self.hparams.inn_spec, dim, cond_dim=cond_dim, zero_init=self.hparams.zero_init)
+        return make_inn(self.hparams.inn_spec, dim, cond_dim=cond_dim, zero_init=self.hparams.zero_init)
+        #return load_pretrained("cnn10", eval=True)[0]["cinn"].flow

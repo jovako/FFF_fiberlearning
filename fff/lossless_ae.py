@@ -39,10 +39,10 @@ class LosslessAE(Module):
         if self.ldct:
             input_shape = guess_image_shape(self.data_dim)
             cond_shape = guess_image_shape(self.hparams.cond_dim)
+            print("input_shape", cond_shape)
             self.unflatten = nn.Unflatten(-1, (input_shape[0] + cond_shape[0], *input_shape[1:]))
             self.flatten = nn.Flatten()
             self.unflatten_c = nn.Unflatten(-1, cond_shape)
-            """
             vae, vae_args = utils.setup_trained_model(
                 hparams["path"],
                 network_name="BigAE",
@@ -52,11 +52,11 @@ class LosslessAE(Module):
                 cond_ch=1,
                 return_args=True,
             )
-            """
             self.models = nn.Sequential(
-                #vae.eval(),
-                load_pretrained(hparams["path"], eval=not self.hparams.train)[0]["vae"],
+                vae.eval(),
+                #load_pretrained(hparams["path"], eval=not self.hparams.train)[0]["vae"],
             )
+            print(not self.hparams.train)
         else:
             self.models = build_model(
                 self.hparams.model_spec, self.data_dim, self.hparams.cond_dim
@@ -84,6 +84,8 @@ class LosslessAE(Module):
             c = torch.empty((z.shape[0], 0), device=z.device, dtype=z.dtype)
         if self.ldct:
             c = self.unflatten_c(c)
+            #if len(z.shape)!=4:
+            #    z = z.unsqueeze(-1).unsqueeze(-1)
         if self.hparams.vae and not self.ldct:
             z = torch.nn.functional.pad(z, (0, z.shape[1]))
         for model in self.models[::-1]:

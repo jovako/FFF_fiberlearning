@@ -1,8 +1,8 @@
 model: fff.FiberModel
 
-val_every_n_epoch: 1
+val_every_n_epoch: 5
 cond_dim: 16384
-load_lossless_ae_path: cnn10
+load_lossless_ae_path: y_domain
 compute_c_on_fly: True
 noise: 0.
 ae_conditional: True
@@ -12,8 +12,8 @@ latent_distribution:
 data_set:
   name: ldct
   root: data/ldct
-  condition: highdose 
-  data: lowdose
+  condition: lowdose 
+  data: highdose
   subject_model_type: cnn10
 
 eval_all: True
@@ -23,7 +23,7 @@ loss_weights:
   #latent_reconstruction: 10
   #fiber_loss: 100
   #z_sample_reconstruction: 1
-max_epochs: 500
+max_epochs: 50
 #warm_up_fiber: [35, 40]
 
 train_lossless_ae: False
@@ -62,11 +62,10 @@ condition_embedder:
       - [8,4,2,1]
       - [4,8,1,0]
 
-        #lr_scheduler: "onecyclelr"
+lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.00005
+  lr: 0.0005
     #gradient_clip: 3.0
 
 batch_size: 64
-#load_transform_path: "lightning_logs/16vae_if2/version_0/checkpoints/last.ckpt"
