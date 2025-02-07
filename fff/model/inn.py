@@ -3,11 +3,12 @@ from torch import nn
 
 from fff.base import ModelHParams
 from .utils import batch_wrap, make_inn
+from ldctinv.cinn.blocks import ConditionalFlow, FeatureLayer
 
 
 class INNHParams(ModelHParams):
     inn_spec: list
-    zero_init: bool = False
+    zero_init: bool = True
 
 
 class INN(nn.Module):
@@ -29,20 +30,33 @@ class INN(nn.Module):
     def encode(self, x, c):
         return self.model(x, [c], jac=True, rev=False)
 
-    #def encode(self, u, c=None):
-    #    return u
-
     def decode(self, u, c):
         return self.model(u, [c], jac=False, rev=True)[0]
+    """
+    def encode(self, x, c):
+        z, jac = self.model(x.unsqueeze(-1).unsqueeze(-1), c, reverse=False)
+        return z.squeeze(), jac
+
+    def decode(self, u, c):
+        return self.model(u.unsqueeze(-1).unsqueeze(-1), c, jac=False, reverse=True).squeeze()
+    """
 
     def sample(self, u, c):
         return self.decode(u, c)
-
-    #def decode(self, z, c=None):
-    #    return z
 
     def build_model(self) -> nn.Module:
         dim = self.hparams.latent_dim
         print(dim)
         cond_dim = self.hparams.cond_dim
-        return make_inn(self.hparams.inn_spec, dim, cond_dim=cond_dim, zero_init=self.hparams.zero_init)
+        """
+        return ConditionalFlow(
+            in_channels=256,
+            embedding_dim=256,
+            hidden_dim=1024,
+            hidden_depth=2,
+            n_flows=12,
+            conditioning_option="none",
+            activation="lrelu",
+        )
+        """
+        #return make_inn(self.hparams.inn_spec, dim, cond_dim=cond_dim, zero_init=self.hparams.zero_init)

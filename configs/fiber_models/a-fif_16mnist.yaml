@@ -2,7 +2,6 @@ model: fff.FiberModel
 
 noise: 0.01
 load_subject_model: True
-load_lossless_ae_path: "lightning_logs/version_9/checkpoints/last.ckpt"
 latent_distribution:
   name: "normal"
 data_set:
@@ -16,11 +15,12 @@ data_set:
 loss_weights:
   nll: 1
   latent_reconstruction: 10
+  masked_reconstruction: 1
   #noisy_reconstruction: 100
-  fiber_loss: 1
+  fiber_loss: 100
   #z_sample_reconstruction: 1000
-max_epochs: 5
-mask_dims: 1
+max_epochs: 10
+reconstruct_dims: 1
 #warm_up_epochs: [15, 100]
 #warm_up_fiber: [35, 40]
 
@@ -38,7 +38,7 @@ lossless_ae:
       - [8,4]
       - [4,4,2,1]
       - [1,3,2,1,1]
-  - name: fff.model.VarResNet
+  - name: fff.model.ResNet
     latent_dim: &latent_dim 64
     layers_spec:
       - [512, 512]
@@ -65,5 +65,5 @@ optimizer:
   lr: 0.002
 
 batch_size: 512
-load_lossless_ae_path: "lightning_logs/MNIST_VAE/version_0/checkpoints/last.ckpt"
+load_lossless_ae_path: "lightning_logs/Mnist_vae/version_1/checkpoints/last.ckpt"
   #load_transform_path: "lightning_logs/16_f48f_011_log/version_0/checkpoints/last.ckpt"

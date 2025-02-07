@@ -1,18 +1,20 @@
 model: fff.FiberModel
 
+val_every_n_epoch: 1
 cond_dim: 16384
 load_lossless_ae_path: cnn10
 compute_c_on_fly: True
-noise: 0.01
+noise: 0.
 ae_conditional: True
 load_subject_model: True
-subject_model_type: cnn10
 latent_distribution:
   name: "normal"
 data_set:
   name: ldct
   root: data/ldct
   condition: highdose 
+  data: lowdose
+  subject_model_type: cnn10
 
 eval_all: True
 loss_weights:
@@ -29,50 +31,25 @@ vae: True
 density_model:
   - name: fff.model.INN
     latent_dim: 256
+    zero_init: True
     inn_spec:
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      #- ["ActNorm", {}, 0]
+      #- ["RNVPCouplingBlock", {"clamp_activation":"TANH", "clamp": 1.}, [1024,1024,1024]]
+      #- ["InvAutoActTwoSided", {"init_pos": 1.0, "init_neg": 0.9, "learnable": False}, 0]
       #- ["PermuteRandom", {}, 0]
-      #- ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
-      #- ["PermuteRandom", {}, 0]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
-      - ["AllInOneBlock", {}, [1024]]
 
 condition_embedder:
   - name: fff.model.ConvolutionalNeuralNetwork
@@ -89,7 +66,7 @@ condition_embedder:
 optimizer:
   name: adam
   lr: 0.00005
-gradient_clip: 3.0
+    #gradient_clip: 3.0
 
 batch_size: 64
 #load_transform_path: "lightning_logs/16vae_if2/version_0/checkpoints/last.ckpt"

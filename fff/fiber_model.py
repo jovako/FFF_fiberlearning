@@ -10,7 +10,6 @@ import lightning_trainable
 from lightning_trainable.trainable.trainable import auto_pin_memory, SkipBatch
 from torch.distributions import Independent, Normal
 from torch.nn import Sequential, CrossEntropyLoss
-import torch.nn as nn
 
 from fff.base import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult, build_model
 from fff.base import wasserstein2_distance_gaussian_approximation, rand_log_uniform, soft_heaviside
@@ -22,7 +21,6 @@ from fff.utils.jacobian import compute_jacobian
 from fff.utils.diffusion import make_betas
 from fff.data import get_model_path
 from fff.evaluate.plot_fiber_model import *
-from ldctinv.pretrained import load_pretrained
 
 class FiberModelHParams(FreeFormBaseHParams):
     val_every_n_epoch: int = 1
@@ -117,8 +115,6 @@ class FiberModel(FreeFormBase):
             "coarse_supervised loss is not applicable for a model with condition embedder."
             for model in self.condition_embedder:
                 del model.model.decoder
-        self.condition_embedder = Sequential(load_pretrained("cnn10", eval=True)[0]["cinn"].embedder,)
-        self.unflatten_ce = nn.Unflatten(-1, (128,128))
 
         # Build models
         # First the lossless vae
@@ -140,8 +136,6 @@ class FiberModel(FreeFormBase):
         self.lossless_ae = LosslessAE(ae_hparams)
 
         # Build density_model that operates in the latent space of the lossless_ae
-        print(self.lossless_ae.latent_dim)
-        print(self.cond_dim)
         self.density_model = build_model(self.hparams.density_model,
                                             self.lossless_ae.latent_dim,
                                             self.cond_dim)
@@ -151,8 +145,6 @@ class FiberModel(FreeFormBase):
             density_model_weights = {k[14:]: v for k, v in checkpoint["state_dict"].items()
                               if k.startswith("density_model.")}
             self.density_model.load_state_dict(density_model_weights)
-        #self.density_model = Sequential(load_pretrained("cnn10", eval=False)[0]["cinn"].flow,)
-        print(self.density_model)
 
     @property
     def latent_dim(self):
@@ -164,8 +156,7 @@ class FiberModel(FreeFormBase):
     @property
     def cond_dim(self):
         if self.condition_embedder is not None:
-            return 256
-            #return self.condition_embedder[-1].hparams.latent_dim
+            return self.condition_embedder[-1].hparams.latent_dim
         else:
             return self.ae_cond_dim
 
@@ -184,11 +175,9 @@ class FiberModel(FreeFormBase):
         return self.lossless_ae.encode(x, c, mu_var=mu_var)
 
     def encode_density(self, z, c, jac=False):
-        c = self.unflatten_ce(c).unsqueeze(1)
         if self.condition_embedder is not None:
             for model in self.condition_embedder:
-                c = model(c)
-                #c = model.encode(c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype))
+                c = model.encode(c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype))
         jacs = []
         for net in self.density_model:
             z = net.encode(z, c)
@@ -207,11 +196,9 @@ class FiberModel(FreeFormBase):
         return self.lossless_ae.decode(z, c)
 
     def decode_density(self, z_dense, c):
-        c = self.unflatten_ce(c).unsqueeze(1)
         if self.condition_embedder is not None:
             for model in self.condition_embedder:
-                #c = model(c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype))
-                c = model(c)
+                c = model.encode(c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype))
         for net in self.density_model:
             z_dense = net.decode(z_dense, c)
         return z_dense
@@ -484,10 +471,12 @@ class FiberModel(FreeFormBase):
             metrics["z 1D-Wasserstein-1"] = (z_marginal_sorted - z_gauss_sorted).abs().mean()
             metrics["z std"] = torch.std(z_marginal)
 
+        """
         if val_all_metrics or check_keys("z std"):
             z_details = z_dense[:, :-1]
             std = torch.mean(torch.abs(torch.std(z_details, dim=0) - 1))
             loss_values["z std"] = torch.ones_like(x[:,0]) * std
+        """
 
         if (val_all_metrics or check_keys("masked_reconstruction")):
             if self.density_model_type=="diffusion":
@@ -528,7 +517,7 @@ class FiberModel(FreeFormBase):
                 )
             loss_weights["z_sample_reconstruction"] *= fl_warmup
             loss_weights["fiber_loss"] *= fl_warmup
-            if check_keys(
+            if not self.training or check_keys(
                     "fiber_loss", "z_sample_reconstruction"):
                 try:
                     z_dense_random = self.get_latent(z.device).sample((z.shape[0],), c)

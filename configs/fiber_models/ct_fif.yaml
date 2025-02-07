@@ -1,28 +1,34 @@
 model: fff.FiberModel
 
+val_every_n_epoch: 5
 cond_dim: 16384
 load_lossless_ae_path: cnn10
+  #load_density_model_path: lightning_logs/ct_fif/version_4/checkpoints/last.ckpt
 compute_c_on_fly: True
-noise: 0.01
+noise: 0.
 ae_conditional: True
 load_subject_model: True
-subject_model_type: cnn10
 latent_distribution:
   name: "normal"
 data_set:
   name: ldct
   root: data/ldct
   condition: highdose 
+  data: lowdose
+  subject_model_type: cnn10
 
 eval_all: True
 loss_weights:
   nll: 1
   latent_reconstruction: 10
   #masked_reconstruction: 1
-  #noisy_reconstruction: 100
-  #fiber_loss: 100
+  #ae_elbo: 5.8
+  #ae_noisy_reconstruction: 10
+  #ae_cycle_loss: 1
+  #cycle_loss: 10
+  #fiber_loss: 10
   #z_sample_reconstruction: 1000
-max_epochs: 500
+max_epochs: 40
 reconstruct_dims: 1
 #warm_up_epochs: [15, 100]
 #warm_up_fiber: [35, 40]
@@ -31,14 +37,28 @@ train_lossless_ae: False
 vae: True
 density_model:
   - name: fff.model.ResNet
-    latent_dim: 128
+    latent_dim: 256
     layers_spec:
-      - [1024, 1024]
-      - [1024, 1024]
-      - [1024, 1024]
-      - [1024, 1024]
-      - [1024, 1024]
-      - [1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
+      - [1024, 1024, 1024]
 
 condition_embedder:
   - name: fff.model.ConvolutionalNeuralNetwork
@@ -51,10 +71,9 @@ condition_embedder:
       - [8,4,2,1]
       - [4,8,1,0]
 
-lr_scheduler: "onecyclelr"
+        #lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
   lr: 0.00005
 
 batch_size: 64
-  #load_transform_path: "lightning_logs/16_f48f_011_log/version_0/checkpoints/last.ckpt"
