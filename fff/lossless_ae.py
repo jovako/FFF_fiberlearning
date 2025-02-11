@@ -21,7 +21,7 @@ class LosslessAE(Module):
     def __init__(self, hparams: LosslessAEHParams | dict):
         self.ldct = False
         #if hparams["path"] in ["cnn10", "redcnn", "wganvgg", "dugan"]:
-        self.ldct = True 
+        #self.ldct = True 
         if "path" in hparams and hparams["path"] is not None and not self.ldct:
             print("Loading lossless_ae checkpoint from: ", hparams["path"])
             checkpoint = torch.load(hparams["path"])

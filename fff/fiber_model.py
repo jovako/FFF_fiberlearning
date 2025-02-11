@@ -646,9 +646,9 @@ class FiberModel(FreeFormBase):
             x_ld = x0
 
         # Dataset condition
-        if len(batch) != (2 if self.is_conditional() else 1):
+        if self.is_conditional() and len(batch)!=2:
             if self.hparams.compute_c_on_fly:
-                batch.append(self.subject_model.encode(x_ld).detach())
+                conds.append(self.subject_model.encode(x_ld).detach())
             else:
                 raise ValueError("You must pass a batch including conditions for each dataset condition")
         if len(batch) > 1:
