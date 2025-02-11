@@ -2,7 +2,7 @@ model: fff.FiberModel
 
 val_every_n_epoch: 5
 cond_dim: 16384
-load_lossless_ae_path: y_domain
+load_lossless_ae_path: low_kl
 compute_c_on_fly: True
 noise: 0.
 ae_conditional: True
@@ -12,8 +12,8 @@ latent_distribution:
 data_set:
   name: ldct
   root: data/ldct
-  condition: lowdose 
-  data: highdose
+  condition: highdose 
+  data: lowdose
   subject_model_type: cnn10
 
 eval_all: True
@@ -23,7 +23,7 @@ loss_weights:
   #latent_reconstruction: 10
   #fiber_loss: 100
   #z_sample_reconstruction: 1
-max_epochs: 50
+max_epochs: 500
 #warm_up_fiber: [35, 40]
 
 train_lossless_ae: False
@@ -46,6 +46,11 @@ density_model:
       - ["AllInOneBlock", {}, [1024,1024,1024]]
       - ["AllInOneBlock", {}, [1024,1024,1024]]
       - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [1024,1024,1024]]
       #- ["ActNorm", {}, 0]
       #- ["RNVPCouplingBlock", {"clamp_activation":"TANH", "clamp": 1.}, [1024,1024,1024]]
       #- ["InvAutoActTwoSided", {"init_pos": 1.0, "init_neg": 0.9, "learnable": False}, 0]
@@ -53,19 +58,19 @@ density_model:
 
 condition_embedder:
   - name: fff.model.ConvolutionalNeuralNetwork
-    latent_dim: 256
+    latent_dim: 2048
     ch_factor: 64
     encoder_spec: 
       - [1,4,2,1]
       - [2,4,2,1]
       - [4,4,2,1]
       - [8,4,2,1]
-      - [4,8,1,0]
+        #- [4,8,1,0]
 
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.0005
+  lr: 0.00005
     #gradient_clip: 3.0
 
 batch_size: 64
