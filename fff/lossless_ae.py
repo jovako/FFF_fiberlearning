@@ -20,8 +20,10 @@ class LosslessAE(Module):
     hparams: LosslessAEHParams
     def __init__(self, hparams: LosslessAEHParams | dict):
         self.ldct = False
-        #if hparams["path"] in ["cnn10", "redcnn", "wganvgg", "dugan"]:
-        #self.ldct = True 
+        load_orig = False
+        if hparams["path"] in ["cnn10", "redcnn", "wganvgg", "dugan"]:
+            load_orig=True
+        self.ldct = True 
         if "path" in hparams and hparams["path"] is not None and not self.ldct:
             print("Loading lossless_ae checkpoint from: ", hparams["path"])
             checkpoint = torch.load(hparams["path"])
@@ -43,19 +45,23 @@ class LosslessAE(Module):
             self.unflatten = nn.Unflatten(-1, (input_shape[0] + cond_shape[0], *input_shape[1:]))
             self.flatten = nn.Flatten()
             self.unflatten_c = nn.Unflatten(-1, cond_shape)
-            vae, vae_args = utils.setup_trained_model(
-                hparams["path"],
-                network_name="BigAE",
-                state_dict="generator",
-                in_ch=2,
-                out_ch=1,
-                cond_ch=1,
-                return_args=True,
-            )
-            self.models = nn.Sequential(
-                vae.eval(),
-                #load_pretrained(hparams["path"], eval=not self.hparams.train)[0]["vae"],
-            )
+            if not load_orig:
+                vae, vae_args = utils.setup_trained_model(
+                    hparams["path"],
+                    network_name="BigAE",
+                    state_dict="generator",
+                    in_ch=2,
+                    out_ch=1,
+                    cond_ch=1,
+                    return_args=True,
+                )
+                self.models = nn.Sequential(
+                    vae.eval(),
+                )
+            else:
+                self.models = nn.Sequential(
+                    load_pretrained(hparams["path"], eval=not self.hparams.train)[0]["vae"],
+                )
             print(not self.hparams.train)
         else:
             self.models = build_model(

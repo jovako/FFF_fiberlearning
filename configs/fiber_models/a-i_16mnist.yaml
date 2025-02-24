@@ -21,7 +21,7 @@ loss_weights:
 max_epochs: 100
 #warm_up_fiber: [35, 40]
 
-train_lossless_ae: False
+train_lossless_ae: True
 vae: True
 lossless_ae:
   - name: fff.model.ConvolutionalNeuralNetwork
@@ -97,5 +97,3 @@ optimizer:
 gradient_clip: 3.0
 
 batch_size: 512
-load_lossless_ae_path: "lightning_logs/Mnist_vae/version_1/checkpoints/last.ckpt"
-#load_transform_path: "lightning_logs/16vae_if2/version_0/checkpoints/last.ckpt"

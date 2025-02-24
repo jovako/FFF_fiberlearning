@@ -1,8 +1,8 @@
 model: fff.FiberModel
 
-val_every_n_epoch: 5
+val_every_n_epoch: 1
 cond_dim: 16384
-load_lossless_ae_path: low_kl
+load_lossless_ae_path: latimage3
 compute_c_on_fly: True
 noise: 0.
 ae_conditional: True
@@ -12,7 +12,7 @@ latent_distribution:
 data_set:
   name: ldct
   root: data/ldct
-  condition: highdose 
+  condition:  highdose
   data: lowdose
   subject_model_type: cnn10
 
@@ -30,7 +30,7 @@ train_lossless_ae: False
 vae: True
 density_model:
   - name: fff.model.INN
-    latent_dim: 256
+    latent_dim: 512
     zero_init: True
     inn_spec:
       - ["AllInOneBlock", {}, [1024,1024,1024]]

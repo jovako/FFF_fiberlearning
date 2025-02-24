@@ -122,10 +122,6 @@ class FiberModel(FreeFormBase):
 
         # Build models
         # First the lossless vae
-        """
-        CT_nets, _ = ldctinv.pretrained.load_pretrained("cnn10")
-        self.lossless_ae = Sequential(CT_nets["vae"])
-        """
         ae_hparams = {}
         if self.hparams.load_lossless_ae_path is None:
             ae_hparams["model_spec"] = self.hparams.lossless_ae
@@ -138,10 +134,15 @@ class FiberModel(FreeFormBase):
         ae_hparams["path"] = self.hparams.load_lossless_ae_path
         ae_hparams["train"] = self.hparams.train_lossless_ae
         self.lossless_ae = LosslessAE(ae_hparams)
+        """
+        CT_nets, _ = load_pretrained("cnn10")
+        self.lossless_ae = CT_nets["vae"]
+        """
 
         # Build density_model that operates in the latent space of the lossless_ae
         self.density_model = build_model(self.hparams.density_model,
                                             self.lossless_ae.latent_dim,
+                                            #256,
                                             self.cond_dim)
         if self.hparams.load_density_model_path:
             print("load density_model checkpoint")
@@ -153,6 +154,7 @@ class FiberModel(FreeFormBase):
     @property
     def latent_dim(self):
         if self.density_model_type:
+            #return 256
             return self.density_model[-1].hparams.latent_dim
         else:
             return self.lossless_ae.latent_dim
@@ -178,6 +180,7 @@ class FiberModel(FreeFormBase):
 
     def encode_lossless(self, x, c, mu_var=True):
         return self.lossless_ae.encode(x, c, mu_var=mu_var)
+        #return self.lossless_ae.encode(x, c).sample()
 
     def encode_density(self, z, c, jac=False):
         #c = self.unflatten_ce(c).unsqueeze(1)
@@ -540,11 +543,17 @@ class FiberModel(FreeFormBase):
                     c_random = c
                 z_random = self.sample_density(z_dense_random, c_random)
                 x_random = self.decode_lossless(z_random, c_random)
+                x_random_sm = x_random
+                if "data" in self.hparams["data_set"]:
+                    if self.hparams["data_set"]["data"]=="highdose":
+                        # Add noise to the sampled highdose samples
+                        x_random_sm = x_random + batch[1] - x
+
                 # Try whether the model learns fibers and therefore has a subject model
                 try:
                     # There might be no subject model
                     c_sm = torch.empty(x_random.shape[0],0).to(x_random.device)
-                    c1 = self.subject_model.encode(x_random, c_sm)
+                    c1 = self.subject_model.encode(x_random_sm, c_sm)
                     #c0 = self.subject_model.encode(x0, c_sm)
                     loss_values["fiber_loss"] = self._reduced_rec_loss(c_random, c1)
                 except Exception as e:
@@ -640,20 +649,20 @@ class FiberModel(FreeFormBase):
         dtype = x0.dtype
 
         conds = []
-        if self.hparams["data_set"]["data"]=="highdose":
-            x_ld = batch[1]
-        else:
-            x_ld = x0
+        x_sm = x0
+        if "data" in self.hparams["data_set"]:
+            if self.hparams["data_set"]["data"]=="highdose":
+                x_sm = batch[1]
 
         # Dataset condition
         if self.is_conditional() and len(batch)!=2:
             if self.hparams.compute_c_on_fly:
-                conds.append(self.subject_model.encode(x_ld).detach())
+                conds.append(self.subject_model.encode(x_sm).detach())
             else:
                 raise ValueError("You must pass a batch including conditions for each dataset condition")
         if len(batch) > 1:
             if self.hparams.compute_c_on_fly:
-                dataset_cond = self.subject_model.encode(x_ld).detach()
+                dataset_cond = self.subject_model.encode(x_sm).detach()
             else:
                 dataset_cond = batch[1]
             conds.append(dataset_cond)
