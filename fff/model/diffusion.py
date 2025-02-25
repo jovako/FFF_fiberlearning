@@ -17,13 +17,15 @@ class DiffHParams(ModelHParams):
     num_heads: int = 4
     hidden_dim: int = 32
     time_dim: int = 8
+    betas: tuple
+    num_timesteps: int = 1000
+    eta: float = 0.1
 
     def __init__(self, **hparams):
         if "latent_spec" in hparams:
             assert len(hparams["latent_spec"]) == 0
             del hparams["latent_spec"]
         super().__init__(**hparams)
-
 
 def res_layer(data_dim, widths, activation, id_init: bool,
                  batch_norm: str | bool, dropout: float = None):
@@ -44,10 +46,21 @@ class DiffusionModel(nn.Module):
         super().__init__()
         self.hparams = hparams
         self.build_model()
+
+        # Precompute constants for sampling
+        self.betas = self.hparams.betas[0]
+        self.alphas = 1.0 - self.betas
+        self.alpha_cumprod = torch.cumprod(self.alphas, dim=0)
+        self.alpha_cumprod_prev = torch.cat([torch.tensor([1.0], device=self.betas.device), self.alpha_cumprod[:-1]])
+        self.sqrt_1malpha_cumprod = torch.sqrt(1 - self.alpha_cumprod)
+        self.eta = self.hparams.eta
+
+    def encode(self, x, *args):
+        return x
         
-        
-    def forward(self, x_in, time_step, condition, guidance_scale=1.0, conditional=True):
+    def decode(self, x_in, time_step_condition, guidance_scale=1.0, conditional=True):
         # Embed the time step
+        time_step, condition = time_step_condition
         time_embedding = self.time_embedding(time_step)
         #condition = torch.zeros_like(x_in)
         
@@ -86,7 +99,6 @@ class DiffusionModel(nn.Module):
                     x = layer(x)
             output = self.fc_out(x)
         #print(torch.sum(x-x_in))
-        
         return output
 
     def build_model(self):
@@ -115,3 +127,31 @@ class DiffusionModel(nn.Module):
         
         # Output layer
         self.fc_out = nn.Linear(hidden_dim, input_dim)
+
+    def sample(self, x, condition, guidance_scale=1.0):
+        device = x.device
+        num_steps = self.hparams.num_timesteps
+        shape = x.shape[0]
+
+        for i in reversed(range(num_steps)):
+            t = torch.full([shape], i, device=device, dtype=torch.long)
+            alpha_t = self.alpha_cumprod[i]
+            alpha_t_prev = self.alpha_cumprod_prev[i]
+            beta_t = self.betas[i]
+
+            # Predict noise
+            eps_pred = self.decode(x, (t, condition), guidance_scale)
+
+            # Compute the mean for the reverse process
+            pred_x0 = (
+                x - self.sqrt_1malpha_cumprod[i] * eps_pred
+            ) / alpha_t.sqrt()
+
+            noise = torch.randn_like(x) if self.eta > 0 else torch.zeros_like(x)
+            sigma_t = self.eta * torch.sqrt((1 - alpha_t_prev) / (1 - alpha_t) * beta_t)
+
+            dir_xt = (1. - alpha_t_prev - sigma_t**2).sqrt() * eps_pred
+
+            x = alpha_t_prev.sqrt() * pred_x0 + dir_xt + sigma_t * noise
+
+        return x

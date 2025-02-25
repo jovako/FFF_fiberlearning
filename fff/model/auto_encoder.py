@@ -25,6 +25,9 @@ class Identity(nn.Module):
     def decode(self, z, c):
         return self.model.Id(z)
 
+    def sample(self, u, c):
+        return self.decode(u, c)
+
     def build_model(self) -> nn.Module:
         Id = nn.Identity()
         modules = OrderedDict(
@@ -82,10 +85,12 @@ class FullyConnectedNetwork(nn.Module):
     def decode(self, z, c):
         return self.model.decoder(torch.cat([z, c], -1))
 
+    def sample(self, u, c):
+        return self.decode(u, c)
+
     def build_model(self) -> nn.Module:
         data_dim = self.hparams.data_dim
         cond_dim = self.hparams.cond_dim
-        print(cond_dim)
 
         # Nonlinear projection
         widths = [

@@ -1,4 +1,4 @@
-model: fff.FreeFormInjectiveFlow
+model: fff.FiberModel
 #accelerator: "cpu"
 
 noise: 0.01
@@ -8,16 +8,16 @@ data_set:
   conditional: False
 
 loss_weights:
-  noisy_reconstruction: 1
+  ae_lamb_reconstruction: 1000
   #sqr_reconstruction: 10
-  #kl: 1
+  ae_elbo: 1
   #z std: 1
   #nll: 1
 max_epochs: 653
 
   #vae: True
-train_models: True
-models:
+train_lossless_ae: True
+lossless_ae:
   - name: fff.model.ConvolutionalNeuralNetwork
     latent_dim: &latent_dim 100
     ch_factor: 32
@@ -35,6 +35,8 @@ models:
       - [512, 512]
       - [512, 512]
       - [512, 512]
+density_model:
+  - name: fff.model.Identity
 
 lr_scheduler: "onecyclelr"
 optimizer:

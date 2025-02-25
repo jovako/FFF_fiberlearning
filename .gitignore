@@ -184,3 +184,11 @@ slurm-*.out
 # vim-files
 *.swp
 *.swo
+
+./data/
+saved_models/
+datasets/
+lossless_ae/
+notebooks/FiberModels/
+notebooks/SubjectModels/
+subject_models/

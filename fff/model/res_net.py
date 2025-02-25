@@ -11,7 +11,7 @@ from .utils import wrap_batch_norm1d, make_dense
 class ResNetHParams(ModelHParams):
     classification: bool = False
     layers_spec: list
-    activation: str = "silu"
+    activation: str = "leakyrelu"
     id_init: bool = False
     batch_norm: str | bool = False
     dropout: float | None = None
@@ -55,12 +55,15 @@ class ResNet(nn.Module):
     def decode(self, z, c):
         return self.model.decoder(torch.cat([z, c], -1))[..., :self.hparams.data_dim]
 
+    def sample(self, u, c):
+        return self.decode(u, c)
+
     def build_model(self) -> nn.Module:
         data_dim = self.hparams.data_dim
         cond_dim = self.hparams.cond_dim
         print("cond_dim: ", cond_dim)
         latent_dim = self.hparams.latent_dim
-        print("latent_dim: ", latent_dim)
+        print("output_dim: ", latent_dim)
 
         # ResNet in data space + projection to latent space
         activation = self.hparams.activation

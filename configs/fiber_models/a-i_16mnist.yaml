@@ -1,0 +1,99 @@
+model: fff.FiberModel
+
+noise: 0.01
+load_subject_model: True
+latent_distribution:
+  name: "normal"
+data_set:
+  name: mnist_split
+  root: data
+  conditional: True
+  path: "16EMNIST_F5F_demo"
+  subject_model_path: "data/16EMNIST_F5F_demo/subject_model/checkpoints/last.ckpt"
+  subject_model_type: FreeFormInjectiveFlow
+
+loss_weights:
+  nll: 1
+  masked_reconstruction: 1
+  #latent_reconstruction: 10
+  #fiber_loss: 100
+  #z_sample_reconstruction: 1
+max_epochs: 100
+#warm_up_fiber: [35, 40]
+
+train_lossless_ae: True
+vae: True
+lossless_ae:
+  - name: fff.model.ConvolutionalNeuralNetwork
+    latent_dim: 100
+    ch_factor: 32
+    encoder_spec: 
+      - [2,4,2,1]
+      - [4,4,2,1]
+      - [8,4,2,1]
+    decoder_spec:
+      - [8,4]
+      - [4,4,2,1]
+      - [1,3,2,1,1]
+  - name: fff.model.ResNet
+    latent_dim: &latent_dim 64
+    layers_spec:
+      - [512, 512]
+      - [512, 512]
+      - [512, 512]
+density_model:
+  - name: fff.model.INN
+    data_dim: *latent_dim
+    latent_dim: *latent_dim
+    inn_spec:
+      #- ["PermuteRandom", {}, 0]
+      #- ["RationalQuadraticSpline", {"bins": 8, "min_bin_sizes": [0.2,0.2]}, [128]]
+      #- ["PermuteRandom", {}, 0]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+      - ["AllInOneBlock", {}, [512]]
+
+lr_scheduler: "onecyclelr"
+optimizer:
+  name: adam
+  lr: 0.002
+gradient_clip: 3.0
+
+batch_size: 512
