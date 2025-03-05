@@ -371,7 +371,7 @@ class FiberModel(FreeFormBase):
                 "ae_sqr_reconstruction", "ae_lamb_reconstruction"):
             loss_values["ae_reconstruction"] = self._reconstruction_loss(x0, x1)
             loss_values["ae_noisy_reconstruction"] = self._reconstruction_loss(x, x1)
-            loss_values["ae_sqr_reconstruction"] = self._sqr_reconstruction_loss(x, x1)
+            loss_values["ae_l1_reconstruction"] = self._l1_loss(x, x1)
             loss_values["ae_lamb_reconstruction"] = self._lamb_reconstruction_loss(x, x1)
             #loss_values["reconstruction"] = self._l1_loss(x0, x1)
 
@@ -408,7 +408,7 @@ class FiberModel(FreeFormBase):
                 loss_values["nll"] = -(log_prob + log_det)
 
             # Freeform loss
-            elif self.density_model_type == "fff" and (self.hparams.eval_all and (
+            elif (self.density_model_type == "HACK" or self.current_epoch==self.hparams.max_epochs-1) and (self.hparams.eval_all and (
                     not self.training or (self.hparams.exact_train_nll_every is not None and
                     batch_idx % self.hparams.exact_train_nll_every == 0))):
                 # exact
@@ -428,7 +428,7 @@ class FiberModel(FreeFormBase):
                     loss_weights["nll"] = 0
             
             # surrogate
-            elif (self.density_model_type == "fff") and self.training and check_keys("nll"):
+            elif self.density_model_type == "fff" and self.training and check_keys("nll"):
                 warm_up = self.hparams.warm_up_epochs
                 if isinstance(warm_up, int):
                     warm_up = warm_up, warm_up + 1
@@ -511,7 +511,7 @@ class FiberModel(FreeFormBase):
 
         # Cyclic consistency of latent code sampled from Gaussian and fiber loss
         if ((not self.training or
-                check_keys("fiber_loss", "z_sample_reconstruction")) and 
+                check_keys("fiber_loss", "fiber_loss_rec", "z_sample_reconstruction")) and 
                 self.current_epoch % self.hparams.fiber_loss_every == 0):
             warm_up = self.hparams.warm_up_fiber
             if isinstance(warm_up, int):
@@ -532,7 +532,7 @@ class FiberModel(FreeFormBase):
             loss_weights["z_sample_reconstruction"] *= fl_warmup
             loss_weights["fiber_loss"] *= fl_warmup
             if not self.training or check_keys(
-                    "fiber_loss", "z_sample_reconstruction"):
+                    "fiber_loss", "fiber_loss_rec", "z_sample_reconstruction"):
                 try:
                     z_dense_random = self.get_latent(z.device).sample((z.shape[0],), c)
                 except TypeError:
@@ -544,18 +544,22 @@ class FiberModel(FreeFormBase):
                 z_random = self.sample_density(z_dense_random, c_random)
                 x_random = self.decode_lossless(z_random, c_random)
                 x_random_sm = x_random
+                x1_sm = x1
                 if "data" in self.hparams["data_set"]:
                     if self.hparams["data_set"]["data"]=="highdose":
                         # Add noise to the sampled highdose samples
                         x_random_sm = x_random + batch[1] - x
+                        x1_sm = x1_sm + batch[1] - x
 
                 # Try whether the model learns fibers and therefore has a subject model
                 try:
                     # There might be no subject model
                     c_sm = torch.empty(x_random.shape[0],0).to(x_random.device)
                     c1 = self.subject_model.encode(x_random_sm, c_sm)
+                    c2 = self.subject_model.encode(x1_sm, c_sm)
                     #c0 = self.subject_model.encode(x0, c_sm)
                     loss_values["fiber_loss"] = self._reduced_rec_loss(c_random, c1)
+                    loss_values["fiber_loss_rec"] = self._reduced_rec_loss(c_random, c2)
                 except Exception as e:
                     warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
                     loss_values["fiber_loss"] = (
@@ -605,7 +609,7 @@ class FiberModel(FreeFormBase):
 
         return metrics
 
-    def on_train_epoch_end(self) -> None:
+    #def on_train_epoch_end(self) -> None:
         """
         if self.current_epoch%10==0 or self.current_epoch==self.hparams.max_epochs-1:
             with torch.no_grad():

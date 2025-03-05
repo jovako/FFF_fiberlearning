@@ -1,8 +1,8 @@
 model: fff.FiberModel
 
-val_every_n_epoch: 1
+val_every_n_epoch: 10
 cond_dim: 16384
-load_lossless_ae_path: latimage3
+load_lossless_ae_path: Y_fl50
 compute_c_on_fly: True
 noise: 0.
 ae_conditional: True
@@ -12,45 +12,58 @@ latent_distribution:
 data_set:
   name: ldct
   root: data/ldct
-  condition:  highdose
-  data: lowdose
+  condition: lowdose
+  data: highdose
   subject_model_type: cnn10
 
 eval_all: True
 loss_weights:
-  nll: 1
-  #masked_reconstruction: 1
+  nll: 1.
+  fiber_loss: 10000
   #latent_reconstruction: 10
   #fiber_loss: 100
   #z_sample_reconstruction: 1
 max_epochs: 500
 #warm_up_fiber: [35, 40]
 
-train_lossless_ae: False
+train_lossless_ae: True
 vae: True
 density_model:
   - name: fff.model.INN
-    latent_dim: 512
+    latent_dim: 4096
     zero_init: True
     inn_spec:
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
-      - ["AllInOneBlock", {}, [1024,1024,1024]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
+      - ["AllInOneBlock", {}, [2048]]
       #- ["ActNorm", {}, 0]
       #- ["RNVPCouplingBlock", {"clamp_activation":"TANH", "clamp": 1.}, [1024,1024,1024]]
       #- ["InvAutoActTwoSided", {"init_pos": 1.0, "init_neg": 0.9, "learnable": False}, 0]
@@ -70,7 +83,12 @@ condition_embedder:
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.00005
-    #gradient_clip: 3.0
+  lr: 0.00001
 
 batch_size: 64
+
+model_checkpoint:
+  monitor: "auto"
+  save_last: True
+  every_n_epochs: 100
+  save_top_k: 2

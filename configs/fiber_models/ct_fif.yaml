@@ -1,79 +1,60 @@
 model: fff.FiberModel
 
-val_every_n_epoch: 5
+val_every_n_epoch: 10
 cond_dim: 16384
-load_lossless_ae_path: cnn10
-  #load_density_model_path: lightning_logs/ct_fif/version_4/checkpoints/last.ckpt
-compute_c_on_fly: True
 noise: 0.
-ae_conditional: True
 load_subject_model: True
+load_lossless_ae_path: Y_fl50
+compute_c_on_fly: True
 latent_distribution:
   name: "normal"
 data_set:
   name: ldct
   root: data/ldct
-  condition: highdose 
-  data: lowdose
+  condition: lowdose
+  data: highdose
   subject_model_type: cnn10
 
 eval_all: True
 loss_weights:
-  nll: 1
-  latent_reconstruction: 10
-  #masked_reconstruction: 1
-  #ae_elbo: 5.8
-  #ae_noisy_reconstruction: 10
-  #ae_cycle_loss: 1
-  #cycle_loss: 10
-  #fiber_loss: 10
-  #z_sample_reconstruction: 1000
-max_epochs: 40
-reconstruct_dims: 1
+  nll: 0.00001
+  latent_reconstruction: 1
+  fiber_loss: 1000
+max_epochs: 500
 #warm_up_epochs: [15, 100]
 #warm_up_fiber: [35, 40]
 
 train_lossless_ae: False
 vae: True
+ae_conditional: True
 density_model:
   - name: fff.model.ResNet
-    latent_dim: 256
+    data_dim: 4096
+    latent_dim: 4096
     layers_spec:
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
-      - [1024, 1024, 1024]
+      - [6144, 6144]
 
 condition_embedder:
   - name: fff.model.ConvolutionalNeuralNetwork
-    latent_dim: 256
+    latent_dim: 2048
+    fc: True
     ch_factor: 64
     encoder_spec: 
       - [1,4,2,1]
       - [2,4,2,1]
       - [4,4,2,1]
       - [8,4,2,1]
-      - [4,8,1,0]
 
-        #lr_scheduler: "onecyclelr"
+
+lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.00005
+  lr: 0.00002
 
 batch_size: 64
+
+model_checkpoint:
+  monitor: "auto"
+  save_last: True
+  every_n_epochs: 100
+  save_top_k: 2

@@ -13,6 +13,7 @@ class ConvolutionalNeuralNetworkHParams(ModelHParams):
     skip_connection: bool = False
     ch_factor: int = 128
     density_inn: bool = False
+    fc: bool = True
 
     encoder_spec: list = [
     #    [1, 4, 2, 1],
@@ -124,10 +125,10 @@ class ConvolutionalNeuralNetwork(nn.Module):
         encoder.append(nn.Flatten(-3, -1))
         out_dim = tmp.nelement()
 
-        #if self.hparams.fc:
-        encoder.append(nn.Linear(out_dim, self.hparams.latent_dim))
-        #else:
-        #    assert out_dim == self.hparams.latent_dim
+        if self.hparams.fc:
+            encoder.append(nn.Linear(out_dim, self.hparams.latent_dim))
+        else:
+            assert out_dim == self.hparams.latent_dim
 
         decoder = nn.Sequential()
         if self.hparams.decoder_spec != []:
