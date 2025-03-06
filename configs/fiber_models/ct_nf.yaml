@@ -20,6 +20,8 @@ eval_all: True
 loss_weights:
   nll: 1.
   fiber_loss: 10000
+  ae_l1_reconstruction: 0.2
+  fiber_loss_rec: 10000
   #latent_reconstruction: 10
   #fiber_loss: 100
   #z_sample_reconstruction: 1

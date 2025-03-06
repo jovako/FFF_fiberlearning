@@ -368,7 +368,7 @@ class FiberModel(FreeFormBase):
         # Reconstruction
         if not self.training or check_keys(
                 "ae_reconstruction", "ae_noisy_reconstruction", 
-                "ae_sqr_reconstruction", "ae_lamb_reconstruction"):
+                "ae_sqr_reconstruction", "ae_lamb_reconstruction", "ae_l1_reconstruction"):
             loss_values["ae_reconstruction"] = self._reconstruction_loss(x0, x1)
             loss_values["ae_noisy_reconstruction"] = self._reconstruction_loss(x, x1)
             loss_values["ae_l1_reconstruction"] = self._l1_loss(x, x1)
