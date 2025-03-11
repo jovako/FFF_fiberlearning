@@ -1,4 +1,4 @@
-model: fff.FiberModel
+model: fff.SomeModel
 #accelerator: "cpu"
 
 noise: 0.01

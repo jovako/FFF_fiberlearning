@@ -3,6 +3,7 @@ import torch.nn as nn
 from fff.utils.truncate import Truncate
 from fff.fif import FreeFormInjectiveFlow
 from fff.fff import FreeFormFlow
+from fff.some_model import SomeModel
 from ldctbench.hub import load_model
 import os
 from warnings import warn
@@ -28,6 +29,9 @@ class SubjectModel(torch.nn.Module):
 
         if model_type == "FreeFormFlow":
             self.model = FreeFormFlow.load_from_checkpoint(subject_model_path)
+            self.model.eval()
+        elif model_type == "SomeModel":
+            self.model = SomeModel.load_from_checkpoint(subject_model_path)
             self.model.eval()
         elif model_type == "FreeFormInjectiveFlow":
             self.model = FreeFormInjectiveFlow.load_from_checkpoint(subject_model_path)
