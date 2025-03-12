@@ -42,7 +42,7 @@ class LosslessAE(Module):
             input_shape = guess_image_shape(self.data_dim)
             cond_shape = guess_image_shape(self.hparams.cond_dim)
             print("input_shape", cond_shape)
-            self.unflatten = nn.Unflatten(-1, (input_shape[0], *input_shape[1:]))
+            self.unflatten = nn.Unflatten(-1, (input_shape[0] + 1, *input_shape[1:]))
             self.flatten = nn.Flatten()
             self.unflatten_c = nn.Unflatten(-1, cond_shape)
             if not load_orig:
@@ -104,8 +104,8 @@ class LosslessAE(Module):
         if self.hparams.cond_dim == 0:
             c = torch.empty((x.shape[0], 0), device=x.device, dtype=x.dtype)
         if self.ldct:
-            #x = self.cat_x_c(x,c)
-            x = x - c
+            x = self.cat_x_c(x,c)
+            #x = x - c
             x = self.unflatten(x)
             for model in self.models:
                 x = model.encode(x).sample().squeeze()

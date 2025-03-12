@@ -2,7 +2,7 @@ model: fff.FiberModel
 
 val_every_n_epoch: 10
 cond_dim: 16384
-load_lossless_ae_path: Y_fl50
+load_lossless_ae_path: Yred_depr
 compute_c_on_fly: True
 noise: 0.
 ae_conditional: True
@@ -19,16 +19,16 @@ data_set:
 eval_all: True
 loss_weights:
   nll: 1.
-  fiber_loss: 10000
-  ae_l1_reconstruction: 0.2
-  fiber_loss_rec: 10000
+    #fiber_loss: 10000
+    #ae_l1_reconstruction: 0.2
+    #fiber_loss_rec: 10000
   #latent_reconstruction: 10
   #fiber_loss: 100
   #z_sample_reconstruction: 1
 max_epochs: 500
 #warm_up_fiber: [35, 40]
 
-train_lossless_ae: True
+train_lossless_ae: False
 vae: True
 density_model:
   - name: fff.model.INN
