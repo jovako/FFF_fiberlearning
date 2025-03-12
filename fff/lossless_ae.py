@@ -6,6 +6,7 @@ from fff.base import ModelHParams, build_model
 from ldctinv.pretrained import load_pretrained
 from ldctinv import utils
 from fff.model.utils import guess_image_shape, wrap_batch_norm2d
+import copy
 
 class LosslessAEHParams(ModelHParams):
     model_spec: list = []
@@ -34,9 +35,10 @@ class LosslessAE(Module):
         super().__init__()
         self.hparams = hparams
         self.data_dim = self.hparams.data_dim
+        model_spec = copy.deepcopy(self.hparams.model_spec)
         if self.hparams.vae and hparams["path"] is None:
             lat_dim = self.hparams.model_spec[-1]["latent_dim"]
-            self.hparams.model_spec[-1]["latent_dim"] = lat_dim * 2
+            model_spec[-1]["latent_dim"] = lat_dim * 2
 
         if self.ldct:
             input_shape = guess_image_shape(self.data_dim)
@@ -65,7 +67,7 @@ class LosslessAE(Module):
             print(not self.hparams.train)
         else:
             self.models = build_model(
-                self.hparams.model_spec, self.data_dim, self.hparams.cond_dim
+                model_spec, self.data_dim, self.hparams.cond_dim
             )
             if self.hparams.path:
                 lossless_ae_weights = {k[19:]: v for k, v in checkpoint["state_dict"].items()
