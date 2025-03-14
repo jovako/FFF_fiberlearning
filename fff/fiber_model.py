@@ -181,16 +181,12 @@ class FiberModel(FreeFormBase):
         ae_hparams["path"] = self.hparams.load_lossless_ae_path
         ae_hparams["train"] = self.hparams.train_lossless_ae
         self.lossless_ae = LosslessAE(ae_hparams)
-        """
-        CT_nets, _ = load_pretrained("cnn10")
-        self.lossless_ae = CT_nets["vae"]
-        """
+
 
         # Build density_model that operates in the latent space of the lossless_ae
         self.density_model = build_model(
             self.hparams.density_model,
             self.lossless_ae.latent_dim,
-            # 256,
             self.cond_dim,
         )
         if self.hparams.load_density_model_path:
@@ -206,7 +202,6 @@ class FiberModel(FreeFormBase):
     @property
     def latent_dim(self):
         if self.density_model_type:
-            # return 256
             return self.density_model[-1].hparams.latent_dim
         else:
             return self.lossless_ae.latent_dim
@@ -214,7 +209,6 @@ class FiberModel(FreeFormBase):
     @property
     def cond_dim(self):
         if self.condition_embedder is not None:
-            # return 256
             return self.condition_embedder[-1].hparams.latent_dim
         else:
             return self.ae_cond_dim
@@ -232,13 +226,10 @@ class FiberModel(FreeFormBase):
 
     def encode_lossless(self, x, c, mu_var=True):
         return self.lossless_ae.encode(x, c, mu_var=mu_var)
-        # return self.lossless_ae.encode(x, c).sample()
 
     def encode_density(self, z, c, jac=False):
-        # c = self.unflatten_ce(c).unsqueeze(1)
         if self.condition_embedder is not None:
             for model in self.condition_embedder:
-                # c = model(c)
                 c = model.encode(
                     c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype)
                 )

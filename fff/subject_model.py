@@ -7,7 +7,8 @@ from ldctbench.hub import load_model
 import os
 from warnings import warn
 import torch.nn.functional as F
-
+from fff.model.utils import guess_image_shape
+from math import prod
 
 class SubjectModel(torch.nn.Module):
     def __init__(self, subject_model_path, model_type=None, truncate=False):
@@ -93,6 +94,8 @@ class BiomedClipModel(torch.nn.Module):
         self.image_only = image_only
 
     def encode(self, x, c=None):
+        if x.ndim == 2:
+            x = x.reshape(x.shape[0], *guess_image_shape(prod(x.shape[1:])))
         if self.image_only:
             text = self.tokenizer(["" for i in range(len(x))], context_length=0).to(
                 x.device
