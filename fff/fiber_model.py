@@ -33,6 +33,7 @@ class FiberModelHParams(FreeFormBaseHParams):
     load_lossless_ae_path: str | None = None
     load_density_model_path: str | None = None
     load_subject_model: bool = False
+    sm_input_transform: str | None = None
     train_lossless_ae: bool = True
     ae_conditional: bool = False
     vae: bool = False
@@ -103,7 +104,9 @@ class FiberModel(FreeFormBase):
         if self.hparams.load_subject_model:
             print("loading subject_model")
             sm_dir = get_model_path(**self.hparams["data_set"])
-            self.subject_model = SubjectModel(sm_dir, self.hparams.data_set.subject_model_type)
+            self.subject_model = SubjectModel(sm_dir,
+                                                self.hparams.data_set.subject_model_type,
+                                                fixed_transform=self.hparams.sm_input_transform)
             self.subject_model.eval()
             for param in self.subject_model.parameters():
                 param.require_grad = False
@@ -550,16 +553,18 @@ class FiberModel(FreeFormBase):
                         x_random_sm = x_random + batch[1] - x
 
                 # Try whether the model learns fibers and therefore has a subject model
-                try:
-                    # There might be no subject model
-                    c_sm = torch.empty(x_random.shape[0],0).to(x_random.device)
-                    c1 = self.subject_model.encode(x_random_sm, c_sm)
-                    #c0 = self.subject_model.encode(x0, c_sm)
-                    loss_values["fiber_loss"] = self._reduced_rec_loss(c_random, c1)
+                #try:
+                # There might be no subject model
+                c_sm = torch.empty(x_random.shape[0],0).to(x_random.device)
+                c1 = self.subject_model.encode(x_random_sm, c_sm)
+                #c0 = self.subject_model.encode(x0, c_sm)
+                loss_values["fiber_loss"] = self._reduced_rec_loss(c_random, c1)
+                """
                 except Exception as e:
                     warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
                     loss_values["fiber_loss"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
+                """
                 try:
                     # Sanity checks might fail for random data
                     z1_random = self.encode(x_random, c_random)

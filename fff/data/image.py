@@ -44,7 +44,7 @@ def get_emnist_datasets(root: str, digit: int = None, conditional: bool = False,
 
     return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional, patch_size=patch_size, num_patches_per_image=num_patches_per_image)
 
-def get_h5saved_mnist(root: str, digit: int = None, conditional: bool = False) -> TrainValTest:
+def get_h5saved_mnist(root: str, digit: int = None, conditional: bool = False, **kwargs) -> TrainValTest:
     class dataset():
         def __init__(self, data, targets):
             self.data = data
@@ -325,9 +325,14 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
 
     # Conditions
     if conditional:
+        """
         train_data.append(one_hot(train_targets, -1))
         val_data.append(one_hot(val_targets, -1))
         test_data.append(one_hot(test_targets, -1))
+        """
+        train_data.append(train_targets)
+        val_data.append(val_targets)
+        test_data.append(test_targets)
 
 
     return TensorDataset(

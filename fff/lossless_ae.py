@@ -36,7 +36,7 @@ class LosslessAE(Module):
         self.hparams = hparams
         self.data_dim = self.hparams.data_dim
         model_spec = copy.deepcopy(self.hparams.model_spec)
-        if self.hparams.vae and hparams["path"] is None:
+        if self.hparams.vae:
             lat_dim = self.hparams.model_spec[-1]["latent_dim"]
             model_spec[-1]["latent_dim"] = lat_dim * 2
 

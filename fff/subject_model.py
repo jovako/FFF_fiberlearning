@@ -8,8 +8,10 @@ from ldctbench.hub import load_model
 import os
 from warnings import warn
 
+from fff.data.utils import Decolorize
+
 class SubjectModel(torch.nn.Module):
-    def __init__(self, subject_model_path, model_type=None, truncate=False):
+    def __init__(self, subject_model_path, model_type=None, truncate=False, fixed_transform=None):
         super(SubjectModel, self).__init__()
     
         if model_type in ["cnn10", "redcnn", "wganvgg", "dugan"]:
@@ -48,19 +50,32 @@ class SubjectModel(torch.nn.Module):
         if truncate:
             self.model = Truncate(self.model)
 
+        if fixed_transform is not None:
+            if fixed_transform == "decolorize":
+                self.fixed_transform = Decolorize
+            else:
+                raise NotImplementedError(f"You have to implement {fixed_transform} in subject_model.py")
+        else:
+            self.fixed_transform = None
+
     def forward(self, x, *c, **kwargs):
+        if self.fixed_transform is not None:
+            x = self.fixed_transform(x)
         if self.model is None:
             raise RuntimeError("No subject model loaded")
         #return self.model(x, *c, **kwargs)
         return self.model(x)
 
     def encode(self, x, *c, **kwargs):
+        if self.fixed_transform is not None:
+            x = self.fixed_transform(x)
         if self.model is None:
             raise RuntimeError("No subject model loaded")
-        try:
-            return self.model.encode(x, *c, **kwargs)
+        return self.model.encode(x, *c, **kwargs)
+        """
         except:
             return self.forward(x, *c, **kwargs)
+        """
     
     def decode(self, z, *c, **kwargs):
         if self.model is None:
