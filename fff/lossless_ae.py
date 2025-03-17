@@ -50,7 +50,7 @@ class LosslessAE(Module):
                     hparams["path"],
                     network_name="BigAE",
                     state_dict="generator",
-                    in_ch=1,
+                    in_ch=2,
                     out_ch=1,
                     cond_ch=1,
                     return_args=True,
