@@ -2,7 +2,7 @@ model: fff.FiberModel
 
 val_every_n_epoch: 10
 cond_dim: 16384
-load_lossless_ae_path: Yred_depr
+load_lossless_ae_path: Y_nll-8
 compute_c_on_fly: True
 noise: 0.
 ae_conditional: True
