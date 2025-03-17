@@ -487,6 +487,8 @@ class FiberModel(FreeFormBase):
 
             metrics["z 1D-Wasserstein-1"] = (z_marginal_sorted - z_gauss_sorted).abs().mean()
             metrics["z std"] = torch.std(z_marginal)
+            if check_keys("ae_lamb_reconstruction"):
+                metrics["lambda"] = self.lamb
 
         """
         if val_all_metrics or check_keys("z std"):
