@@ -36,7 +36,7 @@ class SubjectModel(torch.nn.Module):
             self.model = FreeFormInjectiveFlow.load_from_checkpoint(subject_model_path)
             self.model.eval()
         elif model_type == "PrecompiledModel":
-            self.model = torch.load(subject_model_path)
+            self.model = torch.load(subject_model_path, weights_only=False)
             self.model.eval()
         elif model_type == None:
             model_type, self.model = infer_and_load_model_type(subject_model_path)
@@ -77,7 +77,7 @@ def infer_and_load_model_type(subject_model_path):
             return "FreeFormInjectiveFlow", model
     else:
         try:
-            model = torch.load(subject_model_path)
+            model = torch.load(subject_model_path, weights_only=False)
             if hasattr(model, "encode") and hasattr(model, "decode"):
                 return "PrecompiledModel", model
             else:
