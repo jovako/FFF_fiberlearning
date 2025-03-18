@@ -38,7 +38,7 @@ class LDCTInvModel(nn.Module):
         input_shape = guess_image_shape(hparams.data_dim)
         in_ch = input_shape[0]
         input_size = input_shape[1]
-        z_dim = hparams
+        z_dim = hparams.latent_dim
 
         self.encoder = ResnetEncoderSingleOutput(
             in_ch,
@@ -62,7 +62,7 @@ class LDCTInvModel(nn.Module):
         batch_size = x.shape[0]
         input_shape = guess_image_shape(self.hparams.data_dim)
         x_img = x.reshape(batch_size, *input_shape)
-        assert c_img.shape[1] == self.hparams.cond_dim, (
+        assert c.shape[1] == self.hparams.cond_dim, (
             f"Condition channels do not match {c_img.shape[1]} != {self.hparams.cond_dim}. \n"
             + "Hint: The cond_dim parameter is the number of channels if the condition is an image."
         )
@@ -70,7 +70,7 @@ class LDCTInvModel(nn.Module):
             batch_size, self.hparams.cond_dim, *input_shape[1:], device=c.device
         )
 
-        out = torch.cat([x_img, c_img], -3).reshape(batch_size, -1)
+        out = torch.cat([x_img, c_img], -3)
         if not has_batch_dimension:
             out = out[0]
         return out
@@ -79,12 +79,13 @@ class LDCTInvModel(nn.Module):
         return self.encoder(self.cat_x_c(x, c))
 
     def decode(self, u, c):
-        im_cond = c.reshape(
+        im_cond = c[:, :, None, None] * torch.ones(
             c.shape[0],
             self.hparams.cond_dim,
             *guess_image_shape(self.hparams.data_dim)[1:],
+            device=c.device,
         )
-        return self.decoder(u, im_cond=im_cond)
+        return self.decoder(u, im_cond=im_cond).flatten(1)
 
 
 class ResnetEncoderSingleOutput(ResnetEncoder):
@@ -108,9 +109,6 @@ class ResnetEncoderSingleOutput(ResnetEncoder):
             out_size=z_dim,
             in_channels=size_pre_fc[1],
         )
-
-    def forward(self, x):
-        return self.encoder(x)
 
 
 class BigGANDecoderAnySize(nn.Module):
@@ -246,7 +244,6 @@ class Generator(nn.Module):
                 scale_factor = 1 / 2 ** (self.num_layers - i)
                 im_cond_rescaled = F.interpolate(im_cond, scale_factor=scale_factor)
                 out = torch.cat([out, im_cond_rescaled], 1)
-            print(out.shape)
             out = GBlock(out, condition)
 
         out = self.ScaledCrossReplicaBN(out)

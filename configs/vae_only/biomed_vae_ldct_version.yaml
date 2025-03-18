@@ -1,0 +1,58 @@
+model: fff.FiberModel
+
+val_every_n_epoch: 5
+cond_dim: 512
+compute_c_on_fly: True
+noise: 0.
+ae_conditional: True
+load_subject_model: True
+latent_distribution:
+  name: "normal"
+data_set:
+  name: ldct
+  root: /mnt/SSD_2TB/ldct_data
+  condition: highdose 
+  data: lowdose
+  subject_model_type: PrecompiledModel
+  subject_model_path: notebooks/SubjectModels/saved_models/BiomedClip.pt
+
+eval_all: True
+loss_weights:
+  # nll: 1
+  # latent_reconstruction: 10
+  # masked_reconstruction: 1
+  ae_elbo: 1.0
+  ae_noisy_reconstruction: 10
+  # ae_cycle_loss: 1
+  # cycle_loss: 10
+  # fiber_loss: 10
+  # z_sample_reconstruction: 1000
+max_epochs: 40
+reconstruct_dims: 1
+#warm_up_epochs: [15, 100]
+#warm_up_fiber: [35, 40]
+
+train_lossless_ae: True
+vae: True
+lossless_ae:
+  - name: fff.model.LDCTInvModel
+    latent_dim: 256
+    ch_factor: 96
+
+density_model:
+  - name: fff.model.Identity
+
+
+condition_embedder:
+  - name: fff.model.ResNet
+    latent_dim: 512
+    layers_spec:
+      - [512, 512, 512]
+
+
+lr_scheduler: "onecyclelr"
+optimizer:
+  name: adam
+  lr: 0.00005
+
+batch_size: 2
