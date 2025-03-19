@@ -378,6 +378,12 @@ class FiberModel(FreeFormBase):
             loss_values["ae_lamb_reconstruction"] = self._lamb_reconstruction_loss(x, x1)
             #loss_values["reconstruction"] = self._l1_loss(x0, x1)
 
+        if (not self.training or check_keys("ae_rec_fiber_loss")) and self.subject_model is not None:
+            c_sm = torch.empty(x0.shape[0],0).to(x0.device)
+            c_orig = self.subject_model.encode(x0, c_sm)
+            c1 = self.subject_model.encode(x1, c_sm)
+            loss_values["ae_rec_fiber_loss"] = self._reduced_rec_loss(c_orig, c1)
+
         # KL-Divergence for VAE
         if check_keys("ae_elbo"):
             loss_values["ae_elbo"] = -0.5 * torch.sum((1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1)
@@ -555,18 +561,16 @@ class FiberModel(FreeFormBase):
                         x_random_sm = x_random + batch[1] - x
 
                 # Try whether the model learns fibers and therefore has a subject model
-                #try:
-                # There might be no subject model
-                c_sm = torch.empty(x_random.shape[0],0).to(x_random.device)
-                c1 = self.subject_model.encode(x_random_sm, c_sm)
-                #c0 = self.subject_model.encode(x0, c_sm)
-                loss_values["fiber_loss"] = self._reduced_rec_loss(c_random, c1)
-                """
+                try:
+                    # There might be no subject model
+                    c_sm = torch.empty(x_random.shape[0],0).to(x_random.device)
+                    c1 = self.subject_model.encode(x_random_sm, c_sm)
+                    #c0 = self.subject_model.encode(x0, c_sm)
+                    loss_values["fiber_loss"] = self._reduced_rec_loss(c_random, c1)
                 except Exception as e:
                     warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
                     loss_values["fiber_loss"] = (
                         float("nan") * torch.ones(z_random.shape[0]))
-                """
                 try:
                     # Sanity checks might fail for random data
                     z1_random = self.encode(x_random, c_random)
