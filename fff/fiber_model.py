@@ -182,7 +182,6 @@ class FiberModel(FreeFormBase):
         ae_hparams["train"] = self.hparams.train_lossless_ae
         self.lossless_ae = LosslessAE(ae_hparams)
 
-
         # Build density_model that operates in the latent space of the lossless_ae
         self.density_model = build_model(
             self.hparams.density_model,
