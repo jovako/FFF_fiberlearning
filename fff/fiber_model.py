@@ -8,6 +8,7 @@ from warnings import warn
 
 import torch
 import torch.nn as nn
+import torchvision.models as torchmodels
 import lightning_trainable
 from lightning_trainable.trainable.trainable import auto_pin_memory, SkipBatch
 from torch.distributions import Independent, Normal
@@ -20,14 +21,13 @@ from fff.base import (
     soft_heaviside,
 )
 from fff.base import LogProbResult, ConditionedBatch
-from fff.lossless_ae import LosslessAE
+from fff.lossless_ae import LosslessAE, LosslessAEHParams
 from fff.subject_model import SubjectModel
 from fff.loss import volume_change_surrogate
 from fff.utils.jacobian import compute_jacobian
 from fff.utils.diffusion import make_betas
 from fff.data import get_model_path
 from fff.evaluate.plot_fiber_model import *
-from ldctinv.pretrained import load_pretrained
 
 
 class FiberModelHParams(FreeFormBaseHParams):
@@ -35,7 +35,7 @@ class FiberModelHParams(FreeFormBaseHParams):
     cond_dim: int | None = None
     compute_c_on_fly: bool = False
     density_model: list
-    lossless_ae: list | None = None
+    lossless_ae: dict | LosslessAEHParams | None = None
     load_lossless_ae_path: str | None = None
     load_density_model_path: str | None = None
     load_subject_model: bool = False
@@ -171,7 +171,9 @@ class FiberModel(FreeFormBase):
         # First the lossless vae
         ae_hparams = {}
         if self.hparams.load_lossless_ae_path is None:
-            ae_hparams["model_spec"] = self.hparams.lossless_ae
+            if self.hparams.lossless_ae is None:
+                raise ValueError("No lossless_ae specified!")
+            ae_hparams = self.hparams.lossless_ae
         elif self.hparams.lossless_ae is not None:
             warn("Overwriting model_spec from config with loaded model!")
         ae_hparams["data_dim"] = self.data_dim
@@ -181,7 +183,6 @@ class FiberModel(FreeFormBase):
         ae_hparams["path"] = self.hparams.load_lossless_ae_path
         ae_hparams["train"] = self.hparams.train_lossless_ae
         self.lossless_ae = LosslessAE(ae_hparams)
-
 
         # Build density_model that operates in the latent space of the lossless_ae
         self.density_model = build_model(
@@ -430,6 +431,8 @@ class FiberModel(FreeFormBase):
             "ae_noisy_reconstruction",
             "ae_sqr_reconstruction",
             "ae_lamb_reconstruction",
+            "ae_l1_reconstruction",
+            "ae_noisy_l1_reconstruction",
         ):
             loss_values["ae_reconstruction"] = self._reconstruction_loss(x0, x1)
             loss_values["ae_noisy_reconstruction"] = self._reconstruction_loss(x, x1)
@@ -437,7 +440,8 @@ class FiberModel(FreeFormBase):
             loss_values["ae_lamb_reconstruction"] = self._lamb_reconstruction_loss(
                 x, x1
             )
-            # loss_values["reconstruction"] = self._l1_loss(x0, x1)
+            loss_values["ae_l1_reconstruction"] = self._l1_loss(x0, x1)
+            loss_values["ae_noisy_l1_reconstruction"] = self._l1_loss(x, x1)
 
         # KL-Divergence for VAE
         if check_keys("ae_elbo"):
@@ -542,6 +546,32 @@ class FiberModel(FreeFormBase):
                     z1 = log_prob_result.x1
                     loss_values["nll"] = -log_prob_result.log_prob - deq_vol_change
                     loss_values.update(log_prob_result.regularizations)
+
+        if check_keys("perceptual_loss"):
+            if not hasattr(self, "vgg_features"):
+                vgg = torchmodels.vgg16(
+                    weights=torchmodels.VGG16_Weights.IMAGENET1K_V1
+                ).to(x.device)
+                vgg.eval()
+                self.vgg_features = vgg.features
+            perceptual_loss = 0
+            # reshape into image and duplicate channels if necessary
+            from fff.model.utils import guess_image_shape
+
+            vgg_input = x1.reshape(-1, *guess_image_shape(x1.shape[1]))
+            if vgg_input.shape[1] == 1:
+                vgg_input = vgg_input.repeat(1, 3, 1, 1)
+            vgg_target = x.reshape(-1, *guess_image_shape(x.shape[1]))
+            if vgg_target.shape[1] == 1:
+                vgg_target = vgg_target.repeat(1, 3, 1, 1)
+            for i, m in self.vgg_features._modules.items():
+                vgg_input = m(vgg_input)
+                vgg_target = m(vgg_target)
+                if i in ["3", "8", "15", "22"]:
+                    perceptual_loss += self._l1_loss(vgg_input, vgg_target) / prod(
+                        vgg_input.shape[1:]
+                    )
+            loss_values["perceptual_loss"] = perceptual_loss
 
         # Diffusion model mean squared error
         if check_keys("diff_mse"):

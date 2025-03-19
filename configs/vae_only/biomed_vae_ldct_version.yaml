@@ -18,26 +18,42 @@ data_set:
 
 eval_all: True
 loss_weights:
-  # nll: 1
-  # latent_reconstruction: 10
-  # masked_reconstruction: 1
   ae_elbo: 1.0
   ae_noisy_reconstruction: 10
-  # ae_cycle_loss: 1
-  # cycle_loss: 10
-  # fiber_loss: 10
-  # z_sample_reconstruction: 1000
+  perceptual_loss: 100
 max_epochs: 40
 reconstruct_dims: 1
-#warm_up_epochs: [15, 100]
-#warm_up_fiber: [35, 40]
+
 
 train_lossless_ae: True
 vae: True
 lossless_ae:
-  - name: fff.model.LDCTInvModel
-    latent_dim: 256
-    ch_factor: 96
+  model_spec:
+    - name: fff.model.LDCTInvModel
+      latent_dim: 256
+      ch_factor: 96
+  cond_embedding_shape: [5, 128, 128]
+  cond_embedding_network:
+    - name: fff.model.ConvolutionalNeuralNetwork
+      latent_dim: &latent_dim 512
+      ch_factor: 32
+      image_shape: [5, 128, 128]
+      encoder_spec: []
+      decoder_spec:
+        - [128, 2]
+        - [64, 4, 2, 1, 0]   # 2 → 4
+        - [32, 4, 2, 1, 0]   # 4 → 8
+        - [16, 4, 2, 1, 0]   # 8 → 16
+        - [8, 4, 2, 1, 0]    # 16 → 32
+        - [4, 4, 2, 1, 0]    # 32 → 64
+        - [5, 4, 2, 1, 0]    # 64 → 128
+    - name: fff.model.ResNet
+      latent_dim: 512
+      layers_spec:
+        - [512, 512]
+  use_condition_decoder: True
+
+
 
 density_model:
   - name: fff.model.Identity

@@ -24,6 +24,7 @@ class LDCTInvHParams(ModelHParams):
     encoder_type: str = "resnet50"
     encoder_pretrained: bool = False
     ch_factor: int = 96
+    image_shape: list[int] | None = None
 
 
 class LDCTInvModel(nn.Module):
@@ -35,7 +36,10 @@ class LDCTInvModel(nn.Module):
 
         # Translate FFF hparams to ldctinv hparams
         cond_ch = hparams.cond_dim
-        input_shape = guess_image_shape(hparams.data_dim)
+        if hparams.image_shape is not None:
+            input_shape = torch.Size(hparams.image_shape)
+        else:
+            input_shape = guess_image_shape(hparams.data_dim)
         in_ch = input_shape[0]
         input_size = input_shape[1]
         z_dim = hparams.latent_dim
@@ -60,17 +64,21 @@ class LDCTInvModel(nn.Module):
             x = x[None, :]
             c = c[None, :]
         batch_size = x.shape[0]
-        input_shape = guess_image_shape(self.hparams.data_dim)
+        if self.hparams.image_shape is not None:
+            input_shape = torch.Size(self.hparams.image_shape)
+        else:
+            input_shape = guess_image_shape(self.hparams.data_dim)
         x_img = x.reshape(batch_size, *input_shape)
         assert c.shape[1] == self.hparams.cond_dim, (
-            f"Condition channels do not match {c_img.shape[1]} != {self.hparams.cond_dim}. \n"
+            f"Condition channels do not match {c.shape[1]} != {self.hparams.cond_dim}. \n"
             + "Hint: The cond_dim parameter is the number of channels if the condition is an image."
         )
-        c_img = c[:, :, None, None] * torch.ones(
-            batch_size, self.hparams.cond_dim, *input_shape[1:], device=c.device
-        )
+        if c.ndim == 2:
+            c = c[:, :, None, None] * torch.ones(
+                batch_size, self.hparams.cond_dim, *input_shape[1:], device=c.device
+            )
 
-        out = torch.cat([x_img, c_img], -3)
+        out = torch.cat([x_img, c], -3)
         if not has_batch_dimension:
             out = out[0]
         return out
@@ -79,13 +87,18 @@ class LDCTInvModel(nn.Module):
         return self.encoder(self.cat_x_c(x, c))
 
     def decode(self, u, c):
-        im_cond = c[:, :, None, None] * torch.ones(
-            c.shape[0],
-            self.hparams.cond_dim,
-            *guess_image_shape(self.hparams.data_dim)[1:],
-            device=c.device,
-        )
-        return self.decoder(u, im_cond=im_cond).flatten(1)
+        if self.hparams.image_shape is not None:
+            resolution = torch.Size(self.hparams.image_shape)[1:]
+        else:
+            resolution = guess_image_shape(self.hparams.data_dim)[1:]
+        if c.ndim == 2:
+            c = c[:, :, None, None] * torch.ones(
+                c.shape[0],
+                self.hparams.cond_dim,
+                *resolution,
+                device=c.device,
+            )
+        return self.decoder(u, im_cond=c).flatten(1)
 
 
 class ResnetEncoderSingleOutput(ResnetEncoder):
