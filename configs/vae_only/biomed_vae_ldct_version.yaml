@@ -18,19 +18,12 @@ data_set:
 
 eval_all: True
 loss_weights:
-  # nll: 1
-  # latent_reconstruction: 10
-  # masked_reconstruction: 1
   ae_elbo: 1.0
   ae_noisy_reconstruction: 10
-  # ae_cycle_loss: 1
-  # cycle_loss: 10
-  # fiber_loss: 10
-  # z_sample_reconstruction: 1000
+  perceptual_loss: 100
 max_epochs: 40
 reconstruct_dims: 1
-#warm_up_epochs: [15, 100]
-#warm_up_fiber: [35, 40]
+
 
 train_lossless_ae: True
 vae: True

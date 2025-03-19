@@ -1,0 +1,45 @@
+model: fff.FiberModel
+#accelerator: "cpu"
+
+noise: 0.01
+data_set:
+  name: ldct
+  root: data/ldct
+  condition: null
+  data: lowdose
+  subject_model_type: cnn10
+
+loss_weights:
+  ae_lamb_reconstruction: 1000
+  ae_elbo: 1
+
+max_epochs: 653
+
+train_lossless_ae: True
+lossless_ae:
+  - name: fff.model.ConvolutionalNeuralNetwork
+    latent_dim: &latent_dim 100
+    ch_factor: 32
+    encoder_spec: 
+      - [2,4,2,1]
+      - [4,4,2,1]
+      - [8,4,2,1]
+    decoder_spec:
+      - [8,4]
+      - [4,4,2,1]
+      - [1,3,2,1,1]
+  - name: fff.model.ResNet
+    latent_dim: 64
+    layers_spec:
+      - [512, 512]
+      - [512, 512]
+      - [512, 512]
+density_model:
+  - name: fff.model.Identity
+
+lr_scheduler: "onecyclelr"
+optimizer:
+  name: adam
+  lr: 0.0005
+
+batch_size: 512
