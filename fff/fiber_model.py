@@ -438,7 +438,8 @@ class FiberModel(FreeFormBase):
             loss_values["ae_lamb_reconstruction"] = self._lamb_reconstruction_loss(
                 x, x1
             )
-            # loss_values["reconstruction"] = self._l1_loss(x0, x1)
+            loss_values["ae_l1_reconstruction"] = self._l1_loss(x0, x1)
+            loss_values["ae_noisy_l1_reconstruction"] = self._l1_loss(x, x1)
 
         # KL-Divergence for VAE
         if check_keys("ae_elbo"):
