@@ -431,6 +431,8 @@ class FiberModel(FreeFormBase):
             "ae_noisy_reconstruction",
             "ae_sqr_reconstruction",
             "ae_lamb_reconstruction",
+            "ae_l1_reconstruction",
+            "ae_noisy_l1_reconstruction",
         ):
             loss_values["ae_reconstruction"] = self._reconstruction_loss(x0, x1)
             loss_values["ae_noisy_reconstruction"] = self._reconstruction_loss(x, x1)
