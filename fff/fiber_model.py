@@ -8,6 +8,7 @@ from warnings import warn
 
 import torch
 import torch.nn as nn
+import torchvision.models as torchmodels
 import lightning_trainable
 from lightning_trainable.trainable.trainable import auto_pin_memory, SkipBatch
 from torch.distributions import Independent, Normal
@@ -27,7 +28,6 @@ from fff.utils.jacobian import compute_jacobian
 from fff.utils.diffusion import make_betas
 from fff.data import get_model_path
 from fff.evaluate.plot_fiber_model import *
-from ldctinv.pretrained import load_pretrained
 
 
 class FiberModelHParams(FreeFormBaseHParams):
@@ -546,6 +546,32 @@ class FiberModel(FreeFormBase):
                     z1 = log_prob_result.x1
                     loss_values["nll"] = -log_prob_result.log_prob - deq_vol_change
                     loss_values.update(log_prob_result.regularizations)
+
+        if check_keys("perceptual_loss"):
+            if not hasattr(self, "vgg_features"):
+                vgg = torchmodels.vgg16(
+                    weights=torchmodels.VGG16_Weights.IMAGENET1K_V1
+                ).to(x.device)
+                vgg.eval()
+                self.vgg_features = vgg.features
+            perceptual_loss = 0
+            # reshape into image and duplicate channels if necessary
+            from fff.model.utils import guess_image_shape
+
+            vgg_input = x1.reshape(-1, *guess_image_shape(x1.shape[1]))
+            if vgg_input.shape[1] == 1:
+                vgg_input = vgg_input.repeat(1, 3, 1, 1)
+            vgg_target = x.reshape(-1, *guess_image_shape(x.shape[1]))
+            if vgg_target.shape[1] == 1:
+                vgg_target = vgg_target.repeat(1, 3, 1, 1)
+            for i, m in self.vgg_features._modules.items():
+                vgg_input = m(vgg_input)
+                vgg_target = m(vgg_target)
+                if i in ["3", "8", "15", "22"]:
+                    perceptual_loss += self._l1_loss(vgg_input, vgg_target) / prod(
+                        vgg_input.shape[1:]
+                    )
+            loss_values["perceptual_loss"] = perceptual_loss
 
         # Diffusion model mean squared error
         if check_keys("diff_mse"):
