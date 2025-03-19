@@ -10,7 +10,7 @@ latent_distribution:
   name: "normal"
 data_set:
   name: ldct
-  root: /mnt/SSD_2TB/ldct_data
+  root: /home/hd/hd_hd/hd_gu452/ldct_data
   condition: highdose 
   data: lowdose
   subject_model_type: PrecompiledModel
@@ -78,4 +78,4 @@ optimizer:
   name: adam
   lr: 0.00005
 
-batch_size: 2
+batch_size: 64
