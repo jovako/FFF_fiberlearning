@@ -20,7 +20,7 @@ from fff.base import (
     soft_heaviside,
 )
 from fff.base import LogProbResult, ConditionedBatch
-from fff.lossless_ae import LosslessAE
+from fff.lossless_ae import LosslessAE, LosslessAEHParams
 from fff.subject_model import SubjectModel
 from fff.loss import volume_change_surrogate
 from fff.utils.jacobian import compute_jacobian
@@ -35,7 +35,7 @@ class FiberModelHParams(FreeFormBaseHParams):
     cond_dim: int | None = None
     compute_c_on_fly: bool = False
     density_model: list
-    lossless_ae: list | None = None
+    lossless_ae: dict | LosslessAEHParams | None = None
     load_lossless_ae_path: str | None = None
     load_density_model_path: str | None = None
     load_subject_model: bool = False
@@ -171,7 +171,9 @@ class FiberModel(FreeFormBase):
         # First the lossless vae
         ae_hparams = {}
         if self.hparams.load_lossless_ae_path is None:
-            ae_hparams["model_spec"] = self.hparams.lossless_ae
+            if self.hparams.lossless_ae is None:
+                raise ValueError("No lossless_ae specified!")
+            ae_hparams = self.hparams.lossless_ae
         elif self.hparams.lossless_ae is not None:
             warn("Overwriting model_spec from config with loaded model!")
         ae_hparams["data_dim"] = self.data_dim

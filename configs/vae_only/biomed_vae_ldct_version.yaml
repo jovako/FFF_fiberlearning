@@ -35,9 +35,32 @@ reconstruct_dims: 1
 train_lossless_ae: True
 vae: True
 lossless_ae:
-  - name: fff.model.LDCTInvModel
-    latent_dim: 256
-    ch_factor: 96
+  model_spec:
+    - name: fff.model.LDCTInvModel
+      latent_dim: 256
+      ch_factor: 96
+  cond_embedding_shape: [5, 128, 128]
+  cond_embedding_network:
+    - name: fff.model.ConvolutionalNeuralNetwork
+      latent_dim: &latent_dim 512
+      ch_factor: 32
+      image_shape: [5, 128, 128]
+      encoder_spec: []
+      decoder_spec:
+        - [128, 2]
+        - [64, 4, 2, 1, 0]   # 2 → 4
+        - [32, 4, 2, 1, 0]   # 4 → 8
+        - [16, 4, 2, 1, 0]   # 8 → 16
+        - [8, 4, 2, 1, 0]    # 16 → 32
+        - [4, 4, 2, 1, 0]    # 32 → 64
+        - [5, 4, 2, 1, 0]    # 64 → 128
+    - name: fff.model.ResNet
+      latent_dim: 512
+      layers_spec:
+        - [512, 512]
+  use_condition_decoder: True
+
+
 
 density_model:
   - name: fff.model.Identity

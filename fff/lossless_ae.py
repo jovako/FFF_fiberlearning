@@ -2,6 +2,7 @@ from torch.nn import Module
 import torch.nn as nn
 import torch
 import warnings
+from math import prod
 
 from fff.base import ModelHParams, build_model
 from ldctinv.pretrained import load_pretrained
@@ -19,7 +20,8 @@ class LosslessAEHParams(ModelHParams):
     train: bool = False
     use_ldct_networks: bool = False
     cond_embedding_network: list = []
-    use_cond_decoder: bool = False
+    cond_embedding_shape: int | list | None = None
+    use_condition_decoder: bool = False
 
 
 class LosslessAE(Module):
@@ -46,6 +48,19 @@ class LosslessAE(Module):
 
         self.hparams = hparams
         self.data_dim = self.hparams.data_dim
+
+        if self.hparams.cond_embedding_shape is None:
+            assert (
+                self.hparams.cond_embedding_network == []
+            ), "cond_embedding_shape must be specified if cond_embedding_network is specified"
+            self.hparams.cond_embedding_shape = [self.hparams.cond_dim]
+        else:
+            if isinstance(self.hparams.cond_embedding_shape, int):
+                self.hparams.cond_embedding_shape = [self.hparams.cond_embedding_shape]
+            assert not (
+                self.hparams.cond_embedding_network == []
+            ), "cond_embedding_network must be specified if cond_embedding_shape is specified"
+
         if self.hparams.vae and hparams["path"] is None:
             lat_dim = self.hparams.model_spec[-1]["latent_dim"]
             self.hparams.model_spec[-1]["latent_dim"] = lat_dim * 2
@@ -79,7 +94,9 @@ class LosslessAE(Module):
                 )
         else:
             self.models = build_model(
-                self.hparams.model_spec, self.data_dim, self.hparams.cond_dim
+                self.hparams.model_spec,
+                self.data_dim,
+                self.hparams.cond_embedding_shape[0],
             )
             if self.hparams.path:
                 lossless_ae_weights = {
@@ -98,13 +115,26 @@ class LosslessAE(Module):
                     "cond_embedding_network is not tested with use_ldct_networks"
                 )
             # Build a network to embed the conditioning
-            self.cond_embedder = build_model(
-                self.hparams.cond_embedding_network, self.hparams.cond_dim, 0
-            )
+            if self.hparams.use_condition_decoder:
+                self.condition_embedder = build_model(
+                    self.hparams.cond_embedding_network,
+                    prod(self.hparams.cond_embedding_shape),
+                    0,
+                )
+                for model in self.condition_embedder:
+                    del model.model.encoder
+            else:
+                self.condition_embedder = build_model(
+                    self.hparams.cond_embedding_network,
+                    prod(self.hparams.cond_embedding_shape),
+                    0,
+                )
+                for model in self.condition_embedder:
+                    del model.model.decoder
             if not self.hparams.train:
-                self.cond_embedder.eval()
+                self.condition_embedder.eval()
         else:
-            self.cond_embedder = Identity()
+            self.condition_embedder = Identity(self.hparams)
 
     @property
     def latent_dim(self):
@@ -117,17 +147,27 @@ class LosslessAE(Module):
         else:
             return self.models[-1].encoder.z_dim
 
+    def embed_condition(self, c):
+        if self.hparams.cond_embedding_network:
+            if self.hparams.use_condition_decoder:
+                for model in self.condition_embedder[::-1]:
+                    c = model.decode(
+                        c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype)
+                    )
+            else:
+                for model in self.condition_embedder:
+                    c = model.encode(
+                        c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype)
+                    )
+        return c.reshape(c.shape[0], *self.hparams.cond_embedding_shape)
+
     def decode(self, z, c):
         if self.hparams.cond_dim == 0:
             c = torch.empty((z.shape[0], 0), device=z.device, dtype=z.dtype)
         if self.hparams.use_ldct_networks:
             c = self.unflatten_c(c)
-        if self.hparams.cond_embedding_network:
-            if self.hparams.use_cond_decoder:
-                c = self.cond_embedder.decode(c)
-            else:
-                c = self.cond_embedder.encode(c)
-        if self.hparams.vae and not self.hparams.use_ldct_networks:
+        c = self.embed_condition(c)
+        if self.hparams.vae:
             z = torch.nn.functional.pad(z, (0, z.shape[1]))
         for model in self.models[::-1]:
             z = model.decode(z, c)
@@ -138,11 +178,7 @@ class LosslessAE(Module):
     def encode(self, x, c, mu_var=False):
         if self.hparams.cond_dim == 0:
             c = torch.empty((x.shape[0], 0), device=x.device, dtype=x.dtype)
-        if self.hparams.cond_embedding_network:
-            if self.hparams.use_cond_decoder:
-                c = self.cond_embedder.decode(c)
-            else:
-                c = self.cond_embedder.encode(c)
+        c = self.embed_condition(c)
         if self.hparams.use_ldct_networks:
             x = self.cat_x_c(x, c)
             x = self.unflatten(x)

@@ -35,6 +35,7 @@ class ConvolutionalNeuralNetworkHParams(ModelHParams):
     """
     batch_norm: bool | str = False
     instance_norm: bool = False
+    image_shape: None | list[int] = None
 
     def __init__(self, **hparams):
         # Compatibility with old checkpoints
@@ -73,7 +74,10 @@ class ConvolutionalNeuralNetwork(nn.Module):
             x = x[None, :]
             c = c[None, :]
         batch_size = x.shape[0]
-        input_shape = guess_image_shape(self.hparams.data_dim)
+        if self.hparams.image_shape is not None:
+            input_shape = torch.Size(self.hparams.image_shape)
+        else:
+            input_shape = guess_image_shape(self.hparams.data_dim)
         x_img = x.reshape(batch_size, *input_shape)
         c_img = c[:, :, None, None] * torch.ones(
             batch_size, self.hparams.cond_dim, *input_shape[1:], device=c.device
@@ -94,7 +98,10 @@ class ConvolutionalNeuralNetwork(nn.Module):
 
     def build_model(self):
         input_dim = self.hparams.data_dim
-        input_shape = guess_image_shape(input_dim)
+        if self.hparams.image_shape is not None:
+            input_shape = torch.Size(self.hparams.image_shape)
+        else:
+            input_shape = guess_image_shape(input_dim)
         cond_dim = self.hparams.cond_dim
 
         ch_factor = self.hparams.ch_factor
