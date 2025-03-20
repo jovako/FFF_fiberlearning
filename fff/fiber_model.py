@@ -76,6 +76,10 @@ class FiberModel(FreeFormBase):
 
         # Add learnable parameter for standard deviation for vae training
         self.lamb = torch.nn.Parameter(torch.ones(1), requires_grad=True)
+        if "perceptual_loss" in defaultdict(float, self.hparams.loss_weights):
+            vgg = torchmodels.vgg16(weights=torchmodels.VGG16_Weights.IMAGENET1K_V1)
+            vgg.eval()
+            self.vgg_features = vgg.features
 
     def init_models(self):
         # Ask whether the latent variebles should be passed by another learning model and which model class to use
@@ -548,12 +552,6 @@ class FiberModel(FreeFormBase):
                     loss_values.update(log_prob_result.regularizations)
 
         if check_keys("perceptual_loss"):
-            if not hasattr(self, "vgg_features"):
-                vgg = torchmodels.vgg16(
-                    weights=torchmodels.VGG16_Weights.IMAGENET1K_V1
-                ).to(x.device)
-                vgg.eval()
-                self.vgg_features = vgg.features
             perceptual_loss = 0
             # reshape into image and duplicate channels if necessary
             from fff.model.utils import guess_image_shape
