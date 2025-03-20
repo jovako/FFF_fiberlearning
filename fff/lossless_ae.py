@@ -105,7 +105,6 @@ class LosslessAE(Module):
                     if k.startswith("lossless_ae.models.")
                 }
                 self.models.load_state_dict(lossless_ae_weights)
-
         if not self.hparams.train:
             self.models.eval()
 

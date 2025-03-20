@@ -80,6 +80,8 @@ class FiberModel(FreeFormBase):
             vgg = torchmodels.vgg16(weights=torchmodels.VGG16_Weights.IMAGENET1K_V1)
             vgg.eval()
             self.vgg_features = vgg.features
+            for param in self.vgg_features.parameters():
+                param.requires_grad = False
 
     def init_models(self):
         # Ask whether the latent variebles should be passed by another learning model and which model class to use
