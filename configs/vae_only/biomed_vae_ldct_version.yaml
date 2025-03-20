@@ -20,35 +20,34 @@ data_set:
 
 eval_all: True
 loss_weights:
-  ae_elbo: 1.0
-  ae_noisy_reconstruction: 10
-  perceptual_loss: 100
-max_epochs: 40
-reconstruct_dims: 1
-
+  ae_elbo: 0.1
+  ae_noisy_l1_reconstruction: 0.1
+  perceptual_loss: 120
+  
+max_epochs: 250
 
 train_lossless_ae: True
 vae: True
 lossless_ae:
   model_spec:
     - name: fff.model.LDCTInvModel
-      latent_dim: 256
+      latent_dim: 4096
       ch_factor: 96
-  cond_embedding_shape: [5, 224, 224]
+  cond_embedding_shape: [16, 128, 128]
   cond_embedding_network:
     - name: fff.model.ConvolutionalNeuralNetwork
       latent_dim: &latent_dim 512
-      ch_factor: 1
-      image_shape: [5, 224, 224]
+      ch_factor: 32
+      image_shape: [16, 128, 128]
       encoder_spec: []
       decoder_spec:
         - [128, 3]
-        - [64, 4, 2, 1, 1]   # 2 → 4
-        - [32, 4, 2, 1, 0]   # 4 → 8
-        - [16, 4, 2, 1, 0]   # 8 → 16
-        - [8, 4, 2, 1, 0]    # 16 → 32
-        - [4, 4, 2, 1, 0]    # 32 → 64
-        - [5, 4, 2, 1, 0]    # 64 → 128
+        - [128, 4, 2, 1, 1]   # 2 → 4
+        - [64, 4, 2, 1, 0]   # 4 → 8
+        - [64, 4, 2, 1, 0]   # 8 → 16
+        - [32, 4, 2, 1, 0]    # 16 → 32
+        - [32, 4, 2, 1, 0]    # 32 → 64
+        - [16, 4, 2, 1, 0]    # 64 → 128
     - name: fff.model.ResNet
       latent_dim: 512
       layers_spec:
@@ -71,6 +70,6 @@ condition_embedder:
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.00005
+  lr: 0.0005
 
-batch_size: 2
+batch_size: 64
