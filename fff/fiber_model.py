@@ -45,6 +45,8 @@ class FiberModelHParams(FreeFormBaseHParams):
     reconstruct_dims: int = 1
     diffusion_betas_max: float = 0.2
     diffusion_beta_schedule: str = "linear"
+    add_noise_for_sm: bool = False
+
 
     eval_all: bool = True
     fiber_loss_every: int = 1
@@ -80,6 +82,8 @@ class FiberModel(FreeFormBase):
             vgg = torchmodels.vgg16(weights=torchmodels.VGG16_Weights.IMAGENET1K_V1)
             vgg.eval()
             self.vgg_features = vgg.features
+            for param in self.vgg_features.parameters():
+                param.requires_grad = False
 
     def init_models(self):
         # Ask whether the latent variebles should be passed by another learning model and which model class to use
@@ -673,10 +677,12 @@ class FiberModel(FreeFormBase):
                 z_random = self.sample_density(z_dense_random, c_random)
                 x_random = self.decode_lossless(z_random, c_random)
                 x_random_sm = x_random
-                if "data" in self.hparams["data_set"]:
-                    if self.hparams["data_set"]["data"] == "highdose":
+                if self.hparams.add_noise_for_sm:
+                    if self.hparams["data_set"].get("data") == "highdose":
                         # Add noise to the sampled highdose samples
                         x_random_sm = x_random + batch[1] - x
+                    else:
+                        raise(ValueError("Adding noise from condition only works for highdose images as data"))
 
                 # Try whether the model learns fibers and therefore has a subject model
                 try:
@@ -787,9 +793,11 @@ class FiberModel(FreeFormBase):
 
         conds = []
         x_sm = x0
-        if "data" in self.hparams["data_set"]:
-            if self.hparams["data_set"]["data"] == "highdose":
+        if self.hparams.add_noise_for_sm:
+            if self.hparams["data_set"].get("data") == "highdose":
                 x_sm = batch[1]
+            else:
+                raise(ValueError("Adding noise from condition only works for highdose images as data"))
 
         # Dataset condition
         if self.is_conditional() and len(batch) != 2:

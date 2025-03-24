@@ -10,8 +10,11 @@ import torch
 from ldctinv.utils import load_yaml
 from torch.utils.data import Dataset
 from warnings import warn
+from PIL import Image
+
 
 from fff.data.utils import TrainValTest
+
 
 def get_ldct_datasets(root: str, **kwargs) -> TrainValTest:
     train = LDCTMayo(mode="train", datafolder=root, **kwargs)
@@ -23,16 +26,20 @@ def get_ldct_datasets(root: str, **kwargs) -> TrainValTest:
 class LDCTMayo(Dataset):
     """Dataset class for the LDCT dataset"""
 
-    def __init__(self, mode: str, datafolder: str,
-                 data: str = "lowdose",
-                 condition: str | None = None,
-                 seed: int = 42, 
-                 patchsize: int = 128, 
-                 data_subset: float = 1.0, 
-                 data_norm: str = "meanstd", 
-                 return_tuple: bool = True,
-                 **kwargs):
-
+    def __init__(
+        self,
+        mode: str,
+        datafolder: str,
+        data: str = "lowdose",
+        condition: str | None = None,
+        seed: int = 42,
+        patchsize: int = 128,
+        data_subset: float = 1.0,
+        data_norm: str = "meanstd",
+        return_tuple: bool = True,
+        resize_to: int | None = None,
+        **kwargs,
+    ):
         """Init function
 
         Parameters
@@ -55,7 +62,7 @@ class LDCTMayo(Dataset):
             Normalization of the data, must be `meanstd` or `minmax`.
         return_tuple : bool
             Whether to return a tuple or a dictionary.
-        
+
         Attributes
         ----------
         seed: int
@@ -88,12 +95,22 @@ class LDCTMayo(Dataset):
         self.patchsize = patchsize
         self.data_subset = data_subset
         self.data_norm = data_norm
-        self.info = load_yaml(os.path.join(os.path.dirname(os.path.realpath(__file__)), "ldct_info.yml"))
+        self.info = load_yaml(
+            os.path.join(os.path.dirname(os.path.realpath(__file__)), "ldct_info.yml")
+        )
         self.return_tuple = return_tuple
         self.data = data
         self.condition = condition
-        assert self.data in ["lowdose", "highdose"], "Data must be either lowdose or highdose"
-        assert self.condition in [None, "lowdose", "highdose"], "Condition must be either lowdose or highdose"
+        self.resize_to = resize_to
+        assert self.data in [
+            "lowdose",
+            "highdose",
+        ], "Data must be either lowdose or highdose"
+        assert self.condition in [
+            None,
+            "lowdose",
+            "highdose",
+        ], "Condition must be either lowdose or highdose"
         if self.condition == self.data:
             raise ValueError("Data and condition must be different")
 
@@ -135,7 +152,9 @@ class LDCTMayo(Dataset):
         if self.data_norm == "meanstd":
             return (X - self.info["mean"]) / self.info["std"]
         elif self.data_norm == "minmax":
-            return (X - float(self.info["min"])) / (float(self.info["max"]) - float(self.info["min"]))
+            return (X - float(self.info["min"])) / (
+                float(self.info["max"]) - float(self.info["min"])
+            )
         else:
             raise ValueError(f"Unknown normalization method {self.data_norm}")
 
@@ -196,31 +215,47 @@ class LDCTMayo(Dataset):
         List[np.ndarray]
             List of cropped images
         """
-        assert all([im.shape == images[0].shape for im in images]), "All images must have same shape!"
+        assert all(
+            [im.shape == images[0].shape for im in images]
+        ), "All images must have same shape!"
 
-        if (self.patchsize != images[0].shape[0] or self.patchsize != images[0].shape[1]) and self.patchsize:
+        if (
+            self.patchsize != images[0].shape[0] or self.patchsize != images[0].shape[1]
+        ) and self.patchsize:
             x = np.random.randint(images[0].shape[0] - self.patchsize)
             y = np.random.randint(images[0].shape[1] - self.patchsize)
-            images = [im[x : x + self.patchsize, y : y + self.patchsize] for im in images]
+            images = [
+                im[x : x + self.patchsize, y : y + self.patchsize] for im in images
+            ]
         return images
+
+    def _resize(self, X: np.ndarray | None) -> np.ndarray | None:
+        """Resize image to `self.resize_to` using bicubic interpolation"""
+        if self.resize_to is None or X is None:
+            return X
+        return np.array(
+            Image.fromarray(X).resize((self.resize_to, self.resize_to), Image.BICUBIC)
+        )
 
     @staticmethod
     def to_torch(X: np.ndarray) -> torch.Tensor:
         """Convert input image to torch tensor and unsqueeze"""
         return torch.unsqueeze(torch.from_numpy(X), 0)
-    
+
     def reset_seed(self):
         """Reset random seeds"""
         np.random.seed(self.seed)
         random.seed(self.seed)
 
-    def prepare_return_values(self, lowdose: np.ndarray | None, highdose: np.ndarray | None):
+    def prepare_return_values(
+        self, lowdose: np.ndarray | None, highdose: np.ndarray | None
+    ):
         """Prepare return values"""
         data_out = lowdose if self.data == "lowdose" else highdose
         data_out = self.to_torch(self._normalize(data_out)).flatten()
         if self.condition is None:
             if self.return_tuple:
-                return (data_out, )
+                return (data_out,)
             else:
                 return {"x": data_out}
 
@@ -244,26 +279,28 @@ class LDCTMayo(Dataset):
         f_name = self._idx2filename(sample["slice"], sample["n_slices"])
 
         if self.condition is not None:
-            lowdose = pydicom.filereader.dcmread(os.path.join(self.path, sample["input"][2:], f_name)).pixel_array.astype(
-                "float32"
-            )
-            highdose = pydicom.filereader.dcmread(os.path.join(self.path, sample["target"][2:], f_name)).pixel_array.astype(
-                "float32"
-            )
+            lowdose = pydicom.filereader.dcmread(
+                os.path.join(self.path, sample["input"][2:], f_name)
+            ).pixel_array.astype("float32")
+            highdose = pydicom.filereader.dcmread(
+                os.path.join(self.path, sample["target"][2:], f_name)
+            ).pixel_array.astype("float32")
 
             # Crop gt and input
             lowdose, highdose = self._random_crop([lowdose, highdose])
         elif self.data == "lowdose":
-            lowdose = pydicom.filereader.dcmread(os.path.join(self.path, sample["input"][2:], f_name)).pixel_array.astype(
-                "float32"
-            )
+            lowdose = pydicom.filereader.dcmread(
+                os.path.join(self.path, sample["input"][2:], f_name)
+            ).pixel_array.astype("float32")
             lowdose = self._random_crop([lowdose])[0]
             highdose = None
         elif self.data == "highdose":
-            highdose = pydicom.filereader.dcmread(os.path.join(self.path, sample["target"][2:], f_name)).pixel_array.astype(
-                "float32"
-            )
+            highdose = pydicom.filereader.dcmread(
+                os.path.join(self.path, sample["target"][2:], f_name)
+            ).pixel_array.astype("float32")
             highdose = self._random_crop([highdose])[0]
             lowdose = None
-        
+        lowdose = self._resize(lowdose)
+        highdose = self._resize(highdose)
+
         return self.prepare_return_values(lowdose, highdose)

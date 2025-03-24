@@ -105,7 +105,6 @@ class LosslessAE(Module):
                     if k.startswith("lossless_ae.models.")
                 }
                 self.models.load_state_dict(lossless_ae_weights)
-
         if not self.hparams.train:
             self.models.eval()
 
@@ -135,6 +134,7 @@ class LosslessAE(Module):
                 self.condition_embedder.eval()
         else:
             self.condition_embedder = Identity(self.hparams)
+
 
     @property
     def latent_dim(self):

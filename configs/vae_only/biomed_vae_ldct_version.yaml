@@ -11,8 +11,10 @@ latent_distribution:
 data_set:
   name: ldct
   root: /home/hd/hd_hd/hd_gu452/ldct_data
-  condition: highdose 
-  data: lowdose
+  condition: lowdose
+  data: highdose
+  patchsize: 512
+  resize_to: 224
   subject_model_type: PrecompiledModel
   subject_model_path: notebooks/SubjectModels/saved_models/BiomedClip.pt
 
@@ -30,21 +32,21 @@ lossless_ae:
   model_spec:
     - name: fff.model.LDCTInvModel
       latent_dim: 4096
-      ch_factor: 96
-  cond_embedding_shape: [16, 128, 128]
+      ch_factor: 48
+  cond_embedding_shape: [16, 224, 224]
   cond_embedding_network:
     - name: fff.model.ConvolutionalNeuralNetwork
       latent_dim: &latent_dim 512
-      ch_factor: 32
-      image_shape: [16, 128, 128]
+      ch_factor: 1
+      image_shape: [16, 224, 224]
       encoder_spec: []
       decoder_spec:
-        - [8, 2]
-        - [8, 4, 2, 1, 0]   # 2 → 4
-        - [4, 4, 2, 1, 0]   # 4 → 8
-        - [4, 4, 2, 1, 0]   # 8 → 16
-        - [2, 4, 2, 1, 0]    # 16 → 32
-        - [1, 4, 2, 1, 0]    # 32 → 64
+        - [128, 3]
+        - [128, 4, 2, 1, 1]   # 2 → 4
+        - [64, 4, 2, 1, 0]   # 4 → 8
+        - [64, 4, 2, 1, 0]   # 8 → 16
+        - [32, 4, 2, 1, 0]    # 16 → 32
+        - [32, 4, 2, 1, 0]    # 32 → 64
         - [16, 4, 2, 1, 0]    # 64 → 128
     - name: fff.model.ResNet
       latent_dim: 512
@@ -71,3 +73,8 @@ optimizer:
   lr: 0.0005
 
 batch_size: 64
+
+model_checkpoint:
+  monitor: auto
+  save_last: true
+)

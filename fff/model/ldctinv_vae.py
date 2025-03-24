@@ -180,7 +180,7 @@ class Generator(nn.Module):
         self.output_size = output_size
         self.num_layers = int(math.log2(output_size)) - 2
 
-        self.sa_id = min(4, self.num_layers - 1)
+        self.sa_id = self.num_layers - 2
         self.num_split = 6
         self.linear = nn.Linear(n_class, 128, bias=False)
 
