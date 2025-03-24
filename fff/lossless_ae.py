@@ -28,7 +28,10 @@ class LosslessAE(Module):
         if "path" in hparams and hparams["path"] is not None and not self.ldct:
             print("Loading lossless_ae checkpoint from: ", hparams["path"])
             checkpoint = torch.load(hparams["path"])
-            hparams["model_spec"] = checkpoint["hyper_parameters"]["lossless_ae"]
+            try:
+                hparams["model_spec"] = checkpoint["hyper_parameters"]["lossless_ae"]
+            except:
+                hparams["model_spec"] = checkpoint["hyper_parameters"]["models"]
 
         if not isinstance(hparams, LosslessAEHParams):
             hparams = LosslessAEHParams(**hparams)
@@ -70,9 +73,14 @@ class LosslessAE(Module):
                 model_spec, self.data_dim, self.hparams.cond_dim
             )
             if self.hparams.path:
-                lossless_ae_weights = {k[19:]: v for k, v in checkpoint["state_dict"].items()
-                                  if k.startswith("lossless_ae.models.")}
-                self.models.load_state_dict(lossless_ae_weights)
+                try:
+                    lossless_ae_weights = {k[19:]: v for k, v in checkpoint["state_dict"].items()
+                                      if k.startswith("lossless_ae.models.")}
+                    self.models.load_state_dict(lossless_ae_weights)
+                except:
+                    lossless_ae_weights = {k[7:]: v for k, v in checkpoint["state_dict"].items()
+                                      if k.startswith("models.")}
+                    self.models.load_state_dict(lossless_ae_weights)
         if not self.hparams.train:
             self.models.eval()
 
