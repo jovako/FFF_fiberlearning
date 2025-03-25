@@ -11,6 +11,7 @@ latent_distribution:
 data_set:
   name: ldct
   root: /home/hd/hd_hd/hd_gu452/ldct_data
+  # root: /mnt/SSD_2TB/ldct_data
   condition: lowdose
   data: highdose
   patchsize: 512
@@ -24,15 +25,16 @@ loss_weights:
   ae_noisy_l1_reconstruction: 1
   perceptual_loss: 120
   
-max_epochs: 250
+max_epochs: 500
 
 train_lossless_ae: True
 vae: True
 lossless_ae:
   model_spec:
     - name: fff.model.LDCTInvModel
-      latent_dim: 1024
-      ch_factor: 48
+      latent_dim: 3920
+      ch_factor: 96
+      latent_image: True
   cond_embedding_shape: [16, 224, 224]
   cond_embedding_network:
     - name: fff.model.ConvolutionalNeuralNetwork
@@ -51,6 +53,7 @@ lossless_ae:
     - name: fff.model.ResNet
       latent_dim: 512
       layers_spec:
+        - [512, 512]
         - [512, 512]
   use_condition_decoder: True
 
@@ -73,8 +76,10 @@ optimizer:
   lr: 0.0005
 
 batch_size: 64
+# batch_size: 2
+
+num_workers: 8
 
 model_checkpoint:
   monitor: auto
   save_last: true
-
