@@ -52,6 +52,7 @@ lossless_ae:
       latent_dim: 512
       layers_spec:
         - [512, 512]
+        - [512, 512]
   use_condition_decoder: True
 
 
