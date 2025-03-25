@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from fff.model.utils import guess_image_shape
 from math import prod
 
+
 class SubjectModel(torch.nn.Module):
     def __init__(self, subject_model_path, model_type=None, truncate=False):
         super(SubjectModel, self).__init__()
@@ -46,6 +47,9 @@ class SubjectModel(torch.nn.Module):
 
         if truncate:
             self.model = Truncate(self.model)
+
+        for param in self.model.parameters():
+            param.requires_grad = False
 
     def forward(self, x, *c, **kwargs):
         if self.model is None:
