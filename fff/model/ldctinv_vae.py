@@ -1,4 +1,3 @@
-import warnings
 import math
 import torch
 import torch.nn as nn
@@ -7,14 +6,12 @@ import torch.nn.functional as F
 from fff.model.utils import guess_image_shape
 from fff.base import ModelHParams
 
-from ldctinv.utils.distributions import DiagonalGaussianDistribution
 from ldctinv.vae.network import ResnetEncoder, ClassUp
 from ldctinv.vae.blocks import (
     ActNorm,
     GBlock,
     SelfAttention,
     SpectralNorm,
-    DenseEncoderLayer,
 )
 
 
@@ -25,6 +22,7 @@ class LDCTInvHParams(ModelHParams):
     encoder_pretrained: bool = False
     ch_factor: int = 96
     image_shape: list[int] | None = None
+    latent_image: bool = False
 
 
 class LDCTInvModel(nn.Module):
@@ -44,17 +42,23 @@ class LDCTInvModel(nn.Module):
         input_size = input_shape[1]
         z_dim = hparams.latent_dim
 
-        self.encoder = ResnetEncoderSingleOutput(
-            in_ch,
-            cond_ch,
-            z_dim,
+        self.encoder = ResnetEncoder(
+            in_ch + cond_ch,
+            z_dim // 2,
             input_size,
             hparams.encoder_norm,
             hparams.encoder_type,
             hparams.encoder_pretrained,
+            hparams.latent_image,
         )
         self.decoder = BigGANDecoderAnySize(
-            in_ch, hparams.ch_factor, cond_ch, z_dim, input_size, hparams.decoder_norm
+            in_ch,
+            hparams.ch_factor,
+            cond_ch,
+            z_dim,
+            input_size,
+            hparams.decoder_norm,
+            hparams.latent_image,
         )
 
     def cat_x_c(self, x, c):
@@ -101,34 +105,14 @@ class LDCTInvModel(nn.Module):
         return self.decoder(u, im_cond=c).flatten(1)
 
 
-class ResnetEncoderSingleOutput(ResnetEncoder):
-    def __init__(
-        self,
-        in_ch,
-        cond_ch,
-        z_dim,
-        input_size,
-        norm,
-        net_type="resnet50",
-        pretrained=False,
-    ):
-        super().__init__(in_ch + cond_ch, z_dim, input_size, norm, net_type, pretrained)
-
-        size_pre_fc = self._get_spatial_size()
-
-        self.model.fc = DenseEncoderLayer(
-            0,
-            spatial_size=size_pre_fc[2],
-            out_size=z_dim,
-            in_channels=size_pre_fc[1],
-        )
-
-
 class BigGANDecoderAnySize(nn.Module):
     """Wraps a BigGAN into our autoencoding framework"""
 
-    def __init__(self, im_ch, chn, cond_ch, z_dim, input_size, decoder_norm):
+    def __init__(
+        self, im_ch, chn, cond_ch, z_dim, input_size, decoder_norm, latimage=False
+    ):
         super().__init__()
+        self.latimage = latimage
         self.z_dim = z_dim
         use_actnorm = True if decoder_norm == "an" else False
         class_embedding_dim = 1000
@@ -150,7 +134,7 @@ class BigGANDecoderAnySize(nn.Module):
             use_actnorm=use_actnorm,
             cond_ch=cond_ch,
             output_size=input_size,
-            latimage=False,
+            latimage=self.latimage,
         )
 
     def forward(self, x, labels=None, im_cond=None):
@@ -173,20 +157,29 @@ class Generator(nn.Module):
         latimage=False,
     ):
         super().__init__()
+
         self.latimage = latimage
-        if latimage:
-            raise NotImplementedError("Latent image is currently not working properly")
         self.z_dim = z_dim
         self.output_size = output_size
-        self.num_layers = int(math.log2(output_size)) - 2
+        if not latimage:
+            self.num_layers = int(math.log2(output_size)) - 2
+        else:
+            self.num_layers = 5  # number of downsampling layers in ResNet50
+        self.init_side_length = self.output_size // (2 ** (self.num_layers - latimage))
+        if latimage and z_dim % (self.init_side_length) ** 2 != 0:
+            raise ValueError(
+                f"z_dim must be divisible by latent resolution**2 {(self.init_side_length**2)} when latimage=True"
+            )
 
         self.sa_id = self.num_layers - 2
-        self.num_split = 6
-        self.linear = nn.Linear(n_class, 128, bias=False)
+        self.num_split = self.num_layers + 1
+        self.linear = nn.Linear(n_class, 2 * (self.init_side_length**2), bias=False)
 
         if self.latimage:
             split_size = 1
-            self.first_view = z_dim // 64 - (self.num_split - 1) * split_size
+            self.first_view = (
+                z_dim // (self.init_side_length**2) - (self.num_split - 1) * split_size
+            )
             first_split = self.first_view
         else:
             split_size = 20
@@ -206,7 +199,7 @@ class Generator(nn.Module):
         channels = [first_chn] + [
             chn * (2**i) for i in range(self.num_layers - 1, -1, -1)
         ]
-
+        print(channels)
         self.GBlock = nn.ModuleList(
             [
                 GBlock(
@@ -214,7 +207,7 @@ class Generator(nn.Module):
                     channels[i + 1],
                     n_class=n_class,
                     z_dim=G_block_z_dim,
-                    upsample=not self.latimage,
+                    upsample=(not self.latimage) or i > 0,
                     latimage=self.latimage,
                 )
                 for i in range(self.num_layers)
@@ -232,19 +225,30 @@ class Generator(nn.Module):
         )
 
     def forward(self, input, class_id, im_cond=None):
+
         if self.latimage:
-            input = input.view(-1, self.z_dim // 64, 8, 8)
+            input = input.view(
+                -1,
+                self.z_dim // (self.init_side_length**2),
+                self.init_side_length,
+                self.init_side_length,
+            )
+
         codes = torch.split(input, self.split_at, 1)
         class_emb = self.linear(class_id)
 
         if not self.latimage:
             out = self.G_linear(codes[0])
-            side_length = self.output_size // (2**self.num_layers)
             out = out.view(
-                -1, side_length, side_length, self.first_view // (side_length**2)
+                -1,
+                self.init_side_length,
+                self.init_side_length,
+                self.first_view // (self.init_side_length**2),
             ).permute(0, 3, 1, 2)
         else:
-            class_emb = class_emb.view(-1, 2, 8, 8)
+            class_emb = class_emb.view(
+                -1, 2, self.init_side_length, self.init_side_length
+            )
             out = codes[0]
 
         for i, (code, GBlock) in enumerate(zip(codes[1:], self.GBlock)):
@@ -255,6 +259,8 @@ class Generator(nn.Module):
                 condition = F.interpolate(condition, scale_factor=2 ** (i - 1))
             if im_cond is not None:
                 scale_factor = 1 / 2 ** (self.num_layers - i)
+                if self.latimage and i == 0:
+                    scale_factor = 1 / 2 ** (self.num_layers - i - 1)
                 im_cond_rescaled = F.interpolate(im_cond, scale_factor=scale_factor)
                 out = torch.cat([out, im_cond_rescaled], 1)
             out = GBlock(out, condition)

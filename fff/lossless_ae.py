@@ -135,7 +135,6 @@ class LosslessAE(Module):
         else:
             self.condition_embedder = Identity(self.hparams)
 
-
     @property
     def latent_dim(self):
         if not self.hparams.use_ldct_networks:
