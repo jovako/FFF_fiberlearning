@@ -186,6 +186,8 @@ class FiberModel(FreeFormBase):
         if self.hparams.ae_conditional:
             ae_hparams["cond_dim"] = self.ae_cond_dim
         ae_hparams["vae"] = self.vae
+        if "path" in ae_hparams.keys():
+            raise(RuntimeError("Specificy pretrained models via the load_lossless_ae_path flag, not the path key in lossless_ae hparams"))
         ae_hparams["path"] = self.hparams.load_lossless_ae_path
         ae_hparams["train"] = self.hparams.train_lossless_ae
         self.lossless_ae = LosslessAE(ae_hparams)
@@ -693,7 +695,7 @@ class FiberModel(FreeFormBase):
                 try:
                     # There might be no subject model
                     c_sm = torch.empty(x_random.shape[0], 0).to(x_random.device)
-                    c1 = self.subject_model.encode(x_random_sm, c_sm)
+                    c1 = self.subject_model.encode(x_random_sm)
                     # c0 = self.subject_model.encode(x0, c_sm)
                     loss_values["fiber_loss"] = self._reduced_rec_loss(c_random, c1)
                 except Exception as e:

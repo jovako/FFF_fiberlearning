@@ -29,13 +29,14 @@ class LosslessAE(Module):
     hparams: LosslessAEHParams
 
     def __init__(self, hparams: LosslessAEHParams | dict):
-        if (
-            "path" in hparams
-            and hparams["path"] is not None
-            and not hparams["use_pretrained_ldct_networks"]
-        ):
-            checkpoint = torch.load(hparams["path"])
-            hparams["model_spec"] = checkpoint["hyper_parameters"]["lossless_ae"]
+        if hparams.get("path") and not hparams.get("use_pretrained_ldct_networks"):
+            checkpoint = torch.load(hparams["path"], weights_only=False)
+            print("Overwriting lossless ae model spec with pretrained model")
+            hparams["model_spec"] = checkpoint["hyper_parameters"]["lossless_ae"]["model_spec"]
+            hparams["cond_embedding_network"] = checkpoint["hyper_parameters"]["lossless_ae"].get("cond_embedding_network")
+            hparams["cond_embedding_shape"] = checkpoint["hyper_parameters"]["lossless_ae"].get("cond_embedding_shape")
+            hparams["use_condition_decoder"] = checkpoint["hyper_parameters"]["lossless_ae"].get("use_condition_decoder")
+            hparams["vae"] = checkpoint["hyper_parameters"]["lossless_ae"].get("vae")
 
         if not isinstance(hparams, LosslessAEHParams):
             hparams = LosslessAEHParams(**hparams)

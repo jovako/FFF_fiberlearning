@@ -7,8 +7,13 @@ import os
 from omegaconf import OmegaConf
 import requests
 from math import prod
-from taming.models.vqgan import VQModel as VQModelTaming
-from taming.modules.vqvae.quantize import VectorQuantizer2
+
+try:
+    from taming.models.vqgan import VQModel as VQModelTaming
+    from taming.modules.vqvae.quantize import VectorQuantizer2
+except:
+    print("Importing vq models failed")
+
 
 CONFIG_URLS = {
     "ImageNet_16384": "https://heibox.uni-heidelberg.de/d/a7530b09fed84f80a887/files/?p=%2Fconfigs%2Fmodel.yaml&dl=1",
