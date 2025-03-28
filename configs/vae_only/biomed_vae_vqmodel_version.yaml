@@ -1,0 +1,70 @@
+model: fff.FiberModel
+
+val_every_n_epoch: 5
+cond_dim: 512
+compute_c_on_fly: True
+noise: 0.
+ae_conditional: True
+load_subject_model: True
+latent_distribution:
+  name: "normal"
+data_set:
+  name: ldct
+  # root: /home/hd/hd_hd/hd_gu452/ldct_data
+  root: /mnt/SSD_2TB/ldct_data
+  condition: lowdose
+  data: highdose
+  patchsize: 512
+  resize_to: 224
+  subject_model_type: PrecompiledModel
+  subject_model_path: notebooks/SubjectModels/saved_models/BiomedClip.pt
+
+eval_all: True
+loss_weights:
+  # ae_elbo: 0.1
+  ae_noisy_l1_reconstruction: 1
+  perceptual_loss: 120
+  
+max_epochs: 100
+
+train_lossless_ae: True
+vae: False
+lossless_ae:
+  model_spec:
+    - name: fff.model.VQModel
+      latent_dim: 12544
+  cond_embedding_shape: 512
+  cond_embedding_network:
+    - name: fff.model.ResNet
+      latent_dim: 512
+      layers_spec:
+        - [512, 512]
+        - [512, 512]
+  use_condition_decoder: True
+
+
+
+density_model:
+  - name: fff.model.Identity
+
+
+condition_embedder:
+  - name: fff.model.ResNet
+    latent_dim: 512
+    layers_spec:
+      - [512, 512, 512]
+
+
+lr_scheduler: "onecyclelr"
+optimizer:
+  name: adam
+  lr: 0.0005
+
+# batch_size: 64
+batch_size: 2
+
+num_workers: 8
+
+model_checkpoint:
+  monitor: auto
+  save_last: true
