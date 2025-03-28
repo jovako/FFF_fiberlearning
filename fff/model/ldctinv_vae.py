@@ -199,7 +199,6 @@ class Generator(nn.Module):
         channels = [first_chn] + [
             chn * (2**i) for i in range(self.num_layers - 1, -1, -1)
         ]
-        print(channels)
         self.GBlock = nn.ModuleList(
             [
                 GBlock(

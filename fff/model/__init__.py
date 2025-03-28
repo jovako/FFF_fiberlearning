@@ -4,6 +4,7 @@ from .conv_auto_encoder import (
     ConvolutionalNeuralNetworkHParams,
 )
 from .ldctinv_vae import LDCTInvModel, LDCTInvHParams
+from .vqmodel import VQModel, VQModelHParams
 from .inn import INN, INNHParams
 from .multilevel_flow import MultilevelFlow, MultilevelFlowHParams
 from .denoising_flow import DenoisingFlow, DenoisingFlowHParams

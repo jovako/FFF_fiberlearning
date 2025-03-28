@@ -47,7 +47,6 @@ class FiberModelHParams(FreeFormBaseHParams):
     diffusion_beta_schedule: str = "linear"
     add_noise_for_sm: bool = False
 
-
     eval_all: bool = True
     fiber_loss_every: int = 1
     cnew_every: int = 1  # deprecated and not used anymore
@@ -135,7 +134,6 @@ class FiberModel(FreeFormBase):
             )
             self.hparams.density_model[-1]["betas"] = (self.betas,)
             self.alphas_ = torch.cumprod((1 - self.betas), axis=0)
-            print(self.alphas_.shape)
             self.sample_steps = torch.linspace(0, 1, 1000).flip(0)
         else:
             assert not any(
@@ -590,7 +588,9 @@ class FiberModel(FreeFormBase):
             z_dense = self.encode_density(z.detach(), c)
 
         # Reconstruction of latent z
-        if val_all_metrics or check_keys("latent_reconstruction"):
+        if val_all_metrics or check_keys(
+            "latent_reconstruction", "latent_l1_reconstruction"
+        ):
             if self.density_model_type == "diffusion":
                 raise ValueError(
                     "latent_reconstruction is not available for diffusion models"
@@ -600,6 +600,7 @@ class FiberModel(FreeFormBase):
             loss_values["latent_reconstruction"] = self._reconstruction_loss(
                 z.detach(), z1
             )
+            loss_values["latent_l1_reconstruction"] = self._l1_loss(z.detach(), z1)
 
         # Wasserstein distance of marginal to Gaussian
         with torch.no_grad():
@@ -682,7 +683,11 @@ class FiberModel(FreeFormBase):
                         # Add noise to the sampled highdose samples
                         x_random_sm = x_random + batch[1] - x
                     else:
-                        raise(ValueError("Adding noise from condition only works for highdose images as data"))
+                        raise (
+                            ValueError(
+                                "Adding noise from condition only works for highdose images as data"
+                            )
+                        )
 
                 # Try whether the model learns fibers and therefore has a subject model
                 try:
@@ -797,7 +802,11 @@ class FiberModel(FreeFormBase):
             if self.hparams["data_set"].get("data") == "highdose":
                 x_sm = batch[1]
             else:
-                raise(ValueError("Adding noise from condition only works for highdose images as data"))
+                raise (
+                    ValueError(
+                        "Adding noise from condition only works for highdose images as data"
+                    )
+                )
 
         # Dataset condition
         if self.is_conditional() and len(batch) != 2:

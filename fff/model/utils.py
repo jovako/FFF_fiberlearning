@@ -8,12 +8,26 @@ import torch
 from lightning import Callback
 from torch import nn
 import torch.nn.functional as F
+import os
+import urllib.parse
+
+
+def is_url(path: str) -> bool:
+    """Returns True if the string is a URL."""
+    parsed = urllib.parse.urlparse(path)
+    return parsed.scheme in ("http", "https", "ftp")
+
+
+def is_local_path(path: str) -> bool:
+    """Returns True if the string is a local file path."""
+    return os.path.exists(path) or os.path.isabs(path)
 
 
 class Sin(nn.Module):
     def forward(self, x):
         return torch.sin(x)
-    
+
+
 class Swish(nn.Module):
     def __init__(self, beta=1.0):
         super().__init__()
@@ -21,26 +35,34 @@ class Swish(nn.Module):
 
     def forward(self, x):
         return x * torch.sigmoid(self.beta * x)
-    
+
+
 torch.nn.Sin = Sin
 torch.nn.Swish = Swish
 
+
 def get_module(name):
-    """ Get a nn.Module in a case-insensitive way """
+    """Get a nn.Module in a case-insensitive way"""
     modules = torch.nn.__dict__
     modules = {
-        key.lower(): value for key, value in modules.items()
+        key.lower(): value
+        for key, value in modules.items()
         if isclass(value) and issubclass(value, torch.nn.Module)
     }
 
     return modules[name.lower()]
 
 
-def make_dense(widths: list[int], activation: str, dropout: float = None, batch_norm: str | bool = False):
-    """ Make a Dense Network from given layer widths and activation function """
+def make_dense(
+    widths: list[int],
+    activation: str,
+    dropout: float = None,
+    batch_norm: str | bool = False,
+):
+    """Make a Dense Network from given layer widths and activation function"""
     if len(widths) < 2:
         raise ValueError("Need at least Input and Output Layer.")
-    #print(widths)
+    # print(widths)
     Activation = get_module(activation)
 
     network = nn.Sequential()
@@ -52,7 +74,9 @@ def make_dense(widths: list[int], activation: str, dropout: float = None, batch_
         hidden_layer = nn.Linear(in_features=widths[i], out_features=widths[i + 1])
         network.add_module(f"Hidden_Layer_{i}", hidden_layer)
         if batch_norm is not False:
-            network.add_module(f"Batch_Norm_{i}", wrap_batch_norm1d(batch_norm, widths[i + 1]))
+            network.add_module(
+                f"Batch_Norm_{i}", wrap_batch_norm1d(batch_norm, widths[i + 1])
+            )
         network.add_module(f"Hidden_Activation_{i}", Activation())
 
     # output is velocity
@@ -70,19 +94,14 @@ def guess_image_shape(dim):
     else:
         n_channels = 1
     size = round(sqrt(dim // n_channels))
-    if size ** 2 * n_channels != dim:
-        raise ValueError(f"Input is not square: "
-                         f"{size} ** 2 != {dim // n_channels}")
+    if size**2 * n_channels != dim:
+        raise ValueError(f"Input is not square: " f"{size} ** 2 != {dim // n_channels}")
     return n_channels, size, size
 
 
 def subnet_factory(inner_widths, activation, zero_init=True):
     def make_subnet(dim_in, dim_out):
-        network = make_dense([
-            dim_in,
-            *inner_widths,
-            dim_out
-        ], activation)
+        network = make_dense([dim_in, *inner_widths, dim_out], activation)
 
         if zero_init:
             network[-1].weight.data.zero_()
@@ -97,12 +116,16 @@ def make_inn(inn_spec, *data_dim, cond_dim=0, zero_init=True, cond=0):
     inn = FrEIA.framework.SequenceINN(*data_dim)
     for inn_layer in inn_spec:
         module_name, module_args, subnet_widths = inn_layer
-        if (module_name == "RationalQuadraticSpline" and data_dim[0] == 1):
+        if module_name == "RationalQuadraticSpline" and data_dim[0] == 1:
             print(data_dim, cond_dim)
             module_name = "ElementwiseRationalQuadraticSpline"
         module_class = getattr(FrEIA.modules, module_name)
         extra_module_args = dict()
-        if "subnet_constructor" not in module_args and module_name not in ["PermuteRandom", "ActNorm", "InvAutoActTwoSided"]:
+        if "subnet_constructor" not in module_args and module_name not in [
+            "PermuteRandom",
+            "ActNorm",
+            "InvAutoActTwoSided",
+        ]:
             extra_module_args["subnet_constructor"] = subnet_factory(
                 subnet_widths, "leakyrelu", zero_init=zero_init
             )
@@ -232,6 +255,7 @@ class TrainWallClock(Callback):
     def state_dict(self):
         return self.state.copy()
 
+
 class CrossAttention(nn.Module):
     def __init__(self, input_dim, condition_dim, num_heads):
         super(CrossAttention, self).__init__()
@@ -241,7 +265,7 @@ class CrossAttention(nn.Module):
         self.value = nn.Linear(condition_dim, input_dim)
         self.out = nn.Linear(input_dim, input_dim)
         self.init = nn.Parameter(torch.zeros(1))
-        
+
     def forward(self, x, condition):
         batch_size = x.size(0)
         # Linear projections
@@ -250,17 +274,26 @@ class CrossAttention(nn.Module):
         values = self.value(condition)
 
         # Reshape for multi-head attention
-        queries = queries.view(batch_size, -1, self.num_heads, queries.size(-1) // self.num_heads).transpose(1, 2)
-        keys = keys.view(batch_size, -1, self.num_heads, keys.size(-1) // self.num_heads).transpose(1, 2)
-        values = values.view(batch_size, -1, self.num_heads, values.size(-1) // self.num_heads).transpose(1, 2)
+        queries = queries.view(
+            batch_size, -1, self.num_heads, queries.size(-1) // self.num_heads
+        ).transpose(1, 2)
+        keys = keys.view(
+            batch_size, -1, self.num_heads, keys.size(-1) // self.num_heads
+        ).transpose(1, 2)
+        values = values.view(
+            batch_size, -1, self.num_heads, values.size(-1) // self.num_heads
+        ).transpose(1, 2)
 
         # Scaled dot-product attention
         scores = torch.matmul(queries, keys.transpose(-2, -1)) / (keys.size(-1) ** 0.5)
         attn_weights = F.softmax(scores, dim=-1)
 
         attn_output = torch.matmul(attn_weights, values)
-        attn_output = attn_output.transpose(1, 2).contiguous().view(
-            batch_size, self.num_heads * (attn_output.size(-1)))
+        attn_output = (
+            attn_output.transpose(1, 2)
+            .contiguous()
+            .view(batch_size, self.num_heads * (attn_output.size(-1)))
+        )
         attn_output = attn_output * self.init
 
         output = self.out(attn_output)

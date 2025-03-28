@@ -18,7 +18,7 @@ class LosslessAEHParams(ModelHParams):
     vae: bool = True
     data_dim: int
     train: bool = False
-    use_ldct_networks: bool = False
+    use_pretrained_ldct_networks: bool = False
     cond_embedding_network: list = []
     cond_embedding_shape: int | list | None = None
     use_condition_decoder: bool = False
@@ -32,7 +32,7 @@ class LosslessAE(Module):
         if (
             "path" in hparams
             and hparams["path"] is not None
-            and not hparams["use_ldct_networks"]
+            and not hparams["use_pretrained_ldct_networks"]
         ):
             print("Loading lossless_ae checkpoint from: ", hparams["path"])
             checkpoint = torch.load(hparams["path"])
@@ -40,9 +40,9 @@ class LosslessAE(Module):
 
         if not isinstance(hparams, LosslessAEHParams):
             hparams = LosslessAEHParams(**hparams)
-        if hparams.use_ldct_networks and not hparams.path:
+        if hparams.use_pretrained_ldct_networks and not hparams.path:
             raise ValueError(
-                "Can only load pretrained models from ldctinv, so path must be provided."
+                "use_pretrained_ldct_networks requires a path to a pretrained model"
             )
         super().__init__()
 
@@ -65,7 +65,7 @@ class LosslessAE(Module):
             lat_dim = self.hparams.model_spec[-1]["latent_dim"]
             self.hparams.model_spec[-1]["latent_dim"] = lat_dim * 2
 
-        if self.hparams.use_ldct_networks:
+        if self.hparams.use_pretrained_ldct_networks:
             input_shape = guess_image_shape(self.data_dim)
             cond_shape = guess_image_shape(self.hparams.cond_dim)
             self.unflatten = nn.Unflatten(
@@ -100,18 +100,18 @@ class LosslessAE(Module):
             )
             if self.hparams.path:
                 lossless_ae_weights = {
-                    k[19:]: v
+                    k[len("lossless_ae.") :]: v
                     for k, v in checkpoint["state_dict"].items()
-                    if k.startswith("lossless_ae.models.")
+                    if k.startswith("lossless_ae.")
                 }
                 self.models.load_state_dict(lossless_ae_weights)
         if not self.hparams.train:
             self.models.eval()
 
         if self.hparams.cond_embedding_network:
-            if self.hparams.use_ldct_networks:
+            if self.hparams.use_pretrained_ldct_networks:
                 warnings.warn(
-                    "cond_embedding_network is not tested with use_ldct_networks"
+                    "cond_embedding_network is not tested with use_pretrained_ldct_networks"
                 )
             # Build a network to embed the conditioning
             if self.hparams.use_condition_decoder:
@@ -137,7 +137,7 @@ class LosslessAE(Module):
 
     @property
     def latent_dim(self):
-        if not self.hparams.use_ldct_networks:
+        if not self.hparams.use_pretrained_ldct_networks:
             latent_dim = self.models[-1].hparams.latent_dim
             if self.hparams.vae:
                 return latent_dim // 2
@@ -163,14 +163,14 @@ class LosslessAE(Module):
     def decode(self, z, c):
         if self.hparams.cond_dim == 0:
             c = torch.empty((z.shape[0], 0), device=z.device, dtype=z.dtype)
-        if self.hparams.use_ldct_networks:
+        if self.hparams.use_pretrained_ldct_networks:
             c = self.unflatten_c(c)
         c = self.embed_condition(c)
         if self.hparams.vae:
             z = torch.nn.functional.pad(z, (0, z.shape[1]))
         for model in self.models[::-1]:
             z = model.decode(z, c)
-        if self.hparams.use_ldct_networks:
+        if self.hparams.use_pretrained_ldct_networks:
             z = self.flatten(z)
         return z
 
@@ -178,7 +178,7 @@ class LosslessAE(Module):
         if self.hparams.cond_dim == 0:
             c = torch.empty((x.shape[0], 0), device=x.device, dtype=x.dtype)
         c = self.embed_condition(c)
-        if self.hparams.use_ldct_networks:
+        if self.hparams.use_pretrained_ldct_networks:
             x = self.cat_x_c(x, c)
             x = self.unflatten(x)
             for model in self.models:
@@ -187,7 +187,7 @@ class LosslessAE(Module):
             for model in self.models:
                 x = model.encode(x, c)
         mu, logvar = None, None
-        if self.hparams.vae and not self.hparams.use_ldct_networks:
+        if self.hparams.vae and not self.hparams.use_pretrained_ldct_networks:
             # VAE latent sampling
             mu = x[:, : x.shape[1] // 2].reshape(-1, x.shape[1] // 2)
             logvar = x[:, x.shape[1] // 2 :].reshape(-1, x.shape[1] // 2)
@@ -198,5 +198,4 @@ class LosslessAE(Module):
         return x
 
     def cat_x_c(self, x, c):
-        # Reshape as image, and concatenate conditioning as channel dimensions
         return torch.cat([x, c], 1)
