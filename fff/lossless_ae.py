@@ -34,7 +34,6 @@ class LosslessAE(Module):
             and hparams["path"] is not None
             and not hparams["use_pretrained_ldct_networks"]
         ):
-            print("Loading lossless_ae checkpoint from: ", hparams["path"])
             checkpoint = torch.load(hparams["path"])
             hparams["model_spec"] = checkpoint["hyper_parameters"]["lossless_ae"]
 
@@ -98,42 +97,45 @@ class LosslessAE(Module):
                 self.data_dim,
                 self.hparams.cond_embedding_shape[0],
             )
+
+            if self.hparams.cond_embedding_network:
+                if self.hparams.use_pretrained_ldct_networks:
+                    warnings.warn(
+                        "cond_embedding_network is not tested with use_pretrained_ldct_networks"
+                    )
+                # Build a network to embed the conditioning
+                if self.hparams.use_condition_decoder:
+                    self.condition_embedder = build_model(
+                        self.hparams.cond_embedding_network,
+                        prod(self.hparams.cond_embedding_shape),
+                        0,
+                    )
+                    for model in self.condition_embedder:
+                        del model.model.encoder
+                else:
+                    self.condition_embedder = build_model(
+                        self.hparams.cond_embedding_network,
+                        prod(self.hparams.cond_embedding_shape),
+                        0,
+                    )
+                    for model in self.condition_embedder:
+                        del model.model.decoder
+                if not self.hparams.train:
+                    self.condition_embedder.eval()
+            else:
+                self.condition_embedder = Identity(self.hparams)
+
             if self.hparams.path:
+                print("Loading lossless_ae checkpoint from: ", hparams["path"])
                 lossless_ae_weights = {
                     k[len("lossless_ae.") :]: v
                     for k, v in checkpoint["state_dict"].items()
                     if k.startswith("lossless_ae.")
                 }
-                self.models.load_state_dict(lossless_ae_weights)
+                self.load_state_dict(lossless_ae_weights)
+
         if not self.hparams.train:
             self.models.eval()
-
-        if self.hparams.cond_embedding_network:
-            if self.hparams.use_pretrained_ldct_networks:
-                warnings.warn(
-                    "cond_embedding_network is not tested with use_pretrained_ldct_networks"
-                )
-            # Build a network to embed the conditioning
-            if self.hparams.use_condition_decoder:
-                self.condition_embedder = build_model(
-                    self.hparams.cond_embedding_network,
-                    prod(self.hparams.cond_embedding_shape),
-                    0,
-                )
-                for model in self.condition_embedder:
-                    del model.model.encoder
-            else:
-                self.condition_embedder = build_model(
-                    self.hparams.cond_embedding_network,
-                    prod(self.hparams.cond_embedding_shape),
-                    0,
-                )
-                for model in self.condition_embedder:
-                    del model.model.decoder
-            if not self.hparams.train:
-                self.condition_embedder.eval()
-        else:
-            self.condition_embedder = Identity(self.hparams)
 
     @property
     def latent_dim(self):
