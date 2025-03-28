@@ -14,7 +14,7 @@ from torch.nn import Sequential, CrossEntropyLoss
 
 from fff.base import FreeFormBaseHParams, FreeFormBase, VolumeChangeResult, build_model
 from fff.base import wasserstein2_distance_gaussian_approximation, rand_log_uniform, soft_heaviside
-from fff.base import LogProbResult, ConditionedBatch
+from fff.base import LogProbResult
 from fff.lossless_ae import LosslessAE
 from fff.subject_model import SubjectModel
 from fff.loss import volume_change_surrogate
@@ -23,6 +23,10 @@ from fff.utils.diffusion import make_betas
 from fff.data import get_model_path
 from fff.evaluate.plot_fiber_model import *
 from ldctinv.pretrained import load_pretrained
+
+ConditionedBatch = namedtuple("ConditionedBatch", [
+    "x0", "x_noisy", "loss_weights", "condition", "dequantization_jac", "jac_sm"
+])
 
 class FiberModelHParams(FreeFormBaseHParams):
     val_every_n_epoch: int = 1
@@ -328,6 +332,9 @@ class FiberModel(FreeFormBase):
     def _l1_loss(self, a, b):
         return torch.sum(torch.abs(a - b).reshape(a.shape[0], -1), -1)
 
+    def _jacreduced_l2(self, a, b, jac, epsilon=0.01):
+        return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1) / float(a.shape[-1])) / jac / epsilon
+
     def compute_metrics(self, batch, batch_idx) -> dict:
         """
         Computes the metrics for the given batch.
@@ -346,6 +353,7 @@ class FiberModel(FreeFormBase):
         x = conditioned.x_noisy
         c = conditioned.condition
         x0 = conditioned.x0
+        jac_sm = conditioned.jac_sm
         deq_vol_change = conditioned.dequantization_jac
 
         loss_values = {}
@@ -522,7 +530,7 @@ class FiberModel(FreeFormBase):
 
         # Cyclic consistency of latent code sampled from Gaussian and fiber loss
         if ((not self.training or
-                check_keys("fiber_loss", "z_sample_reconstruction")) and 
+                check_keys("fiber_loss", "jac_fiber_loss", "z_sample_reconstruction")) and 
                 self.current_epoch % self.hparams.fiber_loss_every == 0):
             warm_up = self.hparams.warm_up_fiber
             if isinstance(warm_up, int):
@@ -543,7 +551,7 @@ class FiberModel(FreeFormBase):
             loss_weights["z_sample_reconstruction"] *= fl_warmup
             loss_weights["fiber_loss"] *= fl_warmup
             if not self.training or check_keys(
-                    "fiber_loss", "z_sample_reconstruction"):
+                    "fiber_loss", "jac_fiber_loss", "z_sample_reconstruction"):
                 try:
                     z_dense_random = self.get_latent(z.device).sample((z.shape[0],), c)
                 except TypeError:
@@ -566,6 +574,8 @@ class FiberModel(FreeFormBase):
                     c_sm = torch.empty(x_random.shape[0],0).to(x_random.device)
                     c1 = self.subject_model.encode(x_random_sm, c_sm)
                     #c0 = self.subject_model.encode(x0, c_sm)
+                    if jac_sm is not None:
+                        loss_values["jac_fiber_loss"] = self._jacreduced_l2(c_random, c1, jac_sm, epsilon=0.01)
                     loss_values["fiber_loss"] = self._reduced_rec_loss(c_random, c1)
                 except Exception as e:
                     warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
@@ -666,7 +676,7 @@ class FiberModel(FreeFormBase):
                 x_sm = batch[1]
 
         # Dataset condition
-        if self.is_conditional() and len(batch)!=2:
+        if self.is_conditional() and len(batch)<2:
             if self.hparams.compute_c_on_fly:
                 conds.append(self.subject_model.encode(x_sm).detach())
             else:
@@ -677,6 +687,10 @@ class FiberModel(FreeFormBase):
             else:
                 dataset_cond = batch[1]
             conds.append(dataset_cond)
+        if len(batch) > 2:
+            jac_sm = batch[2]
+        else:
+            jac_sm = None
 
         # SoftFlow
         noise_conds, x, dequantization_jac = self.dequantize(batch)
@@ -704,7 +718,7 @@ class FiberModel(FreeFormBase):
             c, = conds
         else:
             c = torch.cat(conds, -1)
-        return ConditionedBatch(x0, x, loss_weights, c, dequantization_jac)
+        return ConditionedBatch(x0, x, loss_weights, c, dequantization_jac, jac_sm)
 
     def configure_optimizers(self):
         params = []

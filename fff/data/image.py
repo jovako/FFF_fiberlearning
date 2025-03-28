@@ -46,18 +46,33 @@ def get_emnist_datasets(root: str, digit: int = None, conditional: bool = False,
 
 def get_h5saved_mnist(root: str, digit: int = None, conditional: bool = False, **kwargs) -> TrainValTest:
     class dataset():
-        def __init__(self, data, targets):
+        def __init__(self, data, targets, *args):
             self.data = data
             self.targets = targets
 
+    class dataset_jacs(dataset):
+        def __init__(self, data, targets, jacs):
+            super().__init__(data, targets)
+            self.jacs = jacs
+            
     with h5py.File(f"{root}/data.h5", "r") as f:
         train_data = f["train_images"][:]
         train_targets = f["train_z"][:]
         test_data = f["test_images"][:]
         test_targets = f["test_z"][:]
+        try:
+            train_jacs_sm = f["train_jacdet"][:]
+            test_jacs_sm = f["test_jacdet"][:]
+        except:
+            train_jacs_sm = None
+            test_jacs_sm = None
 
-    train_dataset = dataset(train_data, train_targets)
-    test_dataset = dataset(test_data, test_targets)
+    if train_jacs_sm is None:
+        used_dataset = dataset
+    else:
+        used_dataset = dataset_jacs
+    train_dataset = used_dataset(train_data, train_targets, train_jacs_sm)
+    test_dataset = used_dataset(test_data, test_targets, test_jacs_sm)
 
     return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional)
 
@@ -306,6 +321,21 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
             val_data = val_data[val_targets == label]
             test_data = test_data[test_targets == label]
 
+    if hasattr(train_dataset, 'jacs'):
+        train_jacs = train_dataset.jacs
+        if val_dataset is None:
+            val_jacs = train_jacs[-val_data_split:]
+            train_jacs = train_jacs[:-val_data_split]
+        else:
+            val_jacs = val_dataset.jacs
+        test_jacs = test_dataset.jacs
+
+        if not torch.is_tensor(train_jacs):
+            train_jacs = torch.tensor(train_jacs)
+            val_jacs = torch.tensor(val_jacs)
+            test_jacs = torch.tensor(test_jacs)
+
+
     if patch_size is not None:
         if num_patches_per_image is None:
             raise ValueError("num_patches_per_image must be set if patch_size is set")
@@ -334,6 +364,10 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
         val_data.append(val_targets)
         test_data.append(test_targets)
 
+    if hasattr(train_dataset, 'jacs'):
+        train_data.append(train_jacs)
+        val_data.append(val_jacs)
+        test_data.append(test_jacs)
 
     return TensorDataset(
         *train_data
