@@ -374,6 +374,7 @@ class FiberModel(FreeFormBase):
         z, mu, logvar = self.encode_lossless(x, c, mu_var=True)
         # Reconstruction of lossless latent variables z
         x1 = self.decode_lossless(z, c)
+        #z = z + torch.randn_like(z) * 0.01
 
         # Losses for lossless ae:
         # Reconstruction
