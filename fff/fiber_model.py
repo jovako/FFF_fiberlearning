@@ -186,8 +186,12 @@ class FiberModel(FreeFormBase):
         if self.hparams.ae_conditional:
             ae_hparams["cond_dim"] = self.ae_cond_dim
         ae_hparams["vae"] = self.vae
-        if "path" in ae_hparams.keys():
-            raise(RuntimeError("Specificy pretrained models via the load_lossless_ae_path flag, not the path key in lossless_ae hparams"))
+        if ae_hparams.get("path") is not None:
+            raise (
+                RuntimeError(
+                    "Specificy pretrained models via the load_lossless_ae_path flag, not the path key in lossless_ae hparams"
+                )
+            )
         ae_hparams["path"] = self.hparams.load_lossless_ae_path
         ae_hparams["train"] = self.hparams.train_lossless_ae
         self.lossless_ae = LosslessAE(ae_hparams)
@@ -261,12 +265,16 @@ class FiberModel(FreeFormBase):
 
     def decode_density(self, z_dense, c):
         # c = self.unflatten_ce(c).unsqueeze(1)
+        if self.density_model_type == "diffusion":
+            t, c = c
         if self.condition_embedder is not None:
             for model in self.condition_embedder:
                 # c = model(c)
                 c = model.encode(
                     c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype)
                 )
+        if self.density_model_type == "diffusion":
+            c = t, c
         for net in self.density_model:
             z_dense = net.decode(z_dense, c)
         return z_dense
