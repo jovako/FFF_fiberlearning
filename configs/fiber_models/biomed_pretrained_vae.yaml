@@ -3,9 +3,11 @@ model: fff.FiberModel
 val_every_n_epoch: 5
 cond_dim: 512
 compute_c_on_fly: True
-noise: 0.
+noise: 0.001
 ae_conditional: True
 load_subject_model: True
+
+
 latent_distribution:
   name: "normal"
 data_set:
@@ -21,14 +23,17 @@ data_set:
 
 eval_all: True
 loss_weights:
-  # ae_elbo: 0.1
-  ae_noisy_l1_reconstruction: 1
-  perceptual_loss: 120
-  
+  nll: 1.0
+  fiber_loss: 1.0
+  latent_l1_reconstruction: 10.0 
+
 max_epochs: 500
 
-train_lossless_ae: True
+train_lossless_ae: False
 vae: True
+
+load_lossless_ae_path: /home/hd/hd_hd/hd_gu452/workspaces/gpfs/hd_gu452-biomed_clip/lightning_logs/version_24/checkpoints/last.ckpt
+
 lossless_ae:
   model_spec:
     - name: fff.model.LDCTInvModel
@@ -58,15 +63,19 @@ lossless_ae:
   use_condition_decoder: True
 
 
-
-density_model:
-  - name: fff.model.Identity
-
-
 condition_embedder:
   - name: fff.model.ResNet
     latent_dim: 512
     layers_spec:
+      - [512, 512, 512]
+      - [512, 512, 512]
+
+density_model:
+  - name: fff.model.ResNet
+    latent_dim: 3920
+    layers_spec:
+      - [512, 512, 512]
+      - [512, 512, 512]
       - [512, 512, 512]
 
 
