@@ -124,7 +124,7 @@ class LosslessAE(Module):
                 else:
                     self.condition_embedder = build_model(
                         self.hparams.cond_embedding_network,
-                        prod(self.hparams.cond_embedding_shape),
+                        self.hparams.cond_dim,
                         0,
                     )
                     for model in self.condition_embedder:
