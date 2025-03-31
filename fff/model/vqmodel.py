@@ -179,8 +179,11 @@ class VQModel(nn.Module):
             out = out[0]
         return out
 
-    def encode(self, x, c):
-        return self.model.encode(self.cat_x_c(x, c, side="data"))[0].flatten(1)
+    def encode(self, x, c, return_codebook_loss=False):
+        out, codebook_loss, _ = self.model.encode(self.cat_x_c(x, c, side="data"))
+        if return_codebook_loss:
+            return out.flatten(1), codebook_loss
+        return out.flatten(1)
 
     def decode(self, u, c):
         return self.model.decode(self.cat_x_c(u, c, side="latent")).flatten(1)

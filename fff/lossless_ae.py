@@ -32,10 +32,18 @@ class LosslessAE(Module):
         if hparams.get("path") and not hparams.get("use_pretrained_ldct_networks"):
             checkpoint = torch.load(hparams["path"], weights_only=False)
             print("Overwriting lossless ae model spec with pretrained model")
-            hparams["model_spec"] = checkpoint["hyper_parameters"]["lossless_ae"]["model_spec"]
-            hparams["cond_embedding_network"] = checkpoint["hyper_parameters"]["lossless_ae"].get("cond_embedding_network")
-            hparams["cond_embedding_shape"] = checkpoint["hyper_parameters"]["lossless_ae"].get("cond_embedding_shape")
-            hparams["use_condition_decoder"] = checkpoint["hyper_parameters"]["lossless_ae"].get("use_condition_decoder")
+            hparams["model_spec"] = checkpoint["hyper_parameters"]["lossless_ae"][
+                "model_spec"
+            ]
+            hparams["cond_embedding_network"] = checkpoint["hyper_parameters"][
+                "lossless_ae"
+            ].get("cond_embedding_network")
+            hparams["cond_embedding_shape"] = checkpoint["hyper_parameters"][
+                "lossless_ae"
+            ].get("cond_embedding_shape")
+            hparams["use_condition_decoder"] = checkpoint["hyper_parameters"][
+                "lossless_ae"
+            ].get("use_condition_decoder")
             hparams["vae"] = checkpoint["hyper_parameters"]["lossless_ae"].get("vae")
 
         if not isinstance(hparams, LosslessAEHParams):
@@ -163,7 +171,7 @@ class LosslessAE(Module):
                     )
         return c.reshape(c.shape[0], *self.hparams.cond_embedding_shape)
 
-    def decode(self, z, c):
+    def decode(self, z, c, **kwargs):
         if self.hparams.cond_dim == 0:
             c = torch.empty((z.shape[0], 0), device=z.device, dtype=z.dtype)
         if self.hparams.use_pretrained_ldct_networks:
@@ -172,12 +180,12 @@ class LosslessAE(Module):
         if self.hparams.vae:
             z = torch.nn.functional.pad(z, (0, z.shape[1]))
         for model in self.models[::-1]:
-            z = model.decode(z, c)
+            z = model.decode(z, c, **kwargs)
         if self.hparams.use_pretrained_ldct_networks:
             z = self.flatten(z)
         return z
 
-    def encode(self, x, c, mu_var=False):
+    def encode(self, x, c, return_only_x=False, **kwargs):
         if self.hparams.cond_dim == 0:
             c = torch.empty((x.shape[0], 0), device=x.device, dtype=x.dtype)
         c = self.embed_condition(c)
@@ -188,7 +196,10 @@ class LosslessAE(Module):
                 x = model.encode(x).sample().squeeze()
         else:
             for model in self.models:
-                x = model.encode(x, c)
+                x = model.encode(x, c, **kwargs)
+                other = []
+                if isinstance(x, tuple):
+                    x, other = x[0], x[1:]
         mu, logvar = None, None
         if self.hparams.vae and not self.hparams.use_pretrained_ldct_networks:
             # VAE latent sampling
@@ -196,9 +207,9 @@ class LosslessAE(Module):
             logvar = x[:, x.shape[1] // 2 :].reshape(-1, x.shape[1] // 2)
             epsilon = torch.randn_like(logvar).to(mu.device)
             x = mu + torch.exp(0.5 * logvar) * epsilon
-        if mu_var:
-            x = x, mu, logvar
-        return x
+        if return_only_x:
+            return x
+        return x, mu, logvar, *other
 
     def cat_x_c(self, x, c):
         return torch.cat([x, c], 1)

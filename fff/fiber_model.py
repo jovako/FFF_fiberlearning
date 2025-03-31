@@ -241,8 +241,20 @@ class FiberModel(FreeFormBase):
     def is_conditional(self):
         return self.cond_dim != 0
 
-    def encode_lossless(self, x, c, mu_var=True):
-        return self.lossless_ae.encode(x, c, mu_var=mu_var)
+    def encode_lossless(self, x, c, return_only_x=True, return_codebook_loss=False):
+        if return_codebook_loss:
+            return self.lossless_ae.encode(
+                x,
+                c,
+                return_only_x=return_only_x,
+                return_codebook_loss=return_codebook_loss,
+            )
+        else:
+            return self.lossless_ae.encode(
+                x,
+                c,
+                return_only_x=return_only_x,
+            )
 
     def encode_density(self, z, c, jac=False):
         if self.condition_embedder is not None:
@@ -261,7 +273,7 @@ class FiberModel(FreeFormBase):
         return z
 
     def encode(self, x, c):
-        z_dense = self.encode_density(self.encode_lossless(x, c, mu_var=False), c)
+        z_dense = self.encode_density(self.encode_lossless(x, c, return_only_x=True), c)
         return z_dense
 
     def decode_lossless(self, z, c):
@@ -440,7 +452,19 @@ class FiberModel(FreeFormBase):
                 for loss_key in keys
             )
 
-        z, mu, logvar = self.encode_lossless(x, c, mu_var=True)
+        if check_keys("codebook_loss"):
+            (
+                z,
+                mu,
+                logvar,
+                codebook_loss,
+            ) = self.encode_lossless(
+                x, c, return_only_x=False, return_codebook_loss=True
+            )
+            loss_values["codebook_loss"] = codebook_loss
+
+        else:
+            z, mu, logvar = self.encode_lossless(x, c, return_only_x=False)
         # Reconstruction of lossless latent variables z
         x1 = self.decode_lossless(z, c)
 
@@ -472,7 +496,7 @@ class FiberModel(FreeFormBase):
         # Cyclic consistency of latent code -- gradient only to encoder
         if not self.training or check_keys("ae_cycle_loss"):
             x1_detached = x1.detach()
-            z_cycle = self.encode_lossless(x1_detached, c, mu_var=False)
+            z_cycle = self.encode_lossless(x1_detached, c, return_only_x=True)
             loss_values["ae_cycle_loss"] = self._reconstruction_loss(z, z_cycle)
 
         # Losses for density model:
@@ -746,10 +770,12 @@ class FiberModel(FreeFormBase):
         invalid_losses = []
         for key, weight in loss_values.items():
             # One value per key
-            if loss_values[key].shape != (x.shape[0],):
-                invalid_losses.append(key)
-            else:
+            if loss_values[key].shape == (x.shape[0],):
                 metrics[key] = loss_values[key].mean(-1)
+            elif loss_values[key].ndim == 0:
+                metrics[key] = loss_values[key]
+            else:
+                invalid_losses.append(key)
         if len(invalid_losses) > 0:
             raise ValueError(f"Invalid loss shapes for {invalid_losses}")
 
