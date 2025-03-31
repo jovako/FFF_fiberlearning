@@ -10,8 +10,8 @@ latent_distribution:
   name: "normal"
 data_set:
   name: ldct
-  # root: /home/hd/hd_hd/hd_gu452/ldct_data
-  root: /mnt/SSD_2TB/ldct_data
+  root: /home/hd/hd_hd/hd_gu452/ldct_data
+  # root: /mnt/SSD_2TB/ldct_data
   condition: lowdose
   data: highdose
   patchsize: 512
@@ -60,8 +60,8 @@ optimizer:
   name: adam
   lr: 0.0005
 
-# batch_size: 64
-batch_size: 2
+batch_size: 64
+# batch_size: 2
 
 num_workers: 8
 
