@@ -212,6 +212,10 @@ class FiberModel(FreeFormBase):
             }
             self.density_model.load_state_dict(density_model_weights)
 
+        if not self.hparams.train_lossless_ae:
+            for param in self.lossless_ae.parameters():
+                param.requires_grad = False
+
     @property
     def latent_dim(self):
         if self.density_model_type:
