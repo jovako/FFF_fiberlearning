@@ -218,7 +218,7 @@ class VQModel(nn.Module):
         model = VQModelTaming(**config)
         if pretrained:
             model.load_state_dict(
-                torch.load(weight_path, map_location="cpu")["state_dict"], strict=False
+                torch.load(weight_path, map_location="cpu", weights_only=False)["state_dict"], strict=False
             )
         return model
 

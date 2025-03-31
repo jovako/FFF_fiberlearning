@@ -77,14 +77,11 @@ density_model:
     data_dim: 3920
     num_heads: 4
     time_dim: 8
-    hidden_dim: 64
+    hidden_dim: 3920
     layers_spec:
-      - [512, 512]
-      - [512, 512]
-      - [512, 512]
-      - [512, 512]
-      - [512, 512]
-      - [512, 512]
+      - [512, 512, 512]
+      - [512, 512, 512]
+      - [512, 512, 512]
 
 lr_scheduler: "onecyclelr"
 optimizer:

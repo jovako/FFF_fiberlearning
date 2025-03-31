@@ -25,7 +25,7 @@ loss_weights:
   ae_noisy_l1_reconstruction: 1
   perceptual_loss: 120
   
-max_epochs: 100
+max_epochs: 500
 
 train_lossless_ae: True
 vae: False
@@ -40,7 +40,7 @@ lossless_ae:
       layers_spec:
         - [512, 512]
         - [512, 512]
-  use_condition_decoder: True
+  use_condition_decoder: False
 
 
 
@@ -60,7 +60,8 @@ optimizer:
   name: adam
   lr: 0.0005
 
-batch_size: 64
+batch_size: 16
+accumulate_batches: 4
 # batch_size: 2
 
 num_workers: 8
