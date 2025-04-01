@@ -19,3 +19,5 @@ cython
 sbibm
 geomstats
 umap-learn
+requests
+flow_matching
