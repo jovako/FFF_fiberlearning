@@ -20,6 +20,7 @@ from fff.subject_model import SubjectModel
 from fff.loss import volume_change_surrogate
 from fff.utils.jacobian import compute_jacobian
 from fff.utils.diffusion import make_betas
+from fff.utils.utils import sum_except_batch
 from fff.data import get_model_path
 from fff.evaluate.plot_fiber_model import *
 from ldctinv.pretrained import load_pretrained
@@ -89,6 +90,9 @@ class FiberModel(FreeFormBase):
                                             "fff.model.INN"] for model_hparams in self.hparams.density_model]), \
             "Coupling Flows cannot be mixed with other models for now."
 
+        elif any([model_hparams["name"] == "fff.model.FlowMatching" for model_hparams in self.hparams.density_model]):
+            assert len(self.hparams.density_model) == 1, "FlowMatching model must be the only model in the density model"
+            self.density_model_type = "flow_matching"
         elif any([model_hparams["name"] == "fff.model.DiffusionModel" for model_hparams in self.hparams.density_model]):
             assert len(self.hparams.density_model) == 1, "Diffusion model must be the only model in the density model"
             self.density_model_type = "diffusion"
@@ -335,6 +339,9 @@ class FiberModel(FreeFormBase):
     def _jacreduced_l2(self, a, b, jac, epsilon=0.01):
         return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1) / float(a.shape[-1])) / jac / epsilon
 
+    def _fm_loss(self, bt, bt_hat):
+        return sum_except_batch(torch.pow(bt_hat, 2)) - 2 * sum_except_batch(bt * bt_hat)
+
     def compute_metrics(self, batch, batch_idx) -> dict:
         """
         Computes the metrics for the given batch.
@@ -481,12 +488,21 @@ class FiberModel(FreeFormBase):
             epsilon_pred = self.decode_density(z_diff.detach(), (t, c))
             loss_values["diff_mse"] = self._reconstruction_loss(epsilon_pred, epsilon.detach())
 
+        if check_keys("fm_loss"):
+            if not self.density_model_type == "flow_matching":
+                raise ValueError("fm_loss is only available for flow matching models")
+            t = torch.rand(z.shape[0], 1, device=z.device)
+            c_expand = self.density_model[0].concat_noise(c)
+            zt, bt, _ = self.density_model[0].compute_path_sample(t, c_expand, z)
+            bt1 = self.decode_density(bt.detach(), t)
+            loss_values["fm_loss"] = self._fm_loss(bt, bt1)
+
         if z_dense is None:
             z_dense = self.encode_density(z.detach(), c)
 
         # Reconstruction of latent z
         if (val_all_metrics or check_keys("latent_reconstruction")):
-            if self.density_model_type=="diffusion":
+            if self.density_model_type in ["diffusion", "flow_matching"]:
                 raise ValueError("latent_reconstruction is not available for diffusion models")
             if z1 is None:
                 z1 = self.decode_density(z_dense, c) 
@@ -513,7 +529,7 @@ class FiberModel(FreeFormBase):
         """
 
         if (val_all_metrics or check_keys("masked_reconstruction")):
-            if self.density_model_type=="diffusion":
+            if self.density_model_type in ["diffusion", "flow_matching"]:
                 raise ValueError("masked_reconstruction is not available for diffusion models")
             latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
             latent_mask[:, :self.hparams.reconstruct_dims] = 1
