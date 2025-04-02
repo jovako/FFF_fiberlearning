@@ -555,7 +555,8 @@ class FiberModel(FreeFormBase):
         # Cyclic consistency of latent code sampled from Gaussian and fiber loss
         if ((not self.training or
                 check_keys("fiber_loss", "jac_fiber_loss", "z_sample_reconstruction")) and 
-                self.current_epoch+1 % self.hparams.fiber_loss_every == 0):
+                (self.current_epoch % self.hparams.fiber_loss_every == 0 or
+                self.current_epoch==self.hparams.max_epochs-1)):
             warm_up = self.hparams.warm_up_fiber
             if isinstance(warm_up, int):
                 warm_up = warm_up, warm_up + 1
