@@ -27,7 +27,7 @@ class LosslessAE(Module):
             self.ldct = True 
         if "path" in hparams and hparams["path"] is not None and not self.ldct:
             print("Loading lossless_ae checkpoint from: ", hparams["path"])
-            checkpoint = torch.load(hparams["path"])
+            checkpoint = torch.load(hparams["path"], weights_only=False)
             try:
                 hparams["model_spec"] = checkpoint["hyper_parameters"]["lossless_ae"]
             except:
@@ -110,7 +110,7 @@ class LosslessAE(Module):
             z = self.flatten(z)
         return z
 
-    def encode(self, x, c, mu_var=False):
+    def encode(self, x, c, mu_var=False, deterministic=False):
         if self.hparams.cond_dim == 0:
             c = torch.empty((x.shape[0], 0), device=x.device, dtype=x.dtype)
         if self.ldct:
@@ -126,8 +126,11 @@ class LosslessAE(Module):
             # VAE latent sampling
             mu = x[:,:x.shape[1]//2].reshape(-1,x.shape[1]//2)
             logvar = x[:,x.shape[1]//2:].reshape(-1,x.shape[1]//2)
-            epsilon = torch.randn_like(logvar).to(mu.device)
-            x = mu + torch.exp(0.5 * logvar) * epsilon
+            if deterministic:
+                x = mu
+            else:
+                epsilon = torch.randn_like(logvar).to(mu.device)
+                x = mu + torch.exp(0.5 * logvar) * epsilon
         if mu_var:
             x = x, mu, logvar
         return x

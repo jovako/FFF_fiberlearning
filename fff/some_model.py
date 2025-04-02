@@ -33,6 +33,7 @@ class FiberModelHParams(FreeFormBaseHParams):
     load_density_model_path: str | None = None
     train_lossless_ae: bool = True
     ae_conditional: bool = False
+    ae_deterministic_encode: bool | None = None
     vae: bool = False
     reconstruct_dims: int = 1
     diffusion_betas_max: float = 0.2
@@ -169,7 +170,13 @@ class SomeModel(FreeFormBase):
         return self.cond_dim != 0
 
     def encode_lossless(self, x, c, mu_var=True):
-        return self.lossless_ae.encode(x, c, mu_var=mu_var)
+        deterministic = self.hparams.ae_deterministic_encode
+        if deterministic is None:
+            if not self.training:
+                deterministic = True
+            else:
+                deterministic = False
+        return self.lossless_ae.encode(x, c, mu_var=mu_var, deterministic=deterministic)
         #return self.lossless_ae.encode(x, c).sample()
 
     def encode_density(self, z, c, jac=False):

@@ -41,6 +41,7 @@ class FiberModelHParams(FreeFormBaseHParams):
     sm_input_transform: str | None = None
     train_lossless_ae: bool = True
     ae_conditional: bool = False
+    ae_deterministic_encode: bool | None = None
     vae: bool = False
     reconstruct_dims: int = 1
     diffusion_betas_max: float = 0.2
@@ -190,7 +191,13 @@ class FiberModel(FreeFormBase):
         return self.cond_dim != 0
 
     def encode_lossless(self, x, c, mu_var=True):
-        return self.lossless_ae.encode(x, c, mu_var=mu_var)
+        deterministic = self.hparams.ae_deterministic_encode
+        if deterministic is None:
+            if not self.training:
+                deterministic = True
+            else:
+                deterministic = False
+        return self.lossless_ae.encode(x, c, mu_var=mu_var, deterministic=deterministic)
         #return self.lossless_ae.encode(x, c).sample()
 
     def encode_density(self, z, c, jac=False):
@@ -494,7 +501,7 @@ class FiberModel(FreeFormBase):
             t = torch.rand(z.shape[0], 1, device=z.device)
             c_expand = self.density_model[0].concat_noise(c)
             zt, bt, _ = self.density_model[0].compute_path_sample(t, c_expand, z)
-            bt1 = self.decode_density(bt.detach(), t)
+            bt1 = self.decode_density(zt.detach(), t)
             loss_values["fm_loss"] = self._fm_loss(bt, bt1)
 
         if z_dense is None:
@@ -644,8 +651,7 @@ class FiberModel(FreeFormBase):
         return metrics
 
     def on_train_epoch_end(self) -> None:
-        """
-        if self.current_epoch%10==0 or self.current_epoch==self.hparams.max_epochs-1:
+        if self.current_epoch%5==0 or self.current_epoch==self.hparams.max_epochs-1:
             with torch.no_grad():
                 val_data = self.trainer.val_dataloaders
                 batch = next(iter(val_data))
@@ -661,15 +667,16 @@ class FiberModel(FreeFormBase):
                 c_orig = self.subject_model.encode(x, c_sm)
                 #x_orig_sm = self.subject_model.decode(c_orig, c_sm)
                 writer = self.logger.experiment
-                x_plot = [x, x_samples]
+                x_plot = [torch.clip(x,min=0,max=1), torch.clip(x_samples, min=0,max=1)]
                 titles = ["x_orig", "x_sampled"]
                 fig = plot_mnist(x_plot, titles)
                 writer.add_figure(f"Fiber samples", fig, self.current_epoch)
+                """
                 x_plot = [x_orig_sm, x_samples_sm, torch.abs(x_orig_sm-x_samples_sm)]
                 titles = ["SM(x_orig)", "SM(x_sampled)", "Residual"]
                 fig = plot_mnist(x_plot, titles)
                 writer.add_figure(f"Verify samples", fig, self.current_epoch)
-        """
+                """
 
 
     def diffuse(self, x, t, alphas_):
@@ -695,12 +702,14 @@ class FiberModel(FreeFormBase):
         # Dataset condition
         if self.is_conditional() and len(batch)<2:
             if self.hparams.compute_c_on_fly:
-                conds.append(self.subject_model.encode(x_sm).detach())
+                c_sm = torch.empty(x_sm.shape[0], device=x_sm.device)
+                conds.append(self.subject_model.encode(x_sm, c_sm).detach())
             else:
                 raise ValueError("You must pass a batch including conditions for each dataset condition")
         if len(batch) > 1:
             if self.hparams.compute_c_on_fly:
-                dataset_cond = self.subject_model.encode(x_sm).detach()
+                c_sm = torch.empty(x_sm.shape[0], device=x_sm.device)
+                dataset_cond = self.subject_model.encode(x_sm, c_sm).detach()
             else:
                 dataset_cond = batch[1]
             conds.append(dataset_cond)
