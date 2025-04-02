@@ -411,12 +411,10 @@ class FiberModel(FreeFormBase):
         return torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)
 
     def _reduced_rec_loss(self, a, b):
-        return torch.sqrt(
-            torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1) / float(a.shape[-1])
-        )
+        return torch.sqrt(torch.mean((a - b).reshape(a.shape[0], -1) ** 2, -1))
 
     def _l1_loss(self, a, b):
-        return torch.sum(torch.abs(a - b).reshape(a.shape[0], -1), -1)
+        return torch.mean(torch.abs(a - b).reshape(a.shape[0], -1), -1)
 
     def compute_metrics(self, batch, batch_idx) -> dict:
         """
