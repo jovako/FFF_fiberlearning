@@ -555,7 +555,7 @@ class FiberModel(FreeFormBase):
         # Cyclic consistency of latent code sampled from Gaussian and fiber loss
         if ((not self.training or
                 check_keys("fiber_loss", "jac_fiber_loss", "z_sample_reconstruction")) and 
-                self.current_epoch % self.hparams.fiber_loss_every == 0):
+                self.current_epoch+1 % self.hparams.fiber_loss_every == 0):
             warm_up = self.hparams.warm_up_fiber
             if isinstance(warm_up, int):
                 warm_up = warm_up, warm_up + 1
@@ -651,7 +651,8 @@ class FiberModel(FreeFormBase):
         return metrics
 
     def on_train_epoch_end(self) -> None:
-        if self.current_epoch%5==0 or self.current_epoch==self.hparams.max_epochs-1:
+        if ((self.current_epoch%5==0 and self.current_epoch%self.hparams.fiber_loss_every==0) or
+            self.current_epoch==self.hparams.max_epochs-1):
             with torch.no_grad():
                 val_data = self.trainer.val_dataloaders
                 batch = next(iter(val_data))
