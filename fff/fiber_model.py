@@ -662,7 +662,7 @@ class FiberModel(FreeFormBase):
                 conditioned = self.apply_conditions(batch)
                 x = conditioned.x_noisy
                 c = conditioned.condition
-                x_samples = self.sample(torch.Size([x.shape[0]]), batch[1])
+                x_samples = self.sample(torch.Size([x.shape[0]]), c)
                 c_sm = torch.empty(x_samples.shape[0],0).to(x_samples.device)
                 c_samples = self.subject_model.encode(x_samples, c_sm)
                 #x_samples_sm = self.subject_model.decode(c_samples, c_sm)
