@@ -652,8 +652,9 @@ class FiberModel(FreeFormBase):
         return metrics
 
     def on_train_epoch_end(self) -> None:
-        if ((self.current_epoch%5==0 and self.current_epoch%self.hparams.fiber_loss_every==0) or
-            self.current_epoch==self.hparams.max_epochs-1):
+        if (((self.current_epoch%5==0 and self.current_epoch%self.hparams.fiber_loss_every==0) or
+            self.current_epoch==self.hparams.max_epochs-1) and
+            self.subject_model is not None):
             with torch.no_grad():
                 val_data = self.trainer.val_dataloaders
                 batch = next(iter(val_data))
