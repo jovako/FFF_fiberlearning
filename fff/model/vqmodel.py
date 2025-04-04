@@ -32,6 +32,7 @@ class VQModelHParams(ModelHParams):
     pretrained: bool = True
     condition_batchnorm: bool = False
     latent_shape: list[int] | None = None
+    dropout: float = 0.0
 
 
 class VQModel(nn.Module):
@@ -188,8 +189,7 @@ class VQModel(nn.Module):
     def decode(self, u, c):
         return self.model.decode(self.cat_x_c(u, c, side="latent")).flatten(1)
 
-    @staticmethod
-    def get_model(architecture_type: str, pretrained: bool = True):
+    def get_model(self, architecture_type: str, pretrained: bool = True):
         if is_local_path(architecture_type):
             config_path = path.join(architecture_type, "config.yaml")
             assert path.exists(
@@ -214,6 +214,8 @@ class VQModel(nn.Module):
             config = config.model
         if hasattr(config, "params"):
             config = config.params
+        
+        config["ddconfig"]["dropout"] = self.hparams.dropout
 
         model = VQModelTaming(**config)
         if pretrained:
