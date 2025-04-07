@@ -8,10 +8,12 @@ from .res_net import ResNetHParams, make_res_net
 from flow_matching.solver import ODESolver  # pip install flow-matching
 from .utils import expand_like, make_dense, InterpolantMixin
 from typing import Literal
+from functools import partial, wraps
 
 class FlowMatchingHParams(ResNetHParams):
     #Interpolation = Literal["linear", "trigonometric"]
     interpolation: str = "linear"
+    conditional: bool = False
 
     sigma: float = 0.1  # interpolation noise amplitude
 
@@ -29,13 +31,23 @@ class FlowMatching(nn.Module, InterpolantMixin):
         InterpolantMixin.__init__(self)
 
         self.net = self.build_model()
+        self.conditional = self.hparams.conditional
 
     def encode(self, x, *args):
         return x
 
-    def decode(self, x: Tensor, t: Tensor) -> Tensor:
+    def decode(self, x: Tensor, c: Tensor) -> Tensor:
+        if not self.conditional:
+            t = c
+        else:
+            t, c = c
+        return self.decode_x_c_t(x, c, t)
+
+    def decode_x_c_t(self, x: Tensor, c: Tensor, t: Tensor) -> Tensor:
+        if self.conditional:
+            x = torch.cat([x, c], -1)
         t = expand_like(t, x[..., :1])
-        x = torch.cat([x, t], dim=1)
+        x = torch.cat([x, t], dim=-1)
         return self.net(x)
 
     def concat_noise(self, x0: Tensor) -> Tensor:
@@ -43,22 +55,29 @@ class FlowMatching(nn.Module, InterpolantMixin):
         return torch.cat([x0, noise], dim=-1)
 
     @torch.no_grad()
-    def compute_path_samples(self, x0: Tensor) -> Tensor:
-        if x0.shape[-1] != self.hparams.data_dim:
-            x0 = self.concat_noise(x0)
+    def compute_path_samples(self, z, x0: Tensor) -> Tensor:
+        if self.conditional:
+            decode_wrapped = partial(self.decode_x_c_t, c=x0)
+            x0 = z
+        else:
+            decode_wrapped = self.decode
+            if x0.shape[-1] != self.hparams.data_dim:
+                x0 = self.concat_noise(x0)
 
-        solver = ODESolver(self.decode)
+        solver = ODESolver(decode_wrapped)
         sol = solver.sample(
             time_grid=torch.linspace(0, 1, 101), x_init=x0, method="midpoint", step_size=1e-1, return_intermediates=True
         )
         return sol
 
     def sample(self, z, condition):
-        sol = self.compute_path_samples(condition)
+        sol = self.compute_path_samples(z, condition)
         return sol[-1]
 
     def build_model(self) -> nn.Module:
         input_dim = self.hparams.data_dim + 1
+        if self.hparams.conditional:
+            input_dim += self.hparams.cond_dim
         output_dim = self.hparams.data_dim
         activation = self.hparams.activation
         dropout = self.hparams.dropout

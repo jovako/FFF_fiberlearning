@@ -499,9 +499,14 @@ class FiberModel(FreeFormBase):
             if not self.density_model_type == "flow_matching":
                 raise ValueError("fm_loss is only available for flow matching models")
             t = torch.rand(z.shape[0], 1, device=z.device)
-            c_expand = self.density_model[0].concat_noise(c)
-            zt, bt, _ = self.density_model[0].compute_path_sample(t, c_expand, z)
-            bt1 = self.decode_density(zt.detach(), t)
+            if self.density_model[0].conditional:
+                c_fm = (t, c)
+                z_fm = torch.randn_like(z)
+            else:
+                c_fm = t
+                z_fm = self.density_model[0].concat_noise(c)
+            zt, bt, _ = self.density_model[0].compute_path_sample(t, z_fm, z)
+            bt1 = self.decode_density(zt.detach(), c_fm)
             loss_values["fm_loss"] = self._fm_loss(bt, bt1)
 
         if z_dense is None:
