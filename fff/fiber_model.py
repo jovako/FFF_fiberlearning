@@ -21,7 +21,11 @@ from fff.base import (
     soft_heaviside,
 )
 from fff.lossless_ae import LosslessAE, LosslessAEHParams
-from fff.base import wasserstein2_distance_gaussian_approximation, rand_log_uniform, soft_heaviside
+from fff.base import (
+    wasserstein2_distance_gaussian_approximation,
+    rand_log_uniform,
+    soft_heaviside,
+)
 from fff.base import LogProbResult
 from fff.subject_model import SubjectModel
 from fff.loss import volume_change_surrogate
@@ -32,9 +36,11 @@ from fff.data import get_model_path
 from fff.evaluate.plot_fiber_model import *
 
 
-ConditionedBatch = namedtuple("ConditionedBatch", [
-    "x0", "x_noisy", "loss_weights", "condition", "dequantization_jac", "jac_sm"
-])
+ConditionedBatch = namedtuple(
+    "ConditionedBatch",
+    ["x0", "x_noisy", "loss_weights", "condition", "dequantization_jac", "jac_sm"],
+)
+
 
 class FiberModelHParams(FreeFormBaseHParams):
     val_every_n_epoch: int = 1
@@ -136,14 +142,14 @@ class FiberModel(FreeFormBase):
             ), "Diffusion model must be the only model in the density model"
             self.density_model_type = "diffusion"
         elif any(
-                [
-                    model_hparams["name"] == "fff.model.FlowMatching" 
-                    for model_hparams in self.hparams.density_model
-                ]
-            ):
-                assert (
-                    len(self.hparams.density_model) == 1
-                ), "FlowMatching model must be the only model in the density model"
+            [
+                model_hparams["name"] == "fff.model.FlowMatching"
+                for model_hparams in self.hparams.density_model
+            ]
+        ):
+            assert (
+                len(self.hparams.density_model) == 1
+            ), "FlowMatching model must be the only model in the density model"
             self.density_model_type = "flow_matching"
             self.betas = make_betas(
                 1000,
@@ -169,8 +175,9 @@ class FiberModel(FreeFormBase):
             print("loading subject_model")
             sm_dir = get_model_path(**self.hparams["data_set"])
             self.subject_model = SubjectModel(
-                sm_dir, self.hparams.data_set.subject_model_type,
-                fixed_transform=self.hparams.sm_input_transform
+                sm_dir,
+                self.hparams.data_set.subject_model_type,
+                fixed_transform=self.hparams.sm_input_transform,
             )
             self.subject_model.eval()
             for param in self.subject_model.parameters():
@@ -444,10 +451,18 @@ class FiberModel(FreeFormBase):
         return torch.mean(torch.abs(a - b).reshape(a.shape[0], -1), -1)
 
     def _jacreduced_l2(self, a, b, jac, epsilon=0.01):
-        return torch.sqrt(torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1) / float(a.shape[-1])) / jac / epsilon
+        return (
+            torch.sqrt(
+                torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1) / float(a.shape[-1])
+            )
+            / jac
+            / epsilon
+        )
 
     def _fm_loss(self, bt, bt_hat):
-        return sum_except_batch(torch.pow(bt_hat, 2)) - 2 * sum_except_batch(bt * bt_hat)
+        return sum_except_batch(torch.pow(bt_hat, 2)) - 2 * sum_except_batch(
+            bt * bt_hat
+        )
 
     def compute_metrics(self, batch, batch_idx) -> dict:
         """
@@ -499,7 +514,7 @@ class FiberModel(FreeFormBase):
             z, mu, logvar = self.encode_lossless(x, c, return_only_x=False)
         # Reconstruction of lossless latent variables z
         x1 = self.decode_lossless(z, c)
-        #z = z + torch.randn_like(z) * 0.01
+        # z = z + torch.randn_like(z) * 0.01
 
         # Losses for lossless ae:
         # Reconstruction
@@ -520,8 +535,10 @@ class FiberModel(FreeFormBase):
             loss_values["ae_l1_reconstruction"] = self._l1_loss(x0, x1)
             loss_values["ae_noisy_l1_reconstruction"] = self._l1_loss(x, x1)
 
-        if (not self.training or check_keys("ae_rec_fiber_loss")) and self.subject_model is not None:
-            c_sm = torch.empty(x0.shape[0],0).to(x0.device)
+        if (
+            not self.training or check_keys("ae_rec_fiber_loss")
+        ) and self.subject_model is not None:
+            c_sm = torch.empty(x0.shape[0], 0).to(x0.device)
             c_orig = self.subject_model.encode(x0, c_sm)
             c1 = self.subject_model.encode(x1, c_sm)
             loss_values["ae_rec_fiber_loss"] = self._reduced_rec_loss(c_orig, c1)
@@ -683,7 +700,9 @@ class FiberModel(FreeFormBase):
             "latent_reconstruction", "latent_l1_reconstruction"
         ):
             if self.density_model_type in ["diffusion", "flow_matching"]:
-                raise ValueError("latent_reconstruction is not available for diffusion models")
+                raise ValueError(
+                    "latent_reconstruction is not available for diffusion models"
+                )
             if z1 is None:
                 z1 = self.decode_density(z_dense, c)
             loss_values["latent_reconstruction"] = self._reconstruction_loss(
@@ -719,7 +738,7 @@ class FiberModel(FreeFormBase):
                     "masked_reconstruction is not available for diffusion models"
                 )
             latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
-            latent_mask[:, :self.hparams.reconstruct_dims] = 1
+            latent_mask[:, : self.hparams.reconstruct_dims] = 1
             z_masked_dense = z_dense * latent_mask
             x_zmask = self.decode(z_masked_dense, c)
             loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_zmask)
@@ -733,9 +752,12 @@ class FiberModel(FreeFormBase):
             loss_values["cycle_loss"] = self._reconstruction_loss(z_dense, z_dense1)
 
         # Cyclic consistency of latent code sampled from Gaussian and fiber loss
-        if ((not self.training or check_keys("fiber_loss", "jac_fiber_loss", "z_sample_reconstruction")) and 
-            (self.current_epoch % self.hparams.fiber_loss_every == 0 or
-                self.current_epoch==self.hparams.max_epochs-1)
+        if (
+            not self.training
+            or check_keys("fiber_loss", "jac_fiber_loss", "z_sample_reconstruction")
+        ) and (
+            self.current_epoch % self.hparams.fiber_loss_every == 0
+            or self.current_epoch == self.hparams.max_epochs - 1
         ):
             warm_up = self.hparams.warm_up_fiber
             if isinstance(warm_up, int):
@@ -759,7 +781,8 @@ class FiberModel(FreeFormBase):
             loss_weights["z_sample_reconstruction"] *= fl_warmup
             loss_weights["fiber_loss"] *= fl_warmup
             if not self.training or check_keys(
-                    "fiber_loss", "jac_fiber_loss", "z_sample_reconstruction"):
+                "fiber_loss", "jac_fiber_loss", "z_sample_reconstruction"
+            ):
                 try:
                     z_dense_random = self.get_latent(z.device).sample((z.shape[0],), c)
                 except TypeError:
@@ -788,9 +811,11 @@ class FiberModel(FreeFormBase):
                     c_sm = torch.empty(x_random.shape[0], 0).to(x_random.device)
                     c1 = self.subject_model.encode(x_random_sm)
                     # c0 = self.subject_model.encode(x0, c_sm)
-                    c_sm = torch.empty(x_random.shape[0],0).to(x_random.device)
+                    c_sm = torch.empty(x_random.shape[0], 0).to(x_random.device)
                     if jac_sm is not None:
-                        loss_values["jac_fiber_loss"] = self._jacreduced_l2(c_random, c1, jac_sm, epsilon=0.01)
+                        loss_values["jac_fiber_loss"] = self._jacreduced_l2(
+                            c_random, c1, jac_sm, epsilon=0.01
+                        )
                     loss_values["fiber_loss"] = self._reduced_rec_loss(c_random, c1)
                 except Exception as e:
                     warn(
@@ -853,9 +878,13 @@ class FiberModel(FreeFormBase):
         return metrics
 
     def on_train_epoch_end(self) -> None:
-        if (((self.current_epoch%5==0 and self.current_epoch%self.hparams.fiber_loss_every==0) or
-            self.current_epoch==self.hparams.max_epochs-1) and
-            self.subject_model is not None):
+        if (
+            (
+                self.current_epoch % 5 == 0
+                and self.current_epoch % self.hparams.fiber_loss_every == 0
+            )
+            or self.current_epoch == self.hparams.max_epochs - 1
+        ) and self.subject_model is not None:
             with torch.no_grad():
                 val_data = self.trainer.val_dataloaders
                 batch = next(iter(val_data))
@@ -865,13 +894,16 @@ class FiberModel(FreeFormBase):
                 x = conditioned.x_noisy
                 c = conditioned.condition
                 x_samples = self.sample(torch.Size([x.shape[0]]), c)
-                c_sm = torch.empty(x_samples.shape[0],0).to(x_samples.device)
+                c_sm = torch.empty(x_samples.shape[0], 0).to(x_samples.device)
                 c_samples = self.subject_model.encode(x_samples, c_sm)
-                #x_samples_sm = self.subject_model.decode(c_samples, c_sm)
+                # x_samples_sm = self.subject_model.decode(c_samples, c_sm)
                 c_orig = self.subject_model.encode(x, c_sm)
-                #x_orig_sm = self.subject_model.decode(c_orig, c_sm)
+                # x_orig_sm = self.subject_model.decode(c_orig, c_sm)
                 writer = self.logger.experiment
-                x_plot = [torch.clip(x,min=0,max=1), torch.clip(x_samples, min=0,max=1)]
+                x_plot = [
+                    torch.clip(x, min=0, max=1),
+                    torch.clip(x_samples, min=0, max=1),
+                ]
                 titles = ["x_orig", "x_sampled"]
                 fig = plot_mnist(x_plot, titles)
                 writer.add_figure(f"Fiber samples", fig, self.current_epoch)
@@ -909,7 +941,7 @@ class FiberModel(FreeFormBase):
                 )
 
         # Dataset condition
-        if self.is_conditional() and len(batch)<2:
+        if self.is_conditional() and len(batch) < 2:
             if self.hparams.compute_c_on_fly:
                 c_sm = torch.empty(x_sm.shape[0], device=x_sm.device)
                 conds.append(self.subject_model.encode(x_sm).detach())
