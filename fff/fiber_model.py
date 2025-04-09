@@ -159,13 +159,17 @@ class FiberModel(FreeFormBase):
             self.hparams.density_model[-1]["betas"] = (self.betas,)
             self.alphas_ = torch.cumprod((1 - self.betas), axis=0)
             self.sample_steps = torch.linspace(0, 1, 1000).flip(0)
+        elif any(
+            [
+                model_hparams["name"] == "fff.model.FlowMatching"
+                for model_hparams in self.hparams.density_model
+            ]
+        ):
+            assert (
+                len(self.hparams.density_model) == 1
+            ), "FlowMatching model must be the only model in the density model"
+            self.density_model_type = "flow_matching"
         else:
-            assert not any(
-                [
-                    model_hparams["name"] == "fff.model.VarResNet"
-                    for model_hparams in self.hparams.density_model
-                ]
-            ), f"VarResNet cannot be used in the density model"
             self.density_model_type = "fff"
 
         # Check whether self.lossless_ae is a VAE
@@ -878,13 +882,10 @@ class FiberModel(FreeFormBase):
         return metrics
 
     def on_train_epoch_end(self) -> None:
-        if (
-            (
-                self.current_epoch % 5 == 0
-                and self.current_epoch % self.hparams.fiber_loss_every == 0
-            )
-            or self.current_epoch == self.hparams.max_epochs - 1
-        ) and self.subject_model is not None:
+        """
+        if (((self.current_epoch%5==0 and self.current_epoch%self.hparams.fiber_loss_every==0) or
+            self.current_epoch==self.hparams.max_epochs-1) and
+            self.subject_model is not None):
             with torch.no_grad():
                 val_data = self.trainer.val_dataloaders
                 batch = next(iter(val_data))
@@ -907,12 +908,13 @@ class FiberModel(FreeFormBase):
                 titles = ["x_orig", "x_sampled"]
                 fig = plot_mnist(x_plot, titles)
                 writer.add_figure(f"Fiber samples", fig, self.current_epoch)
-                """
+        """
+        """
                 x_plot = [x_orig_sm, x_samples_sm, torch.abs(x_orig_sm-x_samples_sm)]
                 titles = ["SM(x_orig)", "SM(x_sampled)", "Residual"]
                 fig = plot_mnist(x_plot, titles)
                 writer.add_figure(f"Verify samples", fig, self.current_epoch)
-                """
+        """
 
     def diffuse(self, x, t, alphas_):
         noise = torch.randn_like(x)
