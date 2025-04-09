@@ -847,6 +847,7 @@ class FiberModel(FreeFormBase):
         return metrics
 
     def on_train_epoch_end(self) -> None:
+        """
         if (((self.current_epoch%5==0 and self.current_epoch%self.hparams.fiber_loss_every==0) or
             self.current_epoch==self.hparams.max_epochs-1) and
             self.subject_model is not None):
@@ -869,12 +870,13 @@ class FiberModel(FreeFormBase):
                 titles = ["x_orig", "x_sampled"]
                 fig = plot_mnist(x_plot, titles)
                 writer.add_figure(f"Fiber samples", fig, self.current_epoch)
-                """
+        """
+        """
                 x_plot = [x_orig_sm, x_samples_sm, torch.abs(x_orig_sm-x_samples_sm)]
                 titles = ["SM(x_orig)", "SM(x_sampled)", "Residual"]
                 fig = plot_mnist(x_plot, titles)
                 writer.add_figure(f"Verify samples", fig, self.current_epoch)
-                """
+        """
 
     def diffuse(self, x, t, alphas_):
         noise = torch.randn_like(x)
