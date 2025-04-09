@@ -11,8 +11,7 @@ from ldctinv.utils import load_yaml
 from torch.utils.data import Dataset
 from warnings import warn
 from PIL import Image
-
-
+import albumentations as A
 from fff.data.utils import TrainValTest
 
 
@@ -38,6 +37,7 @@ class LDCTMayo(Dataset):
         data_norm: str = "meanstd",
         return_tuple: bool = True,
         resize_to: int | None = None,
+        augment: bool = False,
         **kwargs,
     ):
         """Init function
@@ -102,6 +102,19 @@ class LDCTMayo(Dataset):
         self.data = data
         self.condition = condition
         self.resize_to = resize_to
+        self.use_augmentation = augment
+        if self.use_augmentation:
+            im_size = self.resize_to if self.resize_to else self.patchsize
+            self.transforms = A.Compose(
+                [
+                    A.RandomResizedCrop((im_size, im_size), scale=(0.9, 1.0)),
+                    A.Rotate(limit=10),
+                    A.RandomBrightnessContrast(
+                        brightness_limit=0.1, contrast_limit=0.1, p=0.2
+                    ),
+                ]
+            )
+
         assert self.data in [
             "lowdose",
             "highdose",
@@ -131,7 +144,7 @@ class LDCTMayo(Dataset):
             self.samples = self.samples[: int(len(self.samples) * self.data_subset)]
             self.weights = self.weights[: int(len(self.weights) * self.data_subset)]
 
-    def _normalize(self, X: np.ndarray) -> np.ndarray:
+    def _normalize(self, X: np.ndarray, data_norm=None) -> np.ndarray:
         """Normalize samples with precomputed mean/std or min/max
 
         Parameters
@@ -149,16 +162,18 @@ class LDCTMayo(Dataset):
         ValueError
             If normalization method `self.data_norm` is neither meanstd nor minmax
         """
-        if self.data_norm == "meanstd":
+        if data_norm is None:
+            data_norm = self.data_norm
+        if data_norm == "meanstd":
             return (X - self.info["mean"]) / self.info["std"]
-        elif self.data_norm == "minmax":
+        elif data_norm == "minmax":
             return (X - float(self.info["min"])) / (
                 float(self.info["max"]) - float(self.info["min"])
             )
         else:
-            raise ValueError(f"Unknown normalization method {self.data_norm}")
+            raise ValueError(f"Unknown normalization method {data_norm}")
 
-    def denormalize(self, X: np.ndarray) -> np.ndarray:
+    def denormalize(self, X: np.ndarray, data_norm=None) -> np.ndarray:
         """Denormalize samples with precomputed mean/std or min/max
 
         Parameters
@@ -176,13 +191,15 @@ class LDCTMayo(Dataset):
         ValueError
             If normalization method `self.data_norm` is neihter meanstd nor minmax
         """
-        if self.data_norm == "meanstd":
+        if data_norm is None:
+            data_norm = self.data_norm
+        if data_norm == "meanstd":
             return X * self.info["std"] + self.info["mean"]
 
-        elif self.data_norm == "minmax":
+        elif data_norm == "minmax":
             return X * (self.info["max"] - self.info["min"]) + self.info["min"]
         else:
-            raise ValueError(f"Unknown normalization method {self.data_norm}")
+            raise ValueError(f"Unknown normalization method {data_norm}")
 
     @staticmethod
     def _idx2filename(idx: int, n_slices: int) -> str:
@@ -236,6 +253,29 @@ class LDCTMayo(Dataset):
         return np.array(
             Image.fromarray(X).resize((self.resize_to, self.resize_to), Image.BICUBIC)
         )
+
+    def _augment(self, lowdose: np.ndarray | None, highdose: np.ndarray | None):
+        """Apply augmentations to lowdose and highdose images"""
+        if self.use_augmentation:
+            if lowdose is not None and highdose is not None:
+                lowdose, highdose = self._normalize(
+                    lowdose, data_norm="minmax"
+                ), self._normalize(highdose, data_norm="minmax")
+                augmented = self.transforms(image=lowdose, mask=highdose)
+                lowdose = augmented["image"]
+                highdose = augmented["mask"]
+                lowdose, highdose = self.denormalize(
+                    lowdose, data_norm="minmax"
+                ), self.denormalize(highdose, data_norm="minmax")
+            elif lowdose is not None:
+                lowdose = self._normalize(lowdose, data_norm="minmax")
+                lowdose = self.transforms(image=lowdose)["image"]
+                lowdose = self.denormalize(lowdose, data_norm="minmax")
+            elif highdose is not None:
+                highdose = self._normalize(highdose, data_norm="minmax")
+                highdose = self.transforms(image=highdose)["image"]
+                highdose = self.denormalize(highdose, data_norm="minmax")
+        return lowdose, highdose
 
     @staticmethod
     def to_torch(X: np.ndarray) -> torch.Tensor:
@@ -303,4 +343,5 @@ class LDCTMayo(Dataset):
         lowdose = self._resize(lowdose)
         highdose = self._resize(highdose)
 
+        lowdose, highdose = self._augment(lowdose, highdose)
         return self.prepare_return_values(lowdose, highdose)
