@@ -12,6 +12,7 @@ from tqdm import tqdm
 from PIL import Image, ImageFilter  # install 'pillow' to get PIL
 import pandas as pd
 import os
+import h5py
 
 from fff.data.utils import TrainValTest
 
@@ -30,6 +31,50 @@ def get_mnist_datasets(root: str, digit: int = None, conditional: bool = False, 
 
     return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional, patch_size=patch_size, num_patches_per_image=num_patches_per_image)
 
+def get_emnist_datasets(root: str, digit: int = None, conditional: bool = False, patch_size=None, num_patches_per_image=None) -> TrainValTest:
+    try:
+        train_dataset = EMNIST(root=root, train=True, split="digits")
+        test_dataset = EMNIST(root=root, train=False, split="digits")
+    except RuntimeError:
+        # Input with timeout
+        if input("Download dataset? [y/n] ").lower() != "y":
+            raise RuntimeError("Dataset not downloaded")
+        train_dataset = EMNIST(root=root, train=True, split="digits", download=True)
+        test_dataset = EMNIST(root=root, train=False, split="digits", download=True)
+
+    return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional, patch_size=patch_size, num_patches_per_image=num_patches_per_image)
+
+def get_h5saved_mnist(root: str, digit: int = None, conditional: bool = False, **kwargs) -> TrainValTest:
+    class dataset():
+        def __init__(self, data, targets, *args):
+            self.data = data
+            self.targets = targets
+
+    class dataset_jacs(dataset):
+        def __init__(self, data, targets, jacs):
+            super().__init__(data, targets)
+            self.jacs = jacs
+            
+    with h5py.File(f"{root}/data.h5", "r") as f:
+        train_data = f["train_images"][:]
+        train_targets = f["train_z"][:]
+        test_data = f["test_images"][:]
+        test_targets = f["test_z"][:]
+        try:
+            train_jacs_sm = f["train_jacdet"][:]
+            test_jacs_sm = f["test_jacdet"][:]
+        except:
+            train_jacs_sm = None
+            test_jacs_sm = None
+
+    if train_jacs_sm is None:
+        used_dataset = dataset
+    else:
+        used_dataset = dataset_jacs
+    train_dataset = used_dataset(train_data, train_targets, train_jacs_sm)
+    test_dataset = used_dataset(test_data, test_targets, test_jacs_sm)
+
+    return _process_img_data(train_dataset, None, test_dataset, label=digit, conditional=conditional)
 
 def get_split_mnist(root: str, digit: int = None, conditional: bool = False, path: str = None, fix_noise: float = None, **kwargs):
     df = pd.read_pickle(f"data/{path}/data")
@@ -207,13 +252,15 @@ def celeba_to_memory(root: str, split: str, image_size: None | int) -> MemoryCel
 
 def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, conditional: bool = False, patch_size=None, num_patches_per_image=None):
     # Data is (N, H, W, C)
-    #train_data = train_dataset.data
+    train_data = train_dataset.data
+    """
     batch_size = train_dataset.data.shape[0]
     dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size)
     train_data, _ = next(iter(dataloader))
     batch_size = test_dataset.data.shape[0]
     dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size)
     test_data, _ = next(iter(dataloader))
+    """
 
     print(train_data.shape)
     if val_dataset is None:
@@ -225,7 +272,7 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
         train_data = train_data[:-val_data_split]
     else:
         val_data = val_dataset.data
-    #test_data = test_dataset.data
+    test_data = test_dataset.data
 
     # To PyTorch tensors
     if not torch.is_tensor(train_data):
@@ -274,6 +321,21 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
             val_data = val_data[val_targets == label]
             test_data = test_data[test_targets == label]
 
+    if hasattr(train_dataset, 'jacs'):
+        train_jacs = train_dataset.jacs
+        if val_dataset is None:
+            val_jacs = train_jacs[-val_data_split:]
+            train_jacs = train_jacs[:-val_data_split]
+        else:
+            val_jacs = val_dataset.jacs
+        test_jacs = test_dataset.jacs
+
+        if not torch.is_tensor(train_jacs):
+            train_jacs = torch.tensor(train_jacs)
+            val_jacs = torch.tensor(val_jacs)
+            test_jacs = torch.tensor(test_jacs)
+
+
     if patch_size is not None:
         if num_patches_per_image is None:
             raise ValueError("num_patches_per_image must be set if patch_size is set")
@@ -293,10 +355,19 @@ def _process_img_data(train_dataset, val_dataset, test_dataset, label=None, cond
 
     # Conditions
     if conditional:
+        """
         train_data.append(one_hot(train_targets, -1))
         val_data.append(one_hot(val_targets, -1))
         test_data.append(one_hot(test_targets, -1))
+        """
+        train_data.append(train_targets)
+        val_data.append(val_targets)
+        test_data.append(test_targets)
 
+    if hasattr(train_dataset, 'jacs'):
+        train_data.append(train_jacs)
+        val_data.append(val_jacs)
+        test_data.append(test_jacs)
 
     return TensorDataset(
         *train_data

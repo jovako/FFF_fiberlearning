@@ -3,8 +3,6 @@ from torch import nn
 
 from fff.base import ModelHParams
 from .utils import batch_wrap, make_inn
-from ldctinv.cinn.blocks import ConditionalFlow, FeatureLayer
-from ldctinv.pretrained import load_pretrained
 
 
 class INNHParams(ModelHParams):
@@ -61,4 +59,3 @@ class INN(nn.Module):
         )
         """
         return make_inn(self.hparams.inn_spec, dim, cond_dim=cond_dim, zero_init=self.hparams.zero_init)
-        #return load_pretrained("cnn10", eval=True)[0]["cinn"].flow

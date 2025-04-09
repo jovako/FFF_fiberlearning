@@ -48,7 +48,7 @@ def compute_jacobian(
             fn_batch_expanded = batch_wrap(fn_kwargs_prefilled)
             fn_return_val = double_output(fn_batch_expanded)
             fn_jac_batched = vmap(
-                jacfn(fn_return_val, has_aux=True), chunk_size=chunk_size
+                jacfn(fn_return_val, has_aux=True), chunk_size=chunk_size, randomness="different"
             )
             jac, x_out = fn_jac_batched(x_in, *func_args)
     return x_out, jac

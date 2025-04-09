@@ -3,6 +3,7 @@ import torch.nn as nn
 from fff.utils.truncate import Truncate
 from fff.fif import FreeFormInjectiveFlow
 from fff.fff import FreeFormFlow
+from fff.some_model import SomeModel
 from ldctbench.hub import load_model
 import os
 from warnings import warn
@@ -11,8 +12,10 @@ from fff.model.utils import guess_image_shape
 from math import prod
 
 
+from fff.data.utils import Decolorize
+
 class SubjectModel(torch.nn.Module):
-    def __init__(self, subject_model_path, model_type=None, truncate=False):
+    def __init__(self, subject_model_path, model_type=None, truncate=False, fixed_transform=None):
         super(SubjectModel, self).__init__()
 
         if model_type in ["cnn10", "redcnn", "wganvgg", "dugan"]:
@@ -33,6 +36,9 @@ class SubjectModel(torch.nn.Module):
         if model_type == "FreeFormFlow":
             self.model = FreeFormFlow.load_from_checkpoint(subject_model_path)
             self.model.eval()
+        elif model_type == "SomeModel":
+            self.model = SomeModel.load_from_checkpoint(subject_model_path)
+            self.model.eval()
         elif model_type == "FreeFormInjectiveFlow":
             self.model = FreeFormInjectiveFlow.load_from_checkpoint(subject_model_path)
             self.model.eval()
@@ -51,13 +57,25 @@ class SubjectModel(torch.nn.Module):
         for param in self.model.parameters():
             param.requires_grad = False
 
+        if fixed_transform is not None:
+            if fixed_transform == "decolorize":
+                self.fixed_transform = Decolorize
+            else:
+                raise NotImplementedError(f"You have to implement {fixed_transform} in subject_model.py")
+        else:
+            self.fixed_transform = None
+
     def forward(self, x, *c, **kwargs):
+        if self.fixed_transform is not None:
+            x = self.fixed_transform(x)
         if self.model is None:
             raise RuntimeError("No subject model loaded")
         # return self.model(x, *c, **kwargs)
         return self.model(x)
 
     def encode(self, x, *c, **kwargs):
+        if self.fixed_transform is not None:
+            x = self.fixed_transform(x)
         if self.model is None:
             raise RuntimeError("No subject model loaded")
         try:
@@ -65,6 +83,7 @@ class SubjectModel(torch.nn.Module):
         except:
             return self.forward(x, *c, **kwargs)
 
+    
     def decode(self, z, *c, **kwargs):
         if self.model is None:
             raise RuntimeError("No subject model loaded")
