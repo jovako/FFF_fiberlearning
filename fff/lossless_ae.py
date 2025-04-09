@@ -71,7 +71,7 @@ class LosslessAE(Module):
 
         if self.hparams.vae and hparams["path"] is None:
             lat_dim = self.hparams.model_spec[-1]["latent_dim"]
-            model_spec[-1]["latent_dim"] = lat_dim * 2
+            self.hparams.model_spec[-1]["latent_dim"] = lat_dim * 2
 
         if self.hparams.use_pretrained_ldct_networks:
             input_shape = guess_image_shape(self.data_dim)
@@ -108,6 +108,9 @@ class LosslessAE(Module):
             )
 
             if self.hparams.cond_embedding_network:
+                assert not (
+                    self.hparams.cond_dim == 0
+                ), "ae_conditional has to be set to True if a cond_embedding_network is built"
                 if self.hparams.use_pretrained_ldct_networks:
                     warnings.warn(
                         "cond_embedding_network is not tested with use_pretrained_ldct_networks"

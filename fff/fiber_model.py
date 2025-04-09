@@ -302,7 +302,7 @@ class FiberModel(FreeFormBase):
 
     def decode_density(self, z_dense, c):
         # c = self.unflatten_ce(c).unsqueeze(1)
-        if self.density_model_type == "diffusion":
+        if self.density_model_type in ["diffusion", "flow_matching"]:
             t, c = c
         if self.condition_embedder is not None:
             for model in self.condition_embedder:
@@ -310,7 +310,7 @@ class FiberModel(FreeFormBase):
                 c = model.encode(
                     c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype)
                 )
-        if self.density_model_type == "diffusion":
+        if self.density_model_type in ["diffusion", "flow_matching"]:
             c = t, c
         for net in self.density_model:
             z_dense = net.decode(z_dense, c)
