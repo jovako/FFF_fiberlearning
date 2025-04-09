@@ -543,6 +543,7 @@ class FiberModel(FreeFormBase):
             not self.training or check_keys("ae_rec_fiber_loss")
         ) and self.subject_model is not None:
             c_sm = torch.empty(x0.shape[0], 0).to(x0.device)
+            print(x0.shape)
             c_orig = self.subject_model.encode(x0, c_sm)
             c1 = self.subject_model.encode(x1, c_sm)
             loss_values["ae_rec_fiber_loss"] = self._reduced_rec_loss(c_orig, c1)

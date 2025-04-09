@@ -78,10 +78,12 @@ class SubjectModel(torch.nn.Module):
             x = self.fixed_transform(x)
         if self.model is None:
             raise RuntimeError("No subject model loaded")
-        try:
-            return self.model.encode(x, *c, **kwargs)
+        #try:
+        return self.model.encode(x, *c, **kwargs)
+        """
         except:
-            return self.forward(x, *c, **kwargs)
+            return self.model(x)
+        """
 
     
     def decode(self, z, *c, **kwargs):
