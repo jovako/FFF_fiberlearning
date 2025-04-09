@@ -11,6 +11,7 @@ from fff.model.utils import guess_image_shape, wrap_batch_norm2d
 from fff.model import Identity
 import copy
 
+
 class LosslessAEHParams(ModelHParams):
     model_spec: list = []
     cond_dim: int | list = 0
@@ -69,7 +70,7 @@ class LosslessAE(Module):
                 self.hparams.cond_embedding_network == []
             ), "cond_embedding_network must be specified if cond_embedding_shape is specified"
 
-        if self.hparams.vae and hparams["path"] is None:
+        if self.hparams.vae and not self.hparams.path:
             lat_dim = self.hparams.model_spec[-1]["latent_dim"]
             self.hparams.model_spec[-1]["latent_dim"] = lat_dim * 2
 

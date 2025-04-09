@@ -15,7 +15,7 @@ class ResNetHParams(ModelHParams):
     id_init: bool = False
     batch_norm: str | bool = False
     dropout: float | None = None
-
+    normalize: bool = False
     final_batch_norm: bool | str = False
     final_linear: None | bool = None
 
@@ -26,15 +26,30 @@ class ResNetHParams(ModelHParams):
         super().__init__(**hparams)
 
 
-def make_res_net(data_dim, layers_widths, activation, id_init: bool,
-                 batch_norm: str | bool, dropout: float = None):
+def make_res_net(
+    data_dim,
+    layers_widths,
+    activation,
+    id_init: bool,
+    batch_norm: str | bool,
+    dropout: float = None,
+    normalize: bool = False,
+):
     sequential = nn.Sequential()
+    if normalize:
+        sequential.append(nn.LayerNorm(data_dim, elementwise_affine=False))
     for widths in layers_widths:
-        sequential.append(SkipConnection(
-            make_dense([data_dim, *widths, data_dim], activation,
-                       batch_norm=batch_norm, dropout=dropout),
-            id_init=id_init
-        ))
+        sequential.append(
+            SkipConnection(
+                make_dense(
+                    [data_dim, *widths, data_dim],
+                    activation,
+                    batch_norm=batch_norm,
+                    dropout=dropout,
+                ),
+                id_init=id_init,
+            )
+        )
     return sequential
 
 
@@ -53,7 +68,7 @@ class ResNet(nn.Module):
         return self.model.encoder(torch.cat([x, c], -1))
 
     def decode(self, z, c):
-        return self.model.decoder(torch.cat([z, c], -1))[..., :self.hparams.data_dim]
+        return self.model.decoder(torch.cat([z, c], -1))[..., : self.hparams.data_dim]
 
     def sample(self, u, c):
         return self.decode(u, c)
@@ -68,14 +83,16 @@ class ResNet(nn.Module):
         # ResNet in data space + projection to latent space
         activation = self.hparams.activation
         encoder = make_res_net(
-            data_dim + cond_dim, self.hparams.layers_spec, activation,
+            data_dim + cond_dim,
+            self.hparams.layers_spec,
+            activation,
             id_init=self.hparams.id_init,
-            batch_norm=self.hparams.batch_norm, dropout=self.hparams.dropout
+            batch_norm=self.hparams.batch_norm,
+            dropout=self.hparams.dropout,
+            normalize=self.hparams.normalize,
         )
         if data_dim + cond_dim != latent_dim or self.hparams.final_linear:
-            encoder.append(nn.Linear(
-                data_dim + cond_dim, latent_dim
-            ))
+            encoder.append(nn.Linear(data_dim + cond_dim, latent_dim))
         if self.hparams.final_batch_norm is not False:
             encoder.append(wrap_batch_norm1d(self.hparams.final_batch_norm, latent_dim))
         if self.hparams.classification == True:
@@ -83,16 +100,17 @@ class ResNet(nn.Module):
 
         decoder = nn.Sequential()
         if data_dim + cond_dim != latent_dim:
-            decoder.append(nn.Linear(
-                latent_dim + cond_dim, data_dim + cond_dim
-            ))
-        decoder.extend(make_res_net(
-            data_dim + cond_dim, self.hparams.layers_spec[::-1], activation,
-            id_init=self.hparams.id_init,
-            batch_norm=self.hparams.batch_norm, dropout=self.hparams.dropout
-        ))
+            decoder.append(nn.Linear(latent_dim + cond_dim, data_dim + cond_dim))
+        decoder.extend(
+            make_res_net(
+                data_dim + cond_dim,
+                self.hparams.layers_spec[::-1],
+                activation,
+                id_init=self.hparams.id_init,
+                batch_norm=self.hparams.batch_norm,
+                dropout=self.hparams.dropout,
+                normalize=self.hparams.normalize,
+            )
+        )
 
-        return torch.nn.Sequential(OrderedDict(
-            encoder=encoder,
-            decoder=decoder
-        ))
+        return torch.nn.Sequential(OrderedDict(encoder=encoder, decoder=decoder))
