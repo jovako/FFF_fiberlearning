@@ -70,8 +70,6 @@ class LosslessAE(Module):
             ), "cond_embedding_network must be specified if cond_embedding_shape is specified"
 
         if self.hparams.vae and hparams["path"] is None:
-        model_spec = copy.deepcopy(self.hparams.model_spec)
-        if self.hparams.vae:
             lat_dim = self.hparams.model_spec[-1]["latent_dim"]
             model_spec[-1]["latent_dim"] = lat_dim * 2
 
@@ -104,7 +102,7 @@ class LosslessAE(Module):
                 )
         else:
             self.models = build_model(
-                model_spec,
+                self.hparams.model_spec,
                 self.data_dim,
                 self.hparams.cond_embedding_shape[0],
             )
@@ -196,7 +194,7 @@ class LosslessAE(Module):
             z = self.flatten(z)
         return z
 
-    def encode(self, x, c, return_only_x=False, deterministic=False **kwargs):
+    def encode(self, x, c, return_only_x=False, deterministic=False, **kwargs):
         if self.hparams.cond_dim == 0:
             c = torch.empty((x.shape[0], 0), device=x.device, dtype=x.dtype)
         c = self.embed_condition(c)
