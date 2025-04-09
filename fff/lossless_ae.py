@@ -9,7 +9,7 @@ from ldctinv.pretrained import load_pretrained
 from ldctinv import utils
 from fff.model.utils import guess_image_shape, wrap_batch_norm2d
 from fff.model import Identity
-
+import copy
 
 class LosslessAEHParams(ModelHParams):
     model_spec: list = []
@@ -70,8 +70,10 @@ class LosslessAE(Module):
             ), "cond_embedding_network must be specified if cond_embedding_shape is specified"
 
         if self.hparams.vae and hparams["path"] is None:
+        model_spec = copy.deepcopy(self.hparams.model_spec)
+        if self.hparams.vae:
             lat_dim = self.hparams.model_spec[-1]["latent_dim"]
-            self.hparams.model_spec[-1]["latent_dim"] = lat_dim * 2
+            model_spec[-1]["latent_dim"] = lat_dim * 2
 
         if self.hparams.use_pretrained_ldct_networks:
             input_shape = guess_image_shape(self.data_dim)
@@ -102,7 +104,7 @@ class LosslessAE(Module):
                 )
         else:
             self.models = build_model(
-                self.hparams.model_spec,
+                model_spec,
                 self.data_dim,
                 self.hparams.cond_embedding_shape[0],
             )
@@ -135,13 +137,22 @@ class LosslessAE(Module):
                 self.condition_embedder = Identity(self.hparams)
 
             if self.hparams.path:
-                print("Loading lossless_ae checkpoint from: ", hparams["path"])
-                lossless_ae_weights = {
-                    k[len("lossless_ae.") :]: v
-                    for k, v in checkpoint["state_dict"].items()
-                    if k.startswith("lossless_ae.")
-                }
-                self.load_state_dict(lossless_ae_weights)
+                try:
+                    print("Loading lossless_ae checkpoint from: ", hparams["path"])
+                    lossless_ae_weights = {
+                        k[len("lossless_ae.") :]: v
+                        for k, v in checkpoint["state_dict"].items()
+                        if k.startswith("lossless_ae.")
+                    }
+                    self.load_state_dict(lossless_ae_weights)
+                except:
+                    print("Loading lossless_ae checkpoint from: ", hparams["path"])
+                    lossless_ae_weights = {
+                        k[len("models.") :]: v
+                        for k, v in checkpoint["state_dict"].items()
+                        if k.startswith("models.")
+                    }
+                    self.models.load_state_dict(lossless_ae_weights)
 
         if not self.hparams.train:
             self.models.eval()
@@ -185,7 +196,7 @@ class LosslessAE(Module):
             z = self.flatten(z)
         return z
 
-    def encode(self, x, c, return_only_x=False, **kwargs):
+    def encode(self, x, c, return_only_x=False, deterministic=False **kwargs):
         if self.hparams.cond_dim == 0:
             c = torch.empty((x.shape[0], 0), device=x.device, dtype=x.dtype)
         c = self.embed_condition(c)
@@ -205,8 +216,11 @@ class LosslessAE(Module):
             # VAE latent sampling
             mu = x[:, : x.shape[1] // 2].reshape(-1, x.shape[1] // 2)
             logvar = x[:, x.shape[1] // 2 :].reshape(-1, x.shape[1] // 2)
-            epsilon = torch.randn_like(logvar).to(mu.device)
-            x = mu + torch.exp(0.5 * logvar) * epsilon
+            if deterministic:
+                x = mu
+            else:
+                epsilon = torch.randn_like(logvar).to(mu.device)
+                x = mu + torch.exp(0.5 * logvar) * epsilon
         if return_only_x:
             return x
         return x, mu, logvar, *other

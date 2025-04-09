@@ -11,7 +11,7 @@ from .utils import wrap_batch_norm1d, make_dense
 class ResNetHParams(ModelHParams):
     classification: bool = False
     layers_spec: list
-    activation: str = "leakyrelu"
+    activation: str = "silu"
     id_init: bool = False
     batch_norm: str | bool = False
     dropout: float | None = None
