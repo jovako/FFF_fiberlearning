@@ -70,9 +70,10 @@ class LosslessAE(Module):
                 self.hparams.cond_embedding_network == []
             ), "cond_embedding_network must be specified if cond_embedding_shape is specified"
 
+        model_spec = copy.deepcopy(self.hparams.model_spec)
         if self.hparams.vae and not self.hparams.path:
             lat_dim = self.hparams.model_spec[-1]["latent_dim"]
-            self.hparams.model_spec[-1]["latent_dim"] = lat_dim * 2
+            model_spec[-1]["latent_dim"] = lat_dim * 2
 
         if self.hparams.use_pretrained_ldct_networks:
             input_shape = guess_image_shape(self.data_dim)
@@ -103,12 +104,15 @@ class LosslessAE(Module):
                 )
         else:
             self.models = build_model(
-                self.hparams.model_spec,
+                model_spec,
                 self.data_dim,
                 self.hparams.cond_embedding_shape[0],
             )
 
             if self.hparams.cond_embedding_network:
+                assert not (
+                    self.hparams.cond_dim == 0
+                ), "ae_conditional has to be set to True if a cond_embedding_network is built"
                 if self.hparams.use_pretrained_ldct_networks:
                     warnings.warn(
                         "cond_embedding_network is not tested with use_pretrained_ldct_networks"
