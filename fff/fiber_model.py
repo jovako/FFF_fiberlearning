@@ -144,7 +144,7 @@ class FiberModel(FreeFormBase):
             ), "Diffusion model must be the only model in the density model"
             self.density_model_type = (
                 "diffusion"
-                if self.hparams.density_model["name"] == "fff.model.DiffusionModel"
+                if self.hparams.density_model[0]["name"] == "fff.model.DiffusionModel"
                 else "flow_matching"
             )
 
