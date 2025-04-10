@@ -52,6 +52,7 @@ class FiberModelHParams(FreeFormBaseHParams):
     load_density_model_path: str | None = None
     load_subject_model: bool = False
     sm_input_transform: str | None = None
+    sm_empty_condition: bool = False
     train_lossless_ae: bool = True
     ae_conditional: bool = False
     ae_deterministic_encode: bool | None = None
@@ -181,8 +182,8 @@ class FiberModel(FreeFormBase):
             self.subject_model = SubjectModel(
                 sm_dir,
                 self.hparams.data_set.subject_model_type,
-                fixed_transform=self.hparams.data_set.sm_input_transform,
-                empty_condition=self.hparams.data_set.sm_empty_condition,
+                fixed_transform=self.hparams.sm_input_transform,
+                empty_condition=self.hparams.sm_empty_condition,
             )
             self.subject_model.eval()
             for param in self.subject_model.parameters():
