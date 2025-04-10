@@ -181,7 +181,8 @@ class FiberModel(FreeFormBase):
             self.subject_model = SubjectModel(
                 sm_dir,
                 self.hparams.data_set.subject_model_type,
-                fixed_transform=self.hparams.sm_input_transform,
+                fixed_transform=self.hparams.data_set.sm_input_transform,
+                empty_condition=self.hparams.data_set.sm_empty_condition,
             )
             self.subject_model.eval()
             for param in self.subject_model.parameters():
@@ -542,10 +543,8 @@ class FiberModel(FreeFormBase):
         if (
             not self.training or check_keys("ae_rec_fiber_loss")
         ) and self.subject_model is not None:
-            c_sm = torch.empty(x0.shape[0], 0).to(x0.device)
-            print(x0.shape)
-            c_orig = self.subject_model.encode(x0, c_sm)
-            c1 = self.subject_model.encode(x1, c_sm)
+            c_orig = self.subject_model.encode(x0)
+            c1 = self.subject_model.encode(x1)
             loss_values["ae_rec_fiber_loss"] = self._reduced_rec_loss(c_orig, c1)
 
         # KL-Divergence for VAE
@@ -813,9 +812,7 @@ class FiberModel(FreeFormBase):
                 # Try whether the model learns fibers and therefore has a subject model
                 try:
                     # There might be no subject model
-                    c_sm = torch.empty(x_random.shape[0], 0).to(x_random.device)
                     c1 = self.subject_model.encode(x_random_sm)
-                    # c0 = self.subject_model.encode(x0, c_sm)
                     c_sm = torch.empty(x_random.shape[0], 0).to(x_random.device)
                     if jac_sm is not None:
                         loss_values["jac_fiber_loss"] = self._jacreduced_l2(
@@ -896,11 +893,10 @@ class FiberModel(FreeFormBase):
                 x = conditioned.x_noisy
                 c = conditioned.condition
                 x_samples = self.sample(torch.Size([x.shape[0]]), c)
-                c_sm = torch.empty(x_samples.shape[0], 0).to(x_samples.device)
-                c_samples = self.subject_model.encode(x_samples, c_sm)
-                # x_samples_sm = self.subject_model.decode(c_samples, c_sm)
-                c_orig = self.subject_model.encode(x, c_sm)
-                # x_orig_sm = self.subject_model.decode(c_orig, c_sm)
+                c_samples = self.subject_model.encode(x_samples)
+                # x_samples_sm = self.subject_model.decode(c_samples)
+                c_orig = self.subject_model.encode(x)
+                # x_orig_sm = self.subject_model.decode(c_orig)
                 writer = self.logger.experiment
                 x_plot = [
                     torch.clip(x, min=0, max=1),
@@ -946,18 +942,14 @@ class FiberModel(FreeFormBase):
         # Dataset condition
         if self.is_conditional() and len(batch) < 2:
             if self.hparams.compute_c_on_fly:
-                c_sm = torch.empty(x_sm.shape[0], device=x_sm.device)
                 conds.append(self.subject_model.encode(x_sm).detach())
-                # conds.append(self.subject_model.encode(x_sm, c_sm).detach())
             else:
                 raise ValueError(
                     "You must pass a batch including conditions for each dataset condition"
                 )
         if len(batch) > 1:
             if self.hparams.compute_c_on_fly:
-                c_sm = torch.empty(x_sm.shape[0], device=x_sm.device)
                 dataset_cond = self.subject_model.encode(x_sm).detach()
-                # dataset_cond = self.subject_model.encode(x_sm, c_sm).detach()
             else:
                 dataset_cond = batch[1]
             conds.append(dataset_cond)
