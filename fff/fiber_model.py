@@ -134,23 +134,19 @@ class FiberModel(FreeFormBase):
         elif any(
             [
                 model_hparams["name"] == "fff.model.DiffusionModel"
+                or model_hparams["name"] == "fff.model.FlowMatching"
                 for model_hparams in self.hparams.density_model
             ]
         ):
             assert (
                 len(self.hparams.density_model) == 1
             ), "Diffusion model must be the only model in the density model"
-            self.density_model_type = "diffusion"
-        elif any(
-            [
-                model_hparams["name"] == "fff.model.FlowMatching"
-                for model_hparams in self.hparams.density_model
-            ]
-        ):
-            assert (
-                len(self.hparams.density_model) == 1
-            ), "FlowMatching model must be the only model in the density model"
-            self.density_model_type = "flow_matching"
+            self.density_model_type = (
+                "diffusion"
+                if self.hparams.density_model["name"] == "fff.model.DiffusionModel"
+                else "flow_matching"
+            )
+
             self.betas = make_betas(
                 1000,
                 self.hparams.diffusion_betas_max,
@@ -159,16 +155,6 @@ class FiberModel(FreeFormBase):
             self.hparams.density_model[-1]["betas"] = (self.betas,)
             self.alphas_ = torch.cumprod((1 - self.betas), axis=0)
             self.sample_steps = torch.linspace(0, 1, 1000).flip(0)
-        elif any(
-            [
-                model_hparams["name"] == "fff.model.FlowMatching"
-                for model_hparams in self.hparams.density_model
-            ]
-        ):
-            assert (
-                len(self.hparams.density_model) == 1
-            ), "FlowMatching model must be the only model in the density model"
-            self.density_model_type = "flow_matching"
         else:
             self.density_model_type = "fff"
 
