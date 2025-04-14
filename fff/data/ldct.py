@@ -108,11 +108,13 @@ class LDCTMayo(Dataset):
             self.transforms = A.Compose(
                 [
                     A.RandomResizedCrop((im_size, im_size), scale=(0.9, 1.0)),
-                    A.Rotate(limit=10),
+                    A.Rotate(limit=10, interpolation=1),
                     A.RandomBrightnessContrast(
-                        brightness_limit=0.1, contrast_limit=0.1, p=0.2
+                        brightness_limit=0.02, contrast_limit=0.02, p=0.3
                     ),
-                ]
+                    A.GaussianBlur(blur_limit=(3, 7), sigma_limit=(0.01, 0.5), p=1.0),
+                ],
+                additional_targets={"image2": "image"},
             )
 
         assert self.data in [
@@ -261,9 +263,9 @@ class LDCTMayo(Dataset):
                 lowdose, highdose = self._normalize(
                     lowdose, data_norm="minmax"
                 ), self._normalize(highdose, data_norm="minmax")
-                augmented = self.transforms(image=lowdose, mask=highdose)
+                augmented = self.transforms(image=lowdose, image2=highdose)
                 lowdose = augmented["image"]
-                highdose = augmented["mask"]
+                highdose = augmented["image2"]
                 lowdose, highdose = self.denormalize(
                     lowdose, data_norm="minmax"
                 ), self.denormalize(highdose, data_norm="minmax")
