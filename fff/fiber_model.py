@@ -456,8 +456,10 @@ class FiberModel(FreeFormBase):
         )
 
     def _fm_loss(self, bt, bt_hat):
-        return sum_except_batch(torch.pow(bt_hat, 2)) - 2 * sum_except_batch(
-            bt * bt_hat
+        return (
+            sum_except_batch(torch.pow(bt_hat, 2))
+            - 2 * sum_except_batch(bt * bt_hat)
+            + sum_except_batch(torch.pow(bt, 2))
         )
 
     def compute_metrics(self, batch, batch_idx) -> dict:
