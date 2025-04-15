@@ -42,6 +42,7 @@ class Swish(nn.Module):
 torch.nn.Sin = Sin
 torch.nn.Swish = Swish
 
+
 def expand_like(input: Tensor, reference: Tensor) -> Tensor:
     """Expands the input tensor to match the shape of the reference tensor.
 
@@ -52,6 +53,7 @@ def expand_like(input: Tensor, reference: Tensor) -> Tensor:
     while expanded.dim() < reference.dim():
         expanded = expanded.unsqueeze(-1)
     return expanded.expand_as(reference)
+
 
 def get_module(name):
     """Get a nn.Module in a case-insensitive way"""
@@ -310,65 +312,3 @@ class CrossAttention(nn.Module):
 
         output = self.out(attn_output)
         return output
-
-class InterpolantMixin(ABC):
-    # flow matching util
-    class hparams:
-        Interpolation = Literal["linear", "trigonometric"]
-        sigma: float
-        interpolation: Interpolation
-
-    _alpha: Callable[[Tensor], Tensor]
-    _alpha_dot: Callable[[Tensor], Tensor]
-    _beta: Callable[[Tensor], Tensor]
-    _beta_dot: Callable[[Tensor], Tensor]
-
-    def __init__(self, *args, **kwargs):
-        self._configure_interpolation()
-
-    def loss_fm(self, bt: Tensor, bt_hat: Tensor) -> Tensor:
-        return sum_except_batch(torch.pow(bt_hat, 2)) - 2 * sum_except_batch(bt * bt_hat)
-
-    def loss_sm(self, etat: Tensor, etat_hat: Tensor) -> Tensor:
-        return sum_except_batch(torch.pow(etat_hat, 2)) - 2 * sum_except_batch(etat * etat_hat)
-
-    def _configure_interpolation(self) -> None:
-        match self.hparams.interpolation:
-            case "linear":
-                print("Using a linear interpolation")
-                self._alpha = lambda t: 1 - t
-                self._alpha_dot = lambda t: -torch.ones_like(t)
-                self._beta = lambda t: t
-                self._beta_dot = lambda t: torch.ones_like(t)
-            case "trigonometric":
-                print("Using a trigonometric interpolation")
-                self._alpha = lambda t: torch.cos(torch.pi / 2 * t)
-                self._alpha_dot = lambda t: -torch.pi / 2 * torch.sin(torch.pi / 2 * t)
-                self._beta = lambda t: torch.sin(torch.pi / 2 * t)
-                self._beta_dot = lambda t: torch.pi / 2 * torch.cos(torch.pi / 2 * t)
-            case _:
-                raise ValueError(f"Interpolation '{self.hparams.interpolation}' not supported")
-
-    def _gamma(self, t: Tensor) -> Tensor:
-        return (t * (1 - t)) * self.hparams.sigma
-
-    def _gamma_dot(self, t: Tensor) -> Tensor:
-        return (1 - 2 * t) * self.hparams.sigma
-
-    def compute_path_sample(self, t: Tensor, x0: Tensor, x1: Tensor) -> tuple[Tensor, Tensor, Tensor]:
-        z = torch.randn_like(x0)
-        xt = self.compute_xt(t, x0, x1, z)
-        bt = self.compute_bt(t, x0, x1, z)
-        return xt, bt, z
-
-    def compute_xt(self, t: Tensor, x0: Tensor, x1: Tensor, z: Tensor) -> Tensor:
-        alpha_t = expand_like(self._alpha(t), x0)
-        beta_t = expand_like(self._beta(t), x1)
-        gamma_t = expand_like(self._gamma(t), z)
-        return alpha_t * x0 + beta_t * x1 + gamma_t * z
-
-    def compute_bt(self, t: Tensor, x0: Tensor, x1: Tensor, z: Tensor) -> Tensor:
-        alpha_t_dot = expand_like(self._alpha_dot(t), x0)
-        beta_t_dot = expand_like(self._beta_dot(t), x1)
-        gamma_t_dot = expand_like(self._gamma_dot(t), z)
-        return alpha_t_dot * x0 + beta_t_dot * x1 + gamma_t_dot * z
