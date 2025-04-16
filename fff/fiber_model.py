@@ -678,18 +678,23 @@ class FiberModel(FreeFormBase):
         if check_keys("fm_loss"):
             if not self.density_model_type == "flow_matching":
                 raise ValueError("fm_loss is only available for flow matching models")
-            t = torch.rand(z.shape[0], 1, device=z.device)
-            if self.density_model[0].conditional:
-                c_fm = (t, c)
-                z_fm = torch.randn_like(z)
-            else:
-                c_fm = t
-                z_fm = self.density_model[0].concat_noise(c)
-            zt, bt, _ = self.density_model[0].compute_path_sample(t, z_fm, z)
-            bt1 = self.decode_density(zt.detach(), c_fm)
-            loss_values["fm_loss"] = self._fm_loss(bt, bt1)
+            t = torch.rand(z.shape[0], device=z.device)
+            z_fm = self.get_latent(z.device).sample((z.shape[0],))
+            # Sander's method
+            if not self.density_model[0].conditional:
+                z_fm[:, : self.cond_dim] = c
+            loss_values["fm_loss"] = self.density_model[0].compute_fm_loss(
+                t, z_fm, z, c
+            )
 
-        if z_dense is None:
+        need_z_dense = val_all_metrics or check_keys(
+            "latent_reconstruction",
+            "latent_l1_reconstruction",
+            "masked_reconstruction",
+            "cycle_loss",
+        )
+
+        if z_dense is None and need_z_dense:
             z_dense = self.encode_density(z.detach(), c)
 
         # Reconstruction of latent z
@@ -708,19 +713,20 @@ class FiberModel(FreeFormBase):
             loss_values["latent_l1_reconstruction"] = self._l1_loss(z.detach(), z1)
 
         # Wasserstein distance of marginal to Gaussian
-        with torch.no_grad():
-            z_marginal = z_dense.reshape(-1)
-            z_gauss = torch.randn_like(z_marginal)
+        if val_all_metrics:
+            with torch.no_grad():
+                z_marginal = z_dense.reshape(-1)
+                z_gauss = torch.randn_like(z_marginal)
 
-            z_marginal_sorted = z_marginal.sort().values
-            z_gauss_sorted = z_gauss.sort().values
+                z_marginal_sorted = z_marginal.sort().values
+                z_gauss_sorted = z_gauss.sort().values
 
-            metrics["z 1D-Wasserstein-1"] = (
-                (z_marginal_sorted - z_gauss_sorted).abs().mean()
-            )
-            metrics["z std"] = torch.std(z_marginal)
-            if check_keys("ae_lamb_reconstruction"):
-                metrics["lambda"] = self.lamb
+                metrics["z 1D-Wasserstein-1"] = (
+                    (z_marginal_sorted - z_gauss_sorted).abs().mean()
+                )
+                metrics["z std"] = torch.std(z_marginal)
+                if check_keys("ae_lamb_reconstruction"):
+                    metrics["lambda"] = self.lamb
 
         """
         if val_all_metrics or check_keys("z std"):
@@ -742,6 +748,8 @@ class FiberModel(FreeFormBase):
 
         # Cyclic consistency of latent code -- gradient only to encoder
         if val_all_metrics or check_keys("cycle_loss"):
+            if z1 is None:
+                z1 = self.decode_density(z_dense, c)
             z1_detached = z1.detach()
             z_dense1 = self.encode_density(z1_detached, c)
             if isinstance(z_dense1, tuple):

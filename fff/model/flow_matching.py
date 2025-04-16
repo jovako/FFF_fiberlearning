@@ -39,7 +39,6 @@ class FlowMatchingHParams(ResNetHParams):
     default_sampling_step_size: float = 1e-2
     default_sampling_method: str = "midpoint"
     loss_norm: str = "l2"
-    sigma: float = 0.1  # interpolation noise amplitude
 
 
 class FlowMatching(nn.Module):
@@ -86,6 +85,11 @@ class FlowMatching(nn.Module):
         vf = self.net(x)
         return vf
 
+    def get_vector_field_conditional(self, x: Tensor, t: Tensor, c: Tensor) -> Tensor:
+        if self.conditional:
+            x = torch.cat([x, c], dim=-1)
+        return self.get_vector_field(x, t)
+
     def get_path_sample(self, t: Tensor, x0: Tensor, x1: Tensor) -> PathSample:
         return self.path.sample(t=t, x_0=x0, x_1=x1)
 
@@ -97,52 +101,62 @@ class FlowMatching(nn.Module):
         else:
             raise ValueError(f"Unknown norm {self.hparams.loss_norm}")
 
-    def compute_fm_loss(self, t: Tensor, x0: Tensor, x1: Tensor) -> Tensor:
+    def compute_fm_loss(self, t: Tensor, x0: Tensor, x1: Tensor, c: Tensor) -> Tensor:
         # Compute the path sample
         path_sample = self.get_path_sample(t, x0, x1)
         # Compute the vector field
-        vf = self.get_vector_field(path_sample.x_t, t)
+        vf = self.get_vector_field_conditional(path_sample.x_t, path_sample.t, c)
         # Compute the loss
         return self._norm(vf, path_sample.dx_t)
 
     def encode(
-        self, x: Tensor, c: Tensor, step_size: int = -1, method: str = "default"
+        self,
+        x: Tensor,
+        c: Tensor,
+        step_size: int = -1,
+        method: str = "default",
+        enable_grad=False,
     ) -> Tensor:
         if step_size == -1:
             step_size = self.hparams.default_sampling_step_size
         if method == "default":
             method = self.hparams.default_sampling_method
 
-        if self.conditional:
-            x = torch.cat([x, c], -1)
-        solver = ODESolver(self.get_vector_field)
+        vector_field = partial(self.get_vector_field_conditional, c=c)
+        solver = ODESolver(vector_field)
         sol = solver.sample(
             x_init=x,
             method=method,
             time_grid=torch.tensor([1.0, 0.0]),  # reverse time
             step_size=step_size,
             return_intermediates=True,
+            enable_grad=enable_grad,
         )
         return sol[-1]
 
     def decode(
-        self, z: Tensor, c: Tensor, step_size: int = -1, method: str = "default"
+        self,
+        z: Tensor,
+        c: Tensor,
+        step_size: int = -1,
+        method: str = "default",
+        enable_grad=False,
     ) -> Tensor:
         if step_size == -1:
             step_size = self.hparams.default_sampling_step_size
         if method == "default":
             method = self.hparams.default_sampling_method
 
-        if self.conditional:
-            z = torch.cat([z, c], -1)
-        solver = ODESolver(self.get_vector_field)
+        vector_field = partial(self.get_vector_field_conditional, c=c)
+        solver = ODESolver(vector_field)
         sol = solver.sample(
             x_init=z,
             method=method,
             step_size=step_size,
             return_intermediates=True,
+            enable_grad=enable_grad,
         )
         return sol[-1]
 
-    def sample(self, z: Tensor, c: Tensor) -> Tensor:
-        return self.decode(z, c)
+    def sample(self, z: Tensor, c: Tensor, **kwargs) -> Tensor:
+        return self.decode(z, c, **kwargs)

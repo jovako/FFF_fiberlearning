@@ -25,9 +25,7 @@ class ModelHParams(HParams):
 
 
 class FreeFormBaseHParams(TrainableHParams):
-    latent_distribution: dict = dict(
-        name="normal"
-    )
+    latent_distribution: dict = dict(name="normal")
     data_set: dict
     noise: float | list = 0.0
     track_train_time: bool = False
@@ -37,10 +35,7 @@ class FreeFormBaseHParams(TrainableHParams):
     condition_embedder: list = []
 
     loss_weights: dict
-    log_det_estimator: dict = dict(
-        name="surrogate",
-        hutchinson_samples=1
-    )
+    log_det_estimator: dict = dict(name="surrogate", hutchinson_samples=1)
     skip_val_nll: bool | int = False
     exact_train_nll_every: int | None = None
 
@@ -50,10 +45,13 @@ class FreeFormBaseHParams(TrainableHParams):
 
 
 LogProbResult = namedtuple("LogProbResult", ["z", "x1", "log_prob", "regularizations"])
-VolumeChangeResult = namedtuple("VolumeChangeResult", ["out", "volume_change", "regularizations"])
-ConditionedBatch = namedtuple("ConditionedBatch", [
-    "x0", "x_noisy", "loss_weights", "condition", "dequantization_jac"
-])
+VolumeChangeResult = namedtuple(
+    "VolumeChangeResult", ["out", "volume_change", "regularizations"]
+)
+ConditionedBatch = namedtuple(
+    "ConditionedBatch",
+    ["x0", "x_noisy", "loss_weights", "condition", "dequantization_jac"],
+)
 
 
 class FreeFormBase(Trainable):
@@ -61,12 +59,15 @@ class FreeFormBase(Trainable):
     This class abstracts the joint functionalities of free-form flows (FFF)
     and Free-form injective flows (FIF).
     """
+
     hparams: FreeFormBaseHParams
 
     def __init__(self, hparams: FreeFormBaseHParams | dict):
         train_data, val_data, test_data = fff.data.load_dataset(**hparams["data_set"])
 
-        super().__init__(hparams, train_data=train_data, val_data=val_data, test_data=test_data)
+        super().__init__(
+            hparams, train_data=train_data, val_data=val_data, test_data=test_data
+        )
 
         try:
             self._data_dim = train_data.data_dim
@@ -80,7 +81,9 @@ class FreeFormBase(Trainable):
                 self._data_cond_dim = 0
             else:
                 if len(data_sample[1].shape) != 1:
-                    raise NotImplementedError("More than one condition dimension is not supported.")
+                    raise NotImplementedError(
+                        "More than one condition dimension is not supported."
+                    )
                 self._data_cond_dim = data_sample[1].shape[0]
         """
         if not self._data_cond_dim==0 and not len(self.hparams.condition_embedder) == 0:
@@ -97,13 +100,14 @@ class FreeFormBase(Trainable):
             self.learnt_latent = default_latent
 
     def init_models(self):
-        self.condition_embedder = build_model(self.hparams.condition_embedder, self._data_cond_dim, 0)
+        self.condition_embedder = build_model(
+            self.hparams.condition_embedder, self._data_cond_dim, 0
+        )
         if self.condition_embedder is not None:
             self._data_cond_dim = self.condition_embedder[-1].hparams.latent_dim
             for model in self.condition_embedder:
                 del model.model.decoder
         self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
-
 
     def train_dataloader(self) -> DataLoader | list[DataLoader]:
         """
@@ -122,7 +126,9 @@ class FreeFormBase(Trainable):
             dataset=self.train_data,
             batch_size=self.hparams.batch_size,
             shuffle=not isinstance(self.train_data, IterableDataset),
-            pin_memory=auto_pin_memory(self.hparams.pin_memory, self.hparams.accelerator),
+            pin_memory=auto_pin_memory(
+                self.hparams.pin_memory, self.hparams.accelerator
+            ),
             num_workers=self.hparams.num_workers,
             **kwargs,
         )
@@ -144,7 +150,9 @@ class FreeFormBase(Trainable):
             dataset=self.val_data,
             batch_size=self.hparams.batch_size,
             shuffle=False,
-            pin_memory=auto_pin_memory(self.hparams.pin_memory, self.hparams.accelerator),
+            pin_memory=auto_pin_memory(
+                self.hparams.pin_memory, self.hparams.accelerator
+            ),
             num_workers=self.hparams.num_workers,
             **kwargs,
         )
@@ -166,22 +174,28 @@ class FreeFormBase(Trainable):
             dataset=self.test_data,
             batch_size=self.hparams.batch_size,
             shuffle=False,
-            pin_memory=auto_pin_memory(self.hparams.pin_memory, self.hparams.accelerator),
+            pin_memory=auto_pin_memory(
+                self.hparams.pin_memory, self.hparams.accelerator
+            ),
             num_workers=self.hparams.num_workers,
             **kwargs,
         )
 
     def get_latent(self, device):
         # Learnable distributions should just be moved to the right device, so that parameters are shared
-        if self.latents and isinstance(next(iter(self.latents.values())), torch.nn.Module):
+        if self.latents and isinstance(
+            next(iter(self.latents.values())), torch.nn.Module
+        ):
             return next(iter(self.latents.values())).to(device)
 
         if device not in self.latents:
             latent_hparams = deepcopy(self.hparams.latent_distribution)
             distribution_name = latent_hparams.pop("name")
             latent = self._make_latent(distribution_name, device, **latent_hparams)
-            assert latent is not None, (f"Found None latent distribution for name {distribution_name}."
-                                        f"This is likely due to an error in the code, not the config.")
+            assert latent is not None, (
+                f"Found None latent distribution for name {distribution_name}."
+                f"This is likely due to an error in the code, not the config."
+            )
             self.latents[device] = latent
         return self.latents[device]
 
@@ -191,7 +205,8 @@ class FreeFormBase(Trainable):
             scale = torch.ones(self.latent_dim, device=device)
 
             return Independent(
-                Normal(loc, scale), 1,
+                Normal(loc, scale),
+                1,
             )
         elif name == "student_t":
             df = self.hparams.latent_distribution["df"] * torch.ones(1, device=device)
@@ -250,16 +265,12 @@ class FreeFormBase(Trainable):
 
     def _encoder_jac(self, x, c, **kwargs):
         return compute_jacobian(
-            x, self.encode, c,
-            chunk_size=self.hparams.exact_chunk_size,
-            **kwargs
+            x, self.encode, c, chunk_size=self.hparams.exact_chunk_size, **kwargs
         )
 
     def _decoder_jac(self, z, c, **kwargs):
         return compute_jacobian(
-            z, self.decode, c,
-            chunk_size=self.hparams.exact_chunk_size,
-            **kwargs
+            z, self.decode, c, chunk_size=self.hparams.exact_chunk_size, **kwargs
         )
 
     def _encoder_volume_change(self, x, c, **kwargs) -> VolumeChangeResult:
@@ -282,7 +293,7 @@ class FreeFormBase(Trainable):
         Sample via the decoder.
         """
         z = self.get_latent(self.device).sample(sample_shape) * latent_scale
-        z = z.reshape(prod(sample_shape), *z.shape[len(sample_shape):])
+        z = z.reshape(prod(sample_shape), *z.shape[len(sample_shape) :])
         batch = [z]
         if condition is not None:
             batch.append(condition)
@@ -290,8 +301,9 @@ class FreeFormBase(Trainable):
         x = self.decode(z, c)
         return x.reshape(sample_shape + x.shape[1:])
 
-    def exact_log_prob(self, x, c=None, jacobian_target="decoder",
-                       input_is_z=False, **kwargs) -> LogProbResult:
+    def exact_log_prob(
+        self, x, c=None, jacobian_target="decoder", input_is_z=False, **kwargs
+    ) -> LogProbResult:
         metrics = {}
 
         if c is None and not self.is_conditional():
@@ -299,7 +311,9 @@ class FreeFormBase(Trainable):
 
         if input_is_z:
             if jacobian_target != "decoder":
-                raise NotImplementedError("Cannot compute encoder Jacobian for z input.")
+                raise NotImplementedError(
+                    "Cannot compute encoder Jacobian for z input."
+                )
             z = x
             vol_change_enc = None
         else:
@@ -338,9 +352,7 @@ class FreeFormBase(Trainable):
             if key.startswith("vol_change_"):
                 metrics[key.replace("vol_change_", "nll_")] = -(latent_log_prob + value)
 
-        return LogProbResult(
-            z, x1, latent_log_prob + volume_change, metrics
-        )
+        return LogProbResult(z, x1, latent_log_prob + volume_change, metrics)
 
     def surrogate_log_prob(self, x, c, **kwargs) -> LogProbResult:
         # Then compute JtJ
@@ -361,31 +373,36 @@ class FreeFormBase(Trainable):
             decoder_intermediates.extend(intermediates)
             return x
 
-        out = volume_change_surrogate(
-            x,
-            wrapped_encode,
-            wrapped_decode,
-            **kwargs
-        )
+        out = volume_change_surrogate(x, wrapped_encode, wrapped_decode, **kwargs)
         volume_change = out.surrogate
 
-        out.regularizations.update(self.intermediate_reconstructions(decoder_intermediates, encoder_intermediates))
+        out.regularizations.update(
+            self.intermediate_reconstructions(
+                decoder_intermediates, encoder_intermediates
+            )
+        )
 
         latent_prob = self._latent_log_prob(out.z, c)
         return LogProbResult(
             out.z, out.x1, latent_prob + volume_change, out.regularizations
         )
 
-    def intermediate_reconstructions(self, decoder_intermediates, encoder_intermediates):
+    def intermediate_reconstructions(
+        self, decoder_intermediates, encoder_intermediates
+    ):
         regularizations = {}
         if len(decoder_intermediates) > 1:
             regularizations["intermediate_reconstruction_all"] = 0.0
-        for idx, (a, b) in enumerate(zip(encoder_intermediates[:-1], decoder_intermediates[:-1])):
+        for idx, (a, b) in enumerate(
+            zip(encoder_intermediates[:-1], decoder_intermediates[:-1])
+        ):
             if a.shape != b.shape:
                 try:
                     b = b.view(a.shape)
                 except Exception as e:
-                    raise ValueError(f"Shapes do not match for intermediate reconstruction {idx}: {a.shape} vs {b.shape}") from e
+                    raise ValueError(
+                        f"Shapes do not match for intermediate reconstruction {idx}: {a.shape} vs {b.shape}"
+                    ) from e
             intermediate_loss = torch.sum((a - b).reshape(a.shape[0], -1) ** 2, -1)
             regularizations[f"intermediate_reconstruction_{idx}"] = intermediate_loss
             regularizations["intermediate_reconstruction_all"] += intermediate_loss
@@ -419,11 +436,10 @@ class FreeFormBase(Trainable):
         def check_keys(*keys):
             return any(
                 (loss_key in loss_weights)
-                and
-                (
+                and (
                     torch.any(loss_weights[loss_key] > 0)
-                    if torch.is_tensor(loss_weights[loss_key]) else
-                    loss_weights[loss_key] > 0
+                    if torch.is_tensor(loss_weights[loss_key])
+                    else loss_weights[loss_key] > 0
                 )
                 for loss_key in keys
             )
@@ -433,17 +449,25 @@ class FreeFormBase(Trainable):
 
         # Negative log-likelihood
         if not self.training or (
-                self.hparams.exact_train_nll_every is not None
-                and batch_idx % self.hparams.exact_train_nll_every == 0
+            self.hparams.exact_train_nll_every is not None
+            and batch_idx % self.hparams.exact_train_nll_every == 0
         ):
             key = "nll_exact" if self.training else "nll"
             # todo unreadable
-            if self.training or (self.hparams.skip_val_nll is not True and (self.hparams.skip_val_nll is False or (
-                    isinstance(self.hparams.skip_val_nll, int)
-                    and batch_idx < self.hparams.skip_val_nll
-            ))):
+            if self.training or (
+                self.hparams.skip_val_nll is not True
+                and (
+                    self.hparams.skip_val_nll is False
+                    or (
+                        isinstance(self.hparams.skip_val_nll, int)
+                        and batch_idx < self.hparams.skip_val_nll
+                    )
+                )
+            ):
                 with torch.no_grad():
-                    log_prob_result = self.exact_log_prob(x=x, c=c, jacobian_target="both")
+                    log_prob_result = self.exact_log_prob(
+                        x=x, c=c, jacobian_target="both"
+                    )
                 z = log_prob_result.z
                 x1 = log_prob_result.x1
                 loss_values[key] = -log_prob_result.log_prob - deq_vol_change
@@ -459,12 +483,15 @@ class FreeFormBase(Trainable):
                 nll_warmup = 1
             else:
                 nll_warmup = soft_heaviside(
-                    self.current_epoch + batch_idx / len(
+                    self.current_epoch
+                    + batch_idx
+                    / len(
                         self.trainer.train_dataloader
-                        if self.training else
-                        self.trainer.val_dataloaders
+                        if self.training
+                        else self.trainer.val_dataloaders
                     ),
-                    nll_start, warm_up_end
+                    nll_start,
+                    warm_up_end,
                 )
             loss_weights["nll"] *= nll_warmup
             if check_keys("nll"):
@@ -488,7 +515,9 @@ class FreeFormBase(Trainable):
             z_marginal_sorted = z_marginal.sort().values
             z_gauss_sorted = z_gauss.sort().values
 
-            metrics["z 1D-Wasserstein-1"] = (z_marginal_sorted - z_gauss_sorted).abs().mean()
+            metrics["z 1D-Wasserstein-1"] = (
+                (z_marginal_sorted - z_gauss_sorted).abs().mean()
+            )
             metrics["z std"] = torch.std(z_marginal)
 
         # Reconstruction
@@ -519,9 +548,13 @@ class FreeFormBase(Trainable):
             try:
                 # Sanity checks might fail for random data
                 z1_random = self.encode(self.decode(z_random, c_random), c_random)
-                loss_values["z_sample_reconstruction"] = self._reconstruction_loss(z_random, z1_random)
+                loss_values["z_sample_reconstruction"] = self._reconstruction_loss(
+                    z_random, z1_random
+                )
             except:
-                loss_values["z_sample_reconstruction"] = float("nan") * torch.ones(z_random.shape[0])
+                loss_values["z_sample_reconstruction"] = float("nan") * torch.ones(
+                    z_random.shape[0]
+                )
 
         # Reconstruction of Gauss with double std -- for invertibility
         if not self.training or check_keys("x_sample_reconstruction"):
@@ -534,9 +567,13 @@ class FreeFormBase(Trainable):
             try:
                 # Sanity checks might fail for random data
                 x1_random = self.decode(self.encode(x_random, c_random), c_random)
-                loss_values["x_sample_reconstruction"] = self._reconstruction_loss(x_random, x1_random)
+                loss_values["x_sample_reconstruction"] = self._reconstruction_loss(
+                    x_random, x1_random
+                )
             except:
-                loss_values["x_sample_reconstruction"] = float("nan") * torch.ones(x_random.shape[0])
+                loss_values["x_sample_reconstruction"] = float("nan") * torch.ones(
+                    x_random.shape[0]
+                )
 
         # Reconstruction of Gauss with double std -- for invertibility
         if not self.training or check_keys("shuffled_reconstruction"):
@@ -544,7 +581,9 @@ class FreeFormBase(Trainable):
             x_shuffled = x[torch.randperm(x.shape[0])]
             z_shuffled = self.encode(x_shuffled, c)
             x_shuffled1 = self.decode(z_shuffled, c)
-            loss_values["shuffled_reconstruction"] = self._reconstruction_loss(x_shuffled, x_shuffled1)
+            loss_values["shuffled_reconstruction"] = self._reconstruction_loss(
+                x_shuffled, x_shuffled1
+            )
 
         # Compute loss as weighted loss
         metrics["loss"] = sum(
@@ -584,8 +623,11 @@ class FreeFormBase(Trainable):
             if self.hparams.data_set["name"].startswith("sbi_"):
                 taskname = "_".join(self.hparams.data_set["name"].split("_")[1:])
                 from fff.evaluate.c2st import c2st
+
                 c2st_accuracy = c2st(self, taskname)
-                self.logger.experiment.add_scalar("C2ST", c2st_accuracy, self.global_step)
+                self.logger.experiment.add_scalar(
+                    "C2ST", c2st_accuracy, self.global_step
+                )
         except Exception as e:
             # No need to give up a good run because of a plotting error
             print(e)
@@ -601,12 +643,19 @@ class FreeFormBase(Trainable):
 
         # Dataset condition
         if len(batch) != (2 if self.is_conditional() else 1):
-            raise ValueError("You must pass a batch including conditions for each dataset condition")
+            raise ValueError(
+                "You must pass a batch including conditions for each dataset condition"
+            )
         if len(batch) > 1:
             dataset_cond = batch[1]
             if self.condition_embedder is not None:
                 for model in self.condition_embedder:
-                    dataset_cond = model.encode(dataset_cond, torch.empty((dataset_cond.shape[0], 0), device=device, dtype=dtype))
+                    dataset_cond = model.encode(
+                        dataset_cond,
+                        torch.empty(
+                            (dataset_cond.shape[0], 0), device=device, dtype=dtype
+                        ),
+                    )
             conds.append(dataset_cond)
 
         # SoftFlow
@@ -622,17 +671,20 @@ class FreeFormBase(Trainable):
                     # Per default, select the first value in the list
                     max_weight = min_weight
                 weight_scale = rand_log_uniform(
-                    min_weight, max_weight,
-                    shape=base_cond_shape, device=device, dtype=dtype
+                    min_weight,
+                    max_weight,
+                    shape=base_cond_shape,
+                    device=device,
+                    dtype=dtype,
                 )
-                loss_weights[loss_key] = (10 ** weight_scale).squeeze(1)
+                loss_weights[loss_key] = (10**weight_scale).squeeze(1)
                 conds.append(weight_scale)
 
         if len(conds) == 0:
             c = torch.empty((x.shape[0], 0), device=x.device, dtype=x.dtype)
         elif len(conds) == 1:
             # This is a hack to pass through the info dict from QM9
-            c, = conds
+            (c,) = conds
         else:
             c = torch.cat(conds, -1)
         return ConditionedBatch(x0, x, loss_weights, c, dequantization_jac)
@@ -649,10 +701,9 @@ class FreeFormBase(Trainable):
             if not self.training:
                 max_noise = min_noise
             noise_scale = rand_log_uniform(
-                max_noise, min_noise,
-                shape=base_cond_shape, device=device, dtype=dtype
+                max_noise, min_noise, shape=base_cond_shape, device=device, dtype=dtype
             )
-            x = x0 + torch.randn_like(x0) * (10 ** noise_scale)
+            x = x0 + torch.randn_like(x0) * (10**noise_scale)
             noise_conds = [noise_scale]
         else:
             if noise > 0:
@@ -664,7 +715,7 @@ class FreeFormBase(Trainable):
 
 
 def build_model(models, data_dim: int, cond_dim: int):
-    if len(models)==0:
+    if len(models) == 0:
         return None
     if not isinstance(models[0], dict):
         return Sequential(*models)
@@ -676,27 +727,18 @@ def build_model(models, data_dim: int, cond_dim: int):
         model_spec["cond_dim"] = cond_dim
         if model_spec.get("latent_dim", "data") == "data":
             model_spec["latent_dim"] = data_dim
-        model.append(
-            getattr(import_module(module_name), class_name)(model_spec)
-        )
+        model.append(getattr(import_module(module_name), class_name)(model_spec))
         data_dim = model_spec["latent_dim"]
     return model
 
 
 def soft_heaviside(pos, start, stop):
-    return max(0., min(
-        1.,
-        (pos - start)
-        /
-        (stop - start)
-    ))
+    return max(0.0, min(1.0, (pos - start) / (stop - start)))
 
 
 def rand_log_uniform(vmin, vmax, shape, device, dtype):
     vmin, vmax = map(log10, [vmin, vmax])
-    return torch.rand(
-        shape, device=device, dtype=dtype
-    ) * (vmin - vmax) + vmax
+    return torch.rand(shape, device=device, dtype=dtype) * (vmin - vmax) + vmax
 
 
 def wasserstein2_distance_gaussian_approximation(x1, x2):
@@ -712,5 +754,9 @@ def wasserstein2_distance_gaussian_approximation(x1, x2):
     cov_product = cov1 @ cov2
     eigenvalues_prod = torch.relu(torch.linalg.eigvals(cov_product).real)
     m_part = torch.sum((m1 - m2) ** 2)
-    cov_part = torch.trace(cov1) + torch.trace(cov2) - 2 * torch.sum(torch.sqrt(eigenvalues_prod))
+    cov_part = (
+        torch.trace(cov1)
+        + torch.trace(cov2)
+        - 2 * torch.sum(torch.sqrt(eigenvalues_prod))
+    )
     return m_part + cov_part
