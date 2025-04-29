@@ -585,6 +585,26 @@ class FiberModel(FreeFormBase):
             z_cycle = self.encode_lossless(x1_detached, c, return_only_x=True)
             loss_values["ae_cycle_loss"] = self._reconstruction_loss(z, z_cycle)
 
+        if check_keys("ae_perceptual_loss"):
+            perceptual_loss = 0
+            # reshape into image and duplicate channels if necessary
+            from fff.model.utils import guess_image_shape
+
+            vgg_input = x1.reshape(-1, *guess_image_shape(x1.shape[1]))
+            if vgg_input.shape[1] == 1:
+                vgg_input = vgg_input.repeat(1, 3, 1, 1)
+            vgg_target = x.reshape(-1, *guess_image_shape(x.shape[1]))
+            if vgg_target.shape[1] == 1:
+                vgg_target = vgg_target.repeat(1, 3, 1, 1)
+            for i, m in self.vgg_features._modules.items():
+                vgg_input = m(vgg_input)
+                vgg_target = m(vgg_target)
+                if i in ["3", "8", "15", "22"]:
+                    perceptual_loss += self._l1_loss(vgg_input, vgg_target) / prod(
+                        vgg_input.shape[1:]
+                    )
+            loss_values["ae_perceptual_loss"] = perceptual_loss
+
         # Losses for density model:
         # Empty until computed
         z1 = z_dense = None
@@ -677,26 +697,6 @@ class FiberModel(FreeFormBase):
                     loss_values["nll"] = -log_prob_result.log_prob - deq_vol_change
                     loss_values.update(log_prob_result.regularizations)
 
-        if check_keys("perceptual_loss"):
-            perceptual_loss = 0
-            # reshape into image and duplicate channels if necessary
-            from fff.model.utils import guess_image_shape
-
-            vgg_input = x1.reshape(-1, *guess_image_shape(x1.shape[1]))
-            if vgg_input.shape[1] == 1:
-                vgg_input = vgg_input.repeat(1, 3, 1, 1)
-            vgg_target = x.reshape(-1, *guess_image_shape(x.shape[1]))
-            if vgg_target.shape[1] == 1:
-                vgg_target = vgg_target.repeat(1, 3, 1, 1)
-            for i, m in self.vgg_features._modules.items():
-                vgg_input = m(vgg_input)
-                vgg_target = m(vgg_target)
-                if i in ["3", "8", "15", "22"]:
-                    perceptual_loss += self._l1_loss(vgg_input, vgg_target) / prod(
-                        vgg_input.shape[1:]
-                    )
-            loss_values["perceptual_loss"] = perceptual_loss
-
         # Diffusion model mean squared error
         if check_keys("diff_mse"):
             if not self.density_model_type == "diffusion":
@@ -731,6 +731,7 @@ class FiberModel(FreeFormBase):
             "latent_l1_reconstruction",
             "masked_reconstruction",
             "cycle_loss",
+            "perceptual_loss",
         )
 
         if z_dense is None and need_z_dense:
@@ -767,13 +768,6 @@ class FiberModel(FreeFormBase):
                 if check_keys("ae_lamb_reconstruction"):
                     metrics["lambda"] = self.lamb
 
-        """
-        if val_all_metrics or check_keys("z std"):
-            z_details = z_dense[:, :-1]
-            std = torch.mean(torch.abs(torch.std(z_details, dim=0) - 1))
-            loss_values["z std"] = torch.ones_like(x[:,0]) * std
-        """
-
         if val_all_metrics or check_keys("masked_reconstruction"):
             if self.density_model_type in ["diffusion", "flow_matching"]:
                 raise ValueError(
@@ -795,9 +789,34 @@ class FiberModel(FreeFormBase):
                 z_dense1, _ = z_dense1
             loss_values["cycle_loss"] = self._reconstruction_loss(z_dense, z_dense1)
 
+        if check_keys("perceptual_loss"):
+            perceptual_loss = 0
+            # reshape into image and duplicate channels if necessary
+            from fff.model.utils import guess_image_shape
+
+            if z1 is None:
+                z1 = self.decode_density(z_dense, c)
+            x_full_recon = self.decode_lossless(z1, c)
+            vgg_input = x_full_recon.reshape(
+                -1, *guess_image_shape(x_full_recon.shape[1])
+            )
+            if vgg_input.shape[1] == 1:
+                vgg_input = vgg_input.repeat(1, 3, 1, 1)
+            vgg_target = x.reshape(-1, *guess_image_shape(x.shape[1]))
+            if vgg_target.shape[1] == 1:
+                vgg_target = vgg_target.repeat(1, 3, 1, 1)
+            for i, m in self.vgg_features._modules.items():
+                vgg_input = m(vgg_input)
+                vgg_target = m(vgg_target)
+                if i in ["3", "8", "15", "22"]:
+                    perceptual_loss += self._l1_loss(vgg_input, vgg_target) / prod(
+                        vgg_input.shape[1:]
+                    )
+            loss_values["perceptual_loss"] = perceptual_loss
+
         # Cyclic consistency of latent code sampled from Gaussian and fiber loss
         if check_keys("fiber_loss", "jac_fiber_loss", "z_sample_reconstruction") or (
-            not self.training
+            not self.training  # TODO: This should be val_all_metrics, but then FM/Diffusion models are not getting validated
             and (
                 self.current_epoch % self.hparams.fiber_loss_every == 0
                 or self.current_epoch == self.hparams.max_epochs - 1
@@ -822,67 +841,58 @@ class FiberModel(FreeFormBase):
                     fl_start,
                     warm_up_end,
                 )
-            loss_weights["z_sample_reconstruction"] *= fl_warmup
             loss_weights["fiber_loss"] *= fl_warmup
-            if not self.training or check_keys(
-                "fiber_loss", "jac_fiber_loss", "z_sample_reconstruction"
-            ):
-                try:
-                    z_dense_random = self.get_latent(z.device).sample((z.shape[0],), c)
-                except TypeError:
-                    z_dense_random = self.get_latent(z.device).sample((z.shape[0],))
-                if isinstance(z_dense_random, tuple):
-                    z_dense_random, c_random = z_dense_random
+            try:
+                z_dense_random = self.get_latent(z.device).sample((z.shape[0],), c)
+            except TypeError:
+                z_dense_random = self.get_latent(z.device).sample((z.shape[0],))
+            if isinstance(z_dense_random, tuple):
+                z_dense_random, c_random = z_dense_random
+            else:
+                c_random = c
+            z_random = self.sample_density(z_dense_random, c_random)
+            x_random = self.decode_lossless(z_random, c_random)
+            x_random_sm = x_random
+            if self.hparams.add_noise_for_sm:
+                if self.hparams["data_set"].get("data") == "highdose":
+                    # Add noise to the sampled highdose samples
+                    x_random_sm = x_random + batch[1] - x
                 else:
-                    c_random = c
-                z_random = self.sample_density(z_dense_random, c_random)
-                x_random = self.decode_lossless(z_random, c_random)
-                x_random_sm = x_random
-                if self.hparams.add_noise_for_sm:
-                    if self.hparams["data_set"].get("data") == "highdose":
-                        # Add noise to the sampled highdose samples
-                        x_random_sm = x_random + batch[1] - x
-                    else:
-                        raise (
-                            ValueError(
-                                "Adding noise from condition only works for highdose images as data"
-                            )
+                    raise (
+                        ValueError(
+                            "Adding noise from condition only works for highdose images as data"
                         )
+                    )
 
-                # Try whether the model learns fibers and therefore has a subject model
-                try:
-                    # There might be no subject model
-                    c1 = self.subject_model.encode(x_random_sm)
-                    c_sm = torch.empty(x_random.shape[0], 0).to(x_random.device)
-                    if jac_sm is not None:
-                        loss_values["jac_fiber_loss"] = self._jacreduced_l2(
-                            c_random, c1, jac_sm, epsilon=0.01
-                        )
-                    loss_values["fiber_loss"] = self._reduced_rec_loss(c_random, c1)
-                except Exception as e:
-                    warn(
-                        "Error in computing fiber loss, setting to nan. Error: "
-                        + str(e)
+            # Try whether the model learns fibers and therefore has a subject model
+            try:
+                # There might be no subject model
+                c1 = self.subject_model.encode(x_random_sm)
+                c_sm = torch.empty(x_random.shape[0], 0).to(x_random.device)
+                if jac_sm is not None:
+                    loss_values["jac_fiber_loss"] = self._jacreduced_l2(
+                        c_random, c1, jac_sm, epsilon=0.01
                     )
-                    loss_values["fiber_loss"] = float("nan") * torch.ones(
-                        z_random.shape[0]
-                    )
-                try:
-                    # Sanity checks might fail for random data
-                    z1_random = self.encode(x_random, c_random)
-                    if isinstance(z1_random, tuple):
-                        z1_random, _ = z1_random
-                    loss_values["z_sample_reconstruction"] = self._reconstruction_loss(
-                        z_dense_random, z1_random
-                    )
-                except Exception as e:
-                    warn(
-                        "Error in computing z_sample_reconstruction, setting to nan. Error: "
-                        + str(e)
-                    )
-                    loss_values["z_sample_reconstruction"] = float("nan") * torch.ones(
-                        z_random.shape[0]
-                    )
+                loss_values["fiber_loss"] = self._reduced_rec_loss(c_random, c1)
+            except Exception as e:
+                warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
+                loss_values["fiber_loss"] = float("nan") * torch.ones(z_random.shape[0])
+            try:
+                # Sanity checks might fail for random data
+                z1_random = self.encode(x_random, c_random)
+                if isinstance(z1_random, tuple):
+                    z1_random, _ = z1_random
+                loss_values["z_sample_reconstruction"] = self._reconstruction_loss(
+                    z_dense_random, z1_random
+                )
+            except Exception as e:
+                warn(
+                    "Error in computing z_sample_reconstruction, setting to nan. Error: "
+                    + str(e)
+                )
+                loss_values["z_sample_reconstruction"] = float("nan") * torch.ones(
+                    z_random.shape[0]
+                )
 
         # Compute loss as weighted loss
         metrics["loss"] = sum(
