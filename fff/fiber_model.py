@@ -61,6 +61,7 @@ class FiberModelHParams(FreeFormBaseHParams):
     diffusion_betas_max: float = 0.2
     diffusion_beta_schedule: str = "linear"
     add_noise_for_sm: bool = False
+    cfg: dict = {}
 
     eval_all: bool = True
     fiber_loss_every: int = 1
@@ -150,6 +151,8 @@ class FiberModel(FreeFormBase):
             self.hparams.density_model[-1]["betas"] = (self.betas,)
             self.alphas_ = torch.cumprod((1 - self.betas), axis=0)
             self.sample_steps = torch.linspace(0, 1, 1000).flip(0)
+            if self.hparams.cfg:
+                raise (NotImplementedError("Diffusion model cfg not implemented"))
         elif any(
             [
                 model_hparams["name"] == "fff.model.FlowMatching"
@@ -160,6 +163,11 @@ class FiberModel(FreeFormBase):
                 len(self.hparams.density_model) == 1
             ), "Flow matching model must be the only model in the density model"
             self.density_model_type = "flow_matching"
+            if (
+                not self.hparams.density_model[0].get("conditional", False)
+                and self.hparams.cfg
+            ):
+                raise (ValueError("Flow matching model must be conditional to use cfg"))
         else:
             self.density_model_type = "fff"
 
@@ -329,7 +337,7 @@ class FiberModel(FreeFormBase):
         x = self.decode_lossless(self.decode_density(z_dense, c), c)
         return x
 
-    def sample_density(self, z_dense, c):
+    def sample_density(self, z_dense, c, **kwargs):
         # Diffusion sampler we need seperate sampling function
         # c = self.unflatten_ce(c).unsqueeze(1)
         if self.condition_embedder is not None:
@@ -338,8 +346,14 @@ class FiberModel(FreeFormBase):
                 c = model.encode(
                     c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype)
                 )
-        for net in self.density_model:
-            z_dense = net.sample(z_dense, c)
+        if self.hparams.cfg:
+            for net in self.density_model:
+                z_dense = net.sample_with_guidance(
+                    z_dense, c, self.get_null_condition(c), **kwargs
+                )
+        else:
+            for net in self.density_model:
+                z_dense = net.sample(z_dense, c, **kwargs)
         return z_dense
 
     def _encoder_jac(self, x, c, **kwargs):
@@ -461,6 +475,25 @@ class FiberModel(FreeFormBase):
             - 2 * sum_except_batch(bt * bt_hat)
             + sum_except_batch(torch.pow(bt, 2))
         )
+
+    def get_null_condition(self, cond_batch):
+        """
+        Returns a null condition for the given batch.
+        """
+        if self.hparams.cfg.get("null_condition", "learned") == "learned":
+            if not hasattr(self, "null_condition"):
+                self.null_condition = torch.nn.Parameter(
+                    torch.randn(1, *cond_batch.shape[1:]), requires_grad=True
+                )
+            return self.null_condition.expand(*cond_batch.shape).to(cond_batch.device)
+        elif self.hparams.cfg["null_condition"] == "zero":
+            return torch.zeros_like(cond_batch)
+        else:
+            raise ValueError(
+                "Unknown null condition type: "
+                + self.hparams.cfg["null_condition"]
+                + ". Use 'learned' or 'zero'."
+            )
 
     def compute_metrics(self, batch, batch_idx) -> dict:
         """
@@ -683,6 +716,12 @@ class FiberModel(FreeFormBase):
             # Sander's method
             if not self.density_model[0].conditional:
                 z_fm[:, : self.cond_dim] = c
+            elif self.hparams.cfg:
+                p_uncond = self.hparams.cfg.get("p_unconditional", 0.1)
+                if p_uncond > 0:
+                    # Randomly set the condition to zero
+                    mask = torch.rand(c.shape[0], device=c.device) < p_uncond
+                    c[mask] = self.get_null_condition(c[mask])
             loss_values["fm_loss"] = self.density_model[0].compute_fm_loss(
                 t, z_fm, z, c
             )

@@ -160,3 +160,32 @@ class FlowMatching(nn.Module):
 
     def sample(self, z: Tensor, c: Tensor, **kwargs) -> Tensor:
         return self.decode(z, c, **kwargs)
+
+    def sample_with_guidance(
+        self,
+        z: Tensor,
+        c: Tensor,
+        null_condition: Tensor,
+        guidance_scale: float,
+        **kwargs,
+    ):
+        if guidance_scale == 0:
+            return self.sample(z, null_condition, **kwargs)
+        elif guidance_scale == 1:
+            return self.sample(z, c, **kwargs)
+        else:
+
+            def guided_vector_field(x: Tensor, t: Tensor) -> Tensor:
+                vf_c = self.get_vector_field_conditional(x, t, c)
+                vf_null = self.get_vector_field_conditional(x, t, null_condition)
+                return vf_null + guidance_scale * (vf_c - vf_null)
+
+            solver = ODESolver(guided_vector_field)
+            sol = solver.sample(
+                x_init=z,
+                method=self.hparams.default_sampling_method,
+                step_size=self.hparams.default_sampling_step_size,
+                return_intermediates=True,
+                enable_grad=kwargs.get("enable_grad", False),
+            )
+            return sol[-1]
