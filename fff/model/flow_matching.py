@@ -166,7 +166,7 @@ class FlowMatching(nn.Module):
         z: Tensor,
         c: Tensor,
         null_condition: Tensor,
-        guidance_scale: float,
+        guidance_scale: float = 1.0,
         **kwargs,
     ):
         if guidance_scale == 0:
