@@ -2,6 +2,7 @@ import torch
 from torch import Tensor, nn
 
 from .res_net import ResNetHParams, make_res_net
+from .transformer import TransformerHParams, make_transformer
 
 # from hydrantic.model import Model, ModelHparams  # https://github.com/hummerichsander/hydrantic
 from flow_matching.solver import ODESolver  # pip install flow-matching
@@ -17,11 +18,8 @@ from flow_matching.path.scheduler import (
     CosineScheduler,
 )
 from .utils import expand_like
-from typing import Literal, Callable, Type
-from abc import ABC
-from torch.nn import functional as F
+from typing import Type
 from functools import partial
-from fff.utils.utils import sum_except_batch
 
 SCHEDULER_CLASSES = {
     "linear": CondOTScheduler,
@@ -32,13 +30,14 @@ SCHEDULER_CLASSES = {
 }
 
 
-class FlowMatchingHParams(ResNetHParams):
+class FlowMatchingHParams(ResNetHParams, TransformerHParams):
     interpolation_schedule: str = "linear"
     scheduler_kwargs: dict = {}
     conditional: bool = False
     default_sampling_step_size: float = 1e-2
     default_sampling_method: str = "midpoint"
     loss_norm: str = "l2"
+    architecture: str = "resnet"
 
 
 class FlowMatching(nn.Module):
@@ -68,16 +67,46 @@ class FlowMatching(nn.Module):
             input_dim += self.hparams.cond_dim
         output_dim = self.hparams.data_dim
 
-        net = make_res_net(
-            input_dim,
-            self.hparams.layers_spec,
-            self.hparams.activation,
-            id_init=self.hparams.id_init,
-            batch_norm=self.hparams.batch_norm,
-            dropout=self.hparams.dropout,
-        )
-        net.append(nn.Linear(input_dim, output_dim))
+        if self.hparams.architecture == "resnet":
+            net = make_res_net(
+                input_dim,
+                self.hparams.layers_spec,
+                self.hparams.activation,
+                id_init=self.hparams.id_init,
+                batch_norm=self.hparams.batch_norm,
+                dropout=self.hparams.dropout,
+            )
+            net.append(nn.Linear(input_dim, output_dim))
+        elif self.hparams.architecture == "transformer":
+            net = make_transformer(
+                input_dim,
+                self.hparams.layers_spec,
+                self.hparams.activation,
+                id_init=self.hparams.id_init,
+                batch_norm=self.hparams.batch_norm,
+                dropout=self.hparams.dropout,
+                num_heads=self.hparams.num_heads,
+            )
+            net.append(nn.Linear(input_dim, output_dim))
         return net
+
+    def build_model(self):
+        input_dim = self.hparams.data_dim
+        hidden_dim = self.hparams.hidden_dim
+        condition_dim = self.hparams.cond_dim
+        # condition_dim = 2
+        time_dim = self.hparams.time_dim
+        num_heads = self.hparams.num_heads
+        activation = self.hparams.activation
+
+        # Time embedding layer
+        self.time_embedding = nn.Embedding(
+            1000, time_dim
+        )  # Assuming 1000 different time steps
+
+        self.fc_in = nn.Linear(input_dim + time_dim, hidden_dim)
+
+        # Hidden layers with cross-attention
 
     def get_vector_field(self, x: Tensor, t: Tensor) -> Tensor:
         t = expand_like(t, x[..., :1])
