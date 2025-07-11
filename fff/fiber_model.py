@@ -1096,4 +1096,7 @@ class FiberModel(FreeFormBase):
         if self.current_epoch % self.hparams.val_every_n_epoch == 0:
             metrics = self.compute_metrics(batch, batch_idx)
             for key, value in metrics.items():
-                self.log(f"validation/{key}", value, prog_bar=key == self.hparams.loss)
+                self.log(f"validation/{key}",
+                         value,
+                         prog_bar=key == self.hparams.loss,
+                         sync_dist=self.hparams.strategy.startswith("ddp"))
