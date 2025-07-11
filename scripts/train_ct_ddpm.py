@@ -78,7 +78,6 @@ def train_ct_ddpm(
         "Model parameters:",
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     )
-    ema = EMA(model, decay=0.999)
 
     # Noise scheduler
     noise_scheduler = DDPMScheduler(
@@ -93,6 +92,7 @@ def train_ct_ddpm(
     # Prepare with accelerator
     model, optimizer, train_loader = accelerator.prepare(model, optimizer, train_loader)
     model.train()
+    ema = EMA(model, decay=0.999)
 
     for epoch in range(num_epochs):
         pbar = tqdm(
