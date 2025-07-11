@@ -144,7 +144,7 @@ def train_ct_ddpm(
 if __name__ == "__main__":
     data_set_config = {
         "name": "ldct",
-        "root": "/mnt/SSD_2TB/ldct_data",
+        "root": "/home/hd/hd_hd/hd_gu452/ldct_data",
         "condition": "lowdose",
         "data": "highdose",
         "patchsize": 512,
