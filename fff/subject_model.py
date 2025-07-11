@@ -14,8 +14,16 @@ from math import prod
 
 from fff.data.utils import Decolorize
 
+
 class SubjectModel(torch.nn.Module):
-    def __init__(self, subject_model_path, model_type=None, truncate=False, fixed_transform=None, empty_condition=False):
+    def __init__(
+        self,
+        subject_model_path,
+        model_type=None,
+        truncate=False,
+        fixed_transform=None,
+        empty_condition=False,
+    ):
         super(SubjectModel, self).__init__()
 
         if model_type in ["cnn10", "redcnn", "wganvgg", "dugan"]:
@@ -61,7 +69,9 @@ class SubjectModel(torch.nn.Module):
             if fixed_transform == "decolorize":
                 self.fixed_transform = Decolorize
             else:
-                raise NotImplementedError(f"You have to implement {fixed_transform} in subject_model.py")
+                raise NotImplementedError(
+                    f"You have to implement {fixed_transform} in subject_model.py"
+                )
         else:
             self.fixed_transform = None
         self.empty_condition = empty_condition
@@ -72,12 +82,12 @@ class SubjectModel(torch.nn.Module):
         if self.model is None:
             raise RuntimeError("No subject model loaded")
         if self.empty_condition:
-            c = [torch.empty(x.shape[0], device=x.decvcie)]
+            c = [torch.empty(x.shape[0], 0, device=x.device)]
         return self.model(x, *c, **kwargs)
 
     def encode(self, x, *c, **kwargs):
         if self.empty_condition:
-            c = [torch.empty(x.shape[0], device=x.device)]
+            c = [torch.empty(x.shape[0], 0, device=x.device)]
         if self.fixed_transform is not None:
             x = self.fixed_transform(x)
         if self.model is None:
@@ -87,12 +97,11 @@ class SubjectModel(torch.nn.Module):
         except:
             return self.model(x, *c, **kwargs)
 
-    
     def decode(self, z, *c, **kwargs):
         if self.model is None:
             raise RuntimeError("No subject model loaded")
         if self.empty_condition:
-            c = torch.empty(x.shape[0], device=x.decvcie)
+            c = [torch.empty(z.shape[0], 0, device=z.device)]
         return self.model.decode(z, *c, **kwargs)
 
 
