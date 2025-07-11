@@ -99,6 +99,9 @@ class FiberModel(FreeFormBase):
             self.vgg_features = vgg.features
             for param in self.vgg_features.parameters():
                 param.requires_grad = False
+        if self.hparams.cfg:
+            c_temp = torch.empty(1, self.cond_dim)
+            self.get_null_condition(c_temp)
 
     def init_models(self):
         # Ask whether the latent variebles should be passed by another learning model and which model class to use
@@ -278,23 +281,12 @@ class FiberModel(FreeFormBase):
                 deterministic = True
             else:
                 deterministic = False
+        kwargs = {"return_only_x": return_only_x, "deterministic": deterministic}
         if return_codebook_loss:
-            return self.lossless_ae.encode(
-                x,
-                c,
-                return_only_x=return_only_x,
-                return_codebook_loss=return_codebook_loss,
-                deterministic=deterministic,
-            )
-        else:
-            return self.lossless_ae.encode(
-                x,
-                c,
-                return_only_x=return_only_x,
-                deterministic=deterministic,
-            )
+            kwargs["return_codebook_loss"] = return_codebook_loss
+        return self.lossless_ae.encode(x, c, **kwargs)
 
-    def encode_density(self, z, c, jac=False):
+    def encode_density(self, z, c, jac=False, **kwargs):
         if self.condition_embedder is not None:
             for model in self.condition_embedder:
                 c = model.encode(
@@ -302,7 +294,7 @@ class FiberModel(FreeFormBase):
                 )
         jacs = []
         for net in self.density_model:
-            z = net.encode(z, c)
+            z = net.encode(z, c, **kwargs)
             if isinstance(z, tuple):
                 z, jac_i = z
                 jacs.append(jac_i)
@@ -317,9 +309,9 @@ class FiberModel(FreeFormBase):
     def decode_lossless(self, z, c):
         return self.lossless_ae.decode(z, c)
 
-    def decode_density(self, z_dense, c):
+    def decode_density(self, z_dense, c, **kwargs):
         # c = self.unflatten_ce(c).unsqueeze(1)
-        if self.density_model_type in ["diffusion", "flow_matching"]:
+        if self.density_model_type in ["diffusion"]:
             t, c = c
         if self.condition_embedder is not None:
             for model in self.condition_embedder:
@@ -327,10 +319,10 @@ class FiberModel(FreeFormBase):
                 c = model.encode(
                     c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype)
                 )
-        if self.density_model_type in ["diffusion", "flow_matching"]:
+        if self.density_model_type in ["diffusion"]:
             c = t, c
         for net in self.density_model:
-            z_dense = net.decode(z_dense, c)
+            z_dense = net.decode(z_dense, c, **kwargs)
         return z_dense
 
     def decode(self, z_dense, c):
@@ -395,7 +387,7 @@ class FiberModel(FreeFormBase):
         except TypeError:
             return self.get_latent(z.device).log_prob(z)
 
-    def sample(self, sample_shape, condition=None):
+    def sample(self, sample_shape, condition=None, **kwargs):
         """
         Sample via the density_model and lossless_ae decoder.
         """
@@ -412,7 +404,7 @@ class FiberModel(FreeFormBase):
             c = condition
         else:
             c = torch.empty(z_dense.shape[0], 0).to(z_dense.device)
-        z = self.sample_density(z_dense, c)
+        z = self.sample_density(z_dense, c, **kwargs)
         x = self.decode_lossless(z, c)
         return x.reshape(sample_shape + x.shape[1:])
 

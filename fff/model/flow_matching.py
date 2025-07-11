@@ -85,10 +85,14 @@ class FlowMatching(nn.Module):
         vf = self.net(x)
         return vf
 
-    def get_vector_field_conditional(self, x: Tensor, t: Tensor, c: Tensor) -> Tensor:
+    def get_vector_field_conditional(
+        self, x: Tensor, t: Tensor, c: Tensor, reverse=False
+    ) -> Tensor:
         if self.conditional:
             x = torch.cat([x, c], dim=-1)
-        return self.get_vector_field(x, t)
+        return (
+            self.get_vector_field(x, t) if not reverse else -self.get_vector_field(x, t)
+        )
 
     def get_path_sample(self, t: Tensor, x0: Tensor, x1: Tensor) -> PathSample:
         return self.path.sample(t=t, x_0=x0, x_1=x1)
