@@ -500,339 +500,178 @@ class FiberModel(FreeFormBase):
         :param batch_idx:
         :return:
         """
-        with torch.autograd.profiler.profile(use_cuda=True) as prof:
-            val_all_metrics = not self.training and self.hparams.eval_all
-            conditioned = self.apply_conditions(batch)
-            loss_weights = conditioned.loss_weights
-            x = conditioned.x_noisy
-            c = conditioned.condition
-            x0 = conditioned.x0
-            jac_sm = conditioned.jac_sm
-            deq_vol_change = conditioned.dequantization_jac
+        val_all_metrics = not self.training and self.hparams.eval_all
+        conditioned = self.apply_conditions(batch)
+        loss_weights = conditioned.loss_weights
+        x = conditioned.x_noisy
+        c = conditioned.condition
+        x0 = conditioned.x0
+        jac_sm = conditioned.jac_sm
+        deq_vol_change = conditioned.dequantization_jac
 
-            loss_values = {}
-            metrics = {}
+        loss_values = {}
+        metrics = {}
 
-            def check_keys(*keys):
-                return any(
-                    (loss_key in loss_weights)
-                    and (
-                        torch.any(loss_weights[loss_key] > 0)
-                        if torch.is_tensor(loss_weights[loss_key])
-                        else loss_weights[loss_key] > 0
-                    )
-                    for loss_key in keys
+        def check_keys(*keys):
+            return any(
+                (loss_key in loss_weights)
+                and (
+                    torch.any(loss_weights[loss_key] > 0)
+                    if torch.is_tensor(loss_weights[loss_key])
+                    else loss_weights[loss_key] > 0
                 )
-
-            if check_keys("codebook_loss"):
-                (
-                    z,
-                    mu,
-                    logvar,
-                    codebook_loss,
-                ) = self.encode_lossless(
-                    x, c, return_only_x=False, return_codebook_loss=True
-                )
-                loss_values["codebook_loss"] = codebook_loss
-
-            else:
-                z, mu, logvar = self.encode_lossless(x, c, return_only_x=False)
-            # Reconstruction of lossless latent variables z
-            x1 = self.decode_lossless(z, c)
-            # z = z + torch.randn_like(z) * 0.01
-            # Losses for lossless ae:
-            # Reconstruction
-            if not self.training or check_keys(
-                "ae_reconstruction",
-                "ae_noisy_reconstruction",
-                "ae_sqr_reconstruction",
-                "ae_lamb_reconstruction",
-                "ae_l1_reconstruction",
-                "ae_noisy_l1_reconstruction",
-            ):
-                loss_values["ae_reconstruction"] = self._reconstruction_loss(x0, x1)
-                loss_values["ae_noisy_reconstruction"] = self._reconstruction_loss(
-                    x, x1
-                )
-                loss_values["ae_sqr_reconstruction"] = self._sqr_reconstruction_loss(
-                    x, x1
-                )
-                loss_values["ae_lamb_reconstruction"] = self._lamb_reconstruction_loss(
-                    x, x1
-                )
-                loss_values["ae_l1_reconstruction"] = self._l1_loss(x0, x1)
-                loss_values["ae_noisy_l1_reconstruction"] = self._l1_loss(x, x1)
-
-            if (
-                not self.training or check_keys("ae_rec_fiber_loss")
-            ) and self.subject_model is not None:
-                c_orig = self.subject_model.encode(x0)
-                c1 = self.subject_model.encode(x1)
-                loss_values["ae_rec_fiber_loss"] = self._reduced_rec_loss(c_orig, c1)
-
-            # KL-Divergence for VAE
-            if check_keys("ae_elbo"):
-                loss_values["ae_elbo"] = -0.5 * torch.sum(
-                    (1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1
-                )
-
-            # Cyclic consistency of latent code -- gradient only to encoder
-            if not self.training or check_keys("ae_cycle_loss"):
-                x1_detached = x1.detach()
-                z_cycle = self.encode_lossless(x1_detached, c, return_only_x=True)
-                loss_values["ae_cycle_loss"] = self._reconstruction_loss(z, z_cycle)
-
-            if check_keys("ae_perceptual_loss"):
-                perceptual_loss = 0
-                # reshape into image and duplicate channels if necessary
-                from fff.model.utils import guess_image_shape
-
-                vgg_input = x1.reshape(-1, *guess_image_shape(x1.shape[1]))
-                if vgg_input.shape[1] == 1:
-                    vgg_input = vgg_input.repeat(1, 3, 1, 1)
-                vgg_target = x.reshape(-1, *guess_image_shape(x.shape[1]))
-                if vgg_target.shape[1] == 1:
-                    vgg_target = vgg_target.repeat(1, 3, 1, 1)
-                for i, m in self.vgg_features._modules.items():
-                    vgg_input = m(vgg_input)
-                    vgg_target = m(vgg_target)
-                    if i in ["3", "8", "15", "22"]:
-                        perceptual_loss += self._l1_loss(vgg_input, vgg_target) / prod(
-                            vgg_input.shape[1:]
-                        )
-                loss_values["ae_perceptual_loss"] = perceptual_loss
-
-            # Losses for density model:
-            # Empty until computed
-            z1 = z_dense = None
-
-            # NLL losses
-            if val_all_metrics or check_keys("nll") or check_keys("coarse_supervised"):
-                # NLL loss for INN-architectures
-                if self.density_model_type == "inn":
-                    if check_keys("coarse_supervised"):
-                        c_n = c + torch.randn_like(c) * self.hparams.condition_noise
-                    else:
-                        c_n = c
-                    z_combined, log_det = self.encode_density(z.detach(), c_n, jac=True)
-                    if isinstance(z_combined, tuple):
-                        z_dense, z_coarse = z_combined
-                        if check_keys("coarse_supervised"):
-                            loss_values["coarse_supervised"] = (
-                                self._reconstruction_loss(c, z_coarse)
-                            )
-                    else:
-                        z_dense = z_combined
-                    log_prob = self._latent_log_prob(z_dense, c_n)
-                    loss_values["nll"] = -(log_prob + log_det)
-
-                # Freeform loss
-                elif self.density_model_type == "fff" and (
-                    self.hparams.eval_all
-                    and (
-                        not self.training
-                        or (
-                            self.hparams.exact_train_nll_every is not None
-                            and batch_idx % self.hparams.exact_train_nll_every == 0
-                        )
-                    )
-                ):
-                    # exact
-                    key = "nll_exact" if self.training else "nll"
-                    # todo unreadable
-                    if self.training or (
-                        self.hparams.skip_val_nll is not True
-                        and (
-                            self.hparams.skip_val_nll is False
-                            or (
-                                isinstance(self.hparams.skip_val_nll, int)
-                                and batch_idx < self.hparams.skip_val_nll
-                            )
-                        )
-                    ):
-                        with torch.no_grad():
-                            log_prob_result = self.exact_log_prob(
-                                x=z.detach(), c=c, jacobian_target="both"
-                            )
-                            z_dense = log_prob_result.z
-                            z1 = log_prob_result.x1
-                        loss_values[key] = -log_prob_result.log_prob - deq_vol_change
-                        loss_values.update(log_prob_result.regularizations)
-                    else:
-                        loss_weights["nll"] = 0
-
-                # surrogate
-                elif (
-                    (self.density_model_type == "fff")
-                    and self.training
-                    and check_keys("nll")
-                ):
-                    warm_up = self.hparams.warm_up_epochs
-                    if isinstance(warm_up, int):
-                        warm_up = warm_up, warm_up + 1
-                    warm_up = map(lambda x: x * self.hparams.max_epochs // 100, warm_up)
-                    nll_start, warm_up_end = warm_up
-                    if nll_start == 0:
-                        nll_warmup = 1
-                    else:
-                        nll_warmup = soft_heaviside(
-                            self.current_epoch
-                            + batch_idx
-                            / len(
-                                self.trainer.train_dataloader
-                                if self.training
-                                else self.trainer.val_dataloaders
-                            ),
-                            nll_start,
-                            warm_up_end,
-                        )
-                    loss_weights["nll"] *= nll_warmup
-                    if check_keys("nll"):
-                        log_prob_result = self.surrogate_log_prob(x=z.detach(), c=c)
-                        z_dense = log_prob_result.z
-                        z1 = log_prob_result.x1
-                        loss_values["nll"] = -log_prob_result.log_prob - deq_vol_change
-                        loss_values.update(log_prob_result.regularizations)
-            # Diffusion model mean squared error
-            if check_keys("diff_mse"):
-                if not self.density_model_type == "diffusion":
-                    raise ValueError("diff_mse is only available for diffusion models")
-                t = torch.randint(0, 1000, (z.size(0),), device=z.device).long()
-                z_diff, epsilon = self.diffuse(z.detach(), t, self.alphas_.to(z.device))
-                epsilon_pred = self.decode_density(z_diff.detach(), (t, c))
-                loss_values["diff_mse"] = self._reconstruction_loss(
-                    epsilon_pred, epsilon.detach()
-                )
-
-            if check_keys("fm_loss"):
-                if not self.density_model_type == "flow_matching":
-                    raise ValueError(
-                        "fm_loss is only available for flow matching models"
-                    )
-                t = torch.rand(z.shape[0], device=z.device)
-                z_fm = self.get_latent(z.device).sample((z.shape[0],))
-                # Sander's method
-                if not self.density_model[0].conditional:
-                    z_fm[:, : self.cond_dim] = c
-                elif self.hparams.cfg:
-                    p_uncond = self.hparams.cfg.get("p_unconditional", 0.1)
-                    if p_uncond > 0:
-                        # Randomly set the condition to zero
-                        mask = torch.rand(c.shape[0], device=c.device) < p_uncond
-                        c[mask] = self.get_null_condition(c[mask])
-                loss_values["fm_loss"] = self.density_model[0].compute_fm_loss(
-                    t, z_fm, z, c
-                )
-
-            need_z_dense = val_all_metrics or check_keys(
-                "latent_reconstruction",
-                "latent_l1_reconstruction",
-                "masked_reconstruction",
-                "cycle_loss",
-                "perceptual_loss",
+                for loss_key in keys
             )
 
-            if z_dense is None and need_z_dense:
-                z_dense = self.encode_density(z.detach(), c)
+        if check_keys("codebook_loss"):
+            (
+                z,
+                mu,
+                logvar,
+                codebook_loss,
+            ) = self.encode_lossless(
+                x, c, return_only_x=False, return_codebook_loss=True
+            )
+            loss_values["codebook_loss"] = codebook_loss
 
-            # Reconstruction of latent z
-            if val_all_metrics or check_keys(
-                "latent_reconstruction", "latent_l1_reconstruction"
-            ):
-                if self.density_model_type in ["diffusion", "flow_matching"]:
-                    raise ValueError(
-                        "latent_reconstruction is not available for diffusion models"
+        else:
+            z, mu, logvar = self.encode_lossless(x, c, return_only_x=False)
+        # Reconstruction of lossless latent variables z
+        x1 = self.decode_lossless(z, c)
+        # z = z + torch.randn_like(z) * 0.01
+
+        # Losses for lossless ae:
+        # Reconstruction
+        if not self.training or check_keys(
+            "ae_reconstruction",
+            "ae_noisy_reconstruction",
+            "ae_sqr_reconstruction",
+            "ae_lamb_reconstruction",
+            "ae_l1_reconstruction",
+            "ae_noisy_l1_reconstruction",
+        ):
+            loss_values["ae_reconstruction"] = self._reconstruction_loss(x0, x1)
+            loss_values["ae_noisy_reconstruction"] = self._reconstruction_loss(x, x1)
+            loss_values["ae_sqr_reconstruction"] = self._sqr_reconstruction_loss(x, x1)
+            loss_values["ae_lamb_reconstruction"] = self._lamb_reconstruction_loss(
+                x, x1
+            )
+            loss_values["ae_l1_reconstruction"] = self._l1_loss(x0, x1)
+            loss_values["ae_noisy_l1_reconstruction"] = self._l1_loss(x, x1)
+
+        if (
+            not self.training or check_keys("ae_rec_fiber_loss")
+        ) and self.subject_model is not None:
+            c_orig = self.subject_model.encode(x0)
+            c1 = self.subject_model.encode(x1)
+            loss_values["ae_rec_fiber_loss"] = self._reduced_rec_loss(c_orig, c1)
+
+        # KL-Divergence for VAE
+        if check_keys("ae_elbo"):
+            loss_values["ae_elbo"] = -0.5 * torch.sum(
+                (1.0 + logvar - torch.pow(mu, 2) - torch.exp(logvar)), -1
+            )
+
+        # Cyclic consistency of latent code -- gradient only to encoder
+        if not self.training or check_keys("ae_cycle_loss"):
+            x1_detached = x1.detach()
+            z_cycle = self.encode_lossless(x1_detached, c, return_only_x=True)
+            loss_values["ae_cycle_loss"] = self._reconstruction_loss(z, z_cycle)
+
+        if check_keys("ae_perceptual_loss"):
+            perceptual_loss = 0
+            # reshape into image and duplicate channels if necessary
+            from fff.model.utils import guess_image_shape
+
+            vgg_input = x1.reshape(-1, *guess_image_shape(x1.shape[1]))
+            if vgg_input.shape[1] == 1:
+                vgg_input = vgg_input.repeat(1, 3, 1, 1)
+            vgg_target = x.reshape(-1, *guess_image_shape(x.shape[1]))
+            if vgg_target.shape[1] == 1:
+                vgg_target = vgg_target.repeat(1, 3, 1, 1)
+            for i, m in self.vgg_features._modules.items():
+                vgg_input = m(vgg_input)
+                vgg_target = m(vgg_target)
+                if i in ["3", "8", "15", "22"]:
+                    perceptual_loss += self._l1_loss(vgg_input, vgg_target) / prod(
+                        vgg_input.shape[1:]
                     )
-                if z1 is None:
-                    z1 = self.decode_density(z_dense, c)
-                loss_values["latent_reconstruction"] = self._reconstruction_loss(
-                    z.detach(), z1
-                )
-                loss_values["latent_l1_reconstruction"] = self._l1_loss(z.detach(), z1)
+            loss_values["ae_perceptual_loss"] = perceptual_loss
 
-            # Wasserstein distance of marginal to Gaussian
-            if val_all_metrics:
-                with torch.no_grad():
-                    z_marginal = z_dense.reshape(-1)
-                    z_gauss = torch.randn_like(z_marginal)
+        # Losses for density model:
+        # Empty until computed
+        z1 = z_dense = None
 
-                    z_marginal_sorted = z_marginal.sort().values
-                    z_gauss_sorted = z_gauss.sort().values
-
-                    metrics["z 1D-Wasserstein-1"] = (
-                        (z_marginal_sorted - z_gauss_sorted).abs().mean()
-                    )
-                    metrics["z std"] = torch.std(z_marginal)
-                    if check_keys("ae_lamb_reconstruction"):
-                        metrics["lambda"] = self.lamb
-
-            if val_all_metrics or check_keys("masked_reconstruction"):
-                if self.density_model_type in ["diffusion", "flow_matching"]:
-                    raise ValueError(
-                        "masked_reconstruction is not available for diffusion models"
-                    )
-                latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
-                latent_mask[:, : self.hparams.reconstruct_dims] = 1
-                z_masked_dense = z_dense * latent_mask
-                x_zmask = self.decode(z_masked_dense, c)
-                loss_values["masked_reconstruction"] = self._reconstruction_loss(
-                    x, x_zmask
-                )
-
-            # Cyclic consistency of latent code -- gradient only to encoder
-            if val_all_metrics or check_keys("cycle_loss"):
-                if z1 is None:
-                    z1 = self.decode_density(z_dense, c)
-                z1_detached = z1.detach()
-                z_dense1 = self.encode_density(z1_detached, c)
-                if isinstance(z_dense1, tuple):
-                    z_dense1, _ = z_dense1
-                loss_values["cycle_loss"] = self._reconstruction_loss(z_dense, z_dense1)
-
-            if check_keys("perceptual_loss"):
-                perceptual_loss = 0
-                # reshape into image and duplicate channels if necessary
-                from fff.model.utils import guess_image_shape
-
-                if z1 is None:
-                    z1 = self.decode_density(z_dense, c)
-                x_full_recon = self.decode_lossless(z1, c)
-                vgg_input = x_full_recon.reshape(
-                    -1, *guess_image_shape(x_full_recon.shape[1])
-                )
-                if vgg_input.shape[1] == 1:
-                    vgg_input = vgg_input.repeat(1, 3, 1, 1)
-                vgg_target = x.reshape(-1, *guess_image_shape(x.shape[1]))
-                if vgg_target.shape[1] == 1:
-                    vgg_target = vgg_target.repeat(1, 3, 1, 1)
-                for i, m in self.vgg_features._modules.items():
-                    vgg_input = m(vgg_input)
-                    vgg_target = m(vgg_target)
-                    if i in ["3", "8", "15", "22"]:
-                        perceptual_loss += self._l1_loss(vgg_input, vgg_target) / prod(
-                            vgg_input.shape[1:]
+        # NLL losses
+        if val_all_metrics or check_keys("nll") or check_keys("coarse_supervised"):
+            # NLL loss for INN-architectures
+            if self.density_model_type == "inn":
+                if check_keys("coarse_supervised"):
+                    c_n = c + torch.randn_like(c) * self.hparams.condition_noise
+                else:
+                    c_n = c
+                z_combined, log_det = self.encode_density(z.detach(), c_n, jac=True)
+                if isinstance(z_combined, tuple):
+                    z_dense, z_coarse = z_combined
+                    if check_keys("coarse_supervised"):
+                        loss_values["coarse_supervised"] = self._reconstruction_loss(
+                            c, z_coarse
                         )
-                loss_values["perceptual_loss"] = perceptual_loss
+                else:
+                    z_dense = z_combined
+                log_prob = self._latent_log_prob(z_dense, c_n)
+                loss_values["nll"] = -(log_prob + log_det)
 
-            # Cyclic consistency of latent code sampled from Gaussian and fiber loss
-            if check_keys(
-                "fiber_loss", "jac_fiber_loss", "z_sample_reconstruction"
-            ) or (
-                not self.training  # TODO: This should be val_all_metrics, but then FM/Diffusion models are not getting validated
+            # Freeform loss
+            elif self.density_model_type == "fff" and (
+                self.hparams.eval_all
                 and (
-                    self.current_epoch % self.hparams.fiber_loss_every == 0
-                    or self.current_epoch == self.hparams.max_epochs - 1
+                    not self.training
+                    or (
+                        self.hparams.exact_train_nll_every is not None
+                        and batch_idx % self.hparams.exact_train_nll_every == 0
+                    )
                 )
             ):
-                warm_up = self.hparams.warm_up_fiber
+                # exact
+                key = "nll_exact" if self.training else "nll"
+                # todo unreadable
+                if self.training or (
+                    self.hparams.skip_val_nll is not True
+                    and (
+                        self.hparams.skip_val_nll is False
+                        or (
+                            isinstance(self.hparams.skip_val_nll, int)
+                            and batch_idx < self.hparams.skip_val_nll
+                        )
+                    )
+                ):
+                    with torch.no_grad():
+                        log_prob_result = self.exact_log_prob(
+                            x=z.detach(), c=c, jacobian_target="both"
+                        )
+                        z_dense = log_prob_result.z
+                        z1 = log_prob_result.x1
+                    loss_values[key] = -log_prob_result.log_prob - deq_vol_change
+                    loss_values.update(log_prob_result.regularizations)
+                else:
+                    loss_weights["nll"] = 0
+
+            # surrogate
+            elif (
+                (self.density_model_type == "fff")
+                and self.training
+                and check_keys("nll")
+            ):
+                warm_up = self.hparams.warm_up_epochs
                 if isinstance(warm_up, int):
                     warm_up = warm_up, warm_up + 1
                 warm_up = map(lambda x: x * self.hparams.max_epochs // 100, warm_up)
-                fl_start, warm_up_end = warm_up
-                if fl_start == 0:
-                    fl_warmup = 1
+                nll_start, warm_up_end = warm_up
+                if nll_start == 0:
+                    nll_warmup = 1
                 else:
-                    fl_warmup = soft_heaviside(
+                    nll_warmup = soft_heaviside(
                         self.current_epoch
                         + batch_idx
                         / len(
@@ -840,103 +679,246 @@ class FiberModel(FreeFormBase):
                             if self.training
                             else self.trainer.val_dataloaders
                         ),
-                        fl_start,
+                        nll_start,
                         warm_up_end,
                     )
-                loss_weights["fiber_loss"] *= fl_warmup
-                try:
-                    z_dense_random = self.get_latent(z.device).sample((z.shape[0],), c)
-                except TypeError:
-                    z_dense_random = self.get_latent(z.device).sample((z.shape[0],))
-                if isinstance(z_dense_random, tuple):
-                    z_dense_random, c_random = z_dense_random
-                else:
-                    c_random = c
-                z_random = self.sample_density(z_dense_random, c_random)
-                x_random = self.decode_lossless(z_random, c_random)
-                x_random_sm = x_random
-                if self.hparams.add_noise_for_sm:
-                    if self.hparams["data_set"].get("data") == "highdose":
-                        # Add noise to the sampled highdose samples
-                        x_random_sm = x_random + batch[1] - x
-                    else:
-                        raise (
-                            ValueError(
-                                "Adding noise from condition only works for highdose images as data"
-                            )
-                        )
+                loss_weights["nll"] *= nll_warmup
+                if check_keys("nll"):
+                    log_prob_result = self.surrogate_log_prob(x=z.detach(), c=c)
+                    z_dense = log_prob_result.z
+                    z1 = log_prob_result.x1
+                    loss_values["nll"] = -log_prob_result.log_prob - deq_vol_change
+                    loss_values.update(log_prob_result.regularizations)
 
-                # Try whether the model learns fibers and therefore has a subject model
-                try:
-                    # There might be no subject model
-                    c1 = self.subject_model.encode(x_random_sm)
-                    c_sm = torch.empty(x_random.shape[0], 0).to(x_random.device)
-                    if jac_sm is not None:
-                        loss_values["jac_fiber_loss"] = self._jacreduced_l2(
-                            c_random, c1, jac_sm, epsilon=0.01
-                        )
-                    loss_values["fiber_loss"] = self._reduced_rec_loss(c_random, c1)
-                except Exception as e:
-                    warn(
-                        "Error in computing fiber loss, setting to nan. Error: "
-                        + str(e)
-                    )
-                    loss_values["fiber_loss"] = float("nan") * torch.ones(
-                        z_random.shape[0]
-                    )
-                try:
-                    # Sanity checks might fail for random data
-                    z1_random = self.encode(x_random, c_random)
-                    if isinstance(z1_random, tuple):
-                        z1_random, _ = z1_random
-                    loss_values["z_sample_reconstruction"] = self._reconstruction_loss(
-                        z_dense_random, z1_random
-                    )
-                except Exception as e:
-                    warn(
-                        "Error in computing z_sample_reconstruction, setting to nan. Error: "
-                        + str(e)
-                    )
-                    loss_values["z_sample_reconstruction"] = float("nan") * torch.ones(
-                        z_random.shape[0]
-                    )
-
-            # Compute loss as weighted loss
-            metrics["loss"] = sum(
-                (weight * loss_values[key]).mean(-1)
-                for key, weight in loss_weights.items()
-                if check_keys(key) and (self.training or key in loss_values)
+        # Diffusion model mean squared error
+        if check_keys("diff_mse"):
+            if not self.density_model_type == "diffusion":
+                raise ValueError("diff_mse is only available for diffusion models")
+            t = torch.randint(0, 1000, (z.size(0),), device=z.device).long()
+            z_diff, epsilon = self.diffuse(z.detach(), t, self.alphas_.to(z.device))
+            epsilon_pred = self.decode_density(z_diff.detach(), (t, c))
+            loss_values["diff_mse"] = self._reconstruction_loss(
+                epsilon_pred, epsilon.detach()
             )
 
-            # Metrics are averaged, non-weighted loss_values
-            invalid_losses = []
-            for key, weight in loss_values.items():
-                # One value per key
-                if loss_values[key].shape == (x.shape[0],):
-                    metrics[key] = loss_values[key].mean(-1)
-                elif loss_values[key].ndim == 0:
-                    metrics[key] = loss_values[key]
+        if check_keys("fm_loss"):
+            if not self.density_model_type == "flow_matching":
+                raise ValueError("fm_loss is only available for flow matching models")
+            t = torch.rand(z.shape[0], device=z.device)
+            z_fm = self.get_latent(z.device).sample((z.shape[0],))
+            # Sander's method
+            if not self.density_model[0].conditional:
+                z_fm[:, : self.cond_dim] = c
+            elif self.hparams.cfg:
+                p_uncond = self.hparams.cfg.get("p_unconditional", 0.1)
+                if p_uncond > 0:
+                    # Randomly set the condition to zero
+                    mask = torch.rand(c.shape[0], device=c.device) < p_uncond
+                    c[mask] = self.get_null_condition(c[mask])
+            loss_values["fm_loss"] = self.density_model[0].compute_fm_loss(
+                t, z_fm, z, c
+            )
+
+        need_z_dense = val_all_metrics or check_keys(
+            "latent_reconstruction",
+            "latent_l1_reconstruction",
+            "masked_reconstruction",
+            "cycle_loss",
+            "perceptual_loss",
+        )
+
+        if z_dense is None and need_z_dense:
+            z_dense = self.encode_density(z.detach(), c)
+
+        # Reconstruction of latent z
+        if val_all_metrics or check_keys(
+            "latent_reconstruction", "latent_l1_reconstruction"
+        ):
+            if self.density_model_type in ["diffusion", "flow_matching"]:
+                raise ValueError(
+                    "latent_reconstruction is not available for diffusion models"
+                )
+            if z1 is None:
+                z1 = self.decode_density(z_dense, c)
+            loss_values["latent_reconstruction"] = self._reconstruction_loss(
+                z.detach(), z1
+            )
+            loss_values["latent_l1_reconstruction"] = self._l1_loss(z.detach(), z1)
+
+        # Wasserstein distance of marginal to Gaussian
+        if val_all_metrics:
+            with torch.no_grad():
+                z_marginal = z_dense.reshape(-1)
+                z_gauss = torch.randn_like(z_marginal)
+
+                z_marginal_sorted = z_marginal.sort().values
+                z_gauss_sorted = z_gauss.sort().values
+
+                metrics["z 1D-Wasserstein-1"] = (
+                    (z_marginal_sorted - z_gauss_sorted).abs().mean()
+                )
+                metrics["z std"] = torch.std(z_marginal)
+                if check_keys("ae_lamb_reconstruction"):
+                    metrics["lambda"] = self.lamb
+
+        if val_all_metrics or check_keys("masked_reconstruction"):
+            if self.density_model_type in ["diffusion", "flow_matching"]:
+                raise ValueError(
+                    "masked_reconstruction is not available for diffusion models"
+                )
+            latent_mask = torch.zeros(z.shape[0], self.latent_dim, device=z.device)
+            latent_mask[:, : self.hparams.reconstruct_dims] = 1
+            z_masked_dense = z_dense * latent_mask
+            x_zmask = self.decode(z_masked_dense, c)
+            loss_values["masked_reconstruction"] = self._reconstruction_loss(x, x_zmask)
+
+        # Cyclic consistency of latent code -- gradient only to encoder
+        if val_all_metrics or check_keys("cycle_loss"):
+            if z1 is None:
+                z1 = self.decode_density(z_dense, c)
+            z1_detached = z1.detach()
+            z_dense1 = self.encode_density(z1_detached, c)
+            if isinstance(z_dense1, tuple):
+                z_dense1, _ = z_dense1
+            loss_values["cycle_loss"] = self._reconstruction_loss(z_dense, z_dense1)
+
+        if check_keys("perceptual_loss"):
+            perceptual_loss = 0
+            # reshape into image and duplicate channels if necessary
+            from fff.model.utils import guess_image_shape
+
+            if z1 is None:
+                z1 = self.decode_density(z_dense, c)
+            x_full_recon = self.decode_lossless(z1, c)
+            vgg_input = x_full_recon.reshape(
+                -1, *guess_image_shape(x_full_recon.shape[1])
+            )
+            if vgg_input.shape[1] == 1:
+                vgg_input = vgg_input.repeat(1, 3, 1, 1)
+            vgg_target = x.reshape(-1, *guess_image_shape(x.shape[1]))
+            if vgg_target.shape[1] == 1:
+                vgg_target = vgg_target.repeat(1, 3, 1, 1)
+            for i, m in self.vgg_features._modules.items():
+                vgg_input = m(vgg_input)
+                vgg_target = m(vgg_target)
+                if i in ["3", "8", "15", "22"]:
+                    perceptual_loss += self._l1_loss(vgg_input, vgg_target) / prod(
+                        vgg_input.shape[1:]
+                    )
+            loss_values["perceptual_loss"] = perceptual_loss
+
+        # Cyclic consistency of latent code sampled from Gaussian and fiber loss
+        if check_keys("fiber_loss", "jac_fiber_loss", "z_sample_reconstruction") or (
+            not self.training  # TODO: This should be val_all_metrics, but then FM/Diffusion models are not getting validated
+            and (
+                self.current_epoch % self.hparams.fiber_loss_every == 0
+                or self.current_epoch == self.hparams.max_epochs - 1
+            )
+        ):
+            warm_up = self.hparams.warm_up_fiber
+            if isinstance(warm_up, int):
+                warm_up = warm_up, warm_up + 1
+            warm_up = map(lambda x: x * self.hparams.max_epochs // 100, warm_up)
+            fl_start, warm_up_end = warm_up
+            if fl_start == 0:
+                fl_warmup = 1
+            else:
+                fl_warmup = soft_heaviside(
+                    self.current_epoch
+                    + batch_idx
+                    / len(
+                        self.trainer.train_dataloader
+                        if self.training
+                        else self.trainer.val_dataloaders
+                    ),
+                    fl_start,
+                    warm_up_end,
+                )
+            loss_weights["fiber_loss"] *= fl_warmup
+            try:
+                z_dense_random = self.get_latent(z.device).sample((z.shape[0],), c)
+            except TypeError:
+                z_dense_random = self.get_latent(z.device).sample((z.shape[0],))
+            if isinstance(z_dense_random, tuple):
+                z_dense_random, c_random = z_dense_random
+            else:
+                c_random = c
+            z_random = self.sample_density(z_dense_random, c_random)
+            x_random = self.decode_lossless(z_random, c_random)
+            x_random_sm = x_random
+            if self.hparams.add_noise_for_sm:
+                if self.hparams["data_set"].get("data") == "highdose":
+                    # Add noise to the sampled highdose samples
+                    x_random_sm = x_random + batch[1] - x
                 else:
-                    invalid_losses.append(key)
-            if len(invalid_losses) > 0:
-                raise ValueError(f"Invalid loss shapes for {invalid_losses}")
+                    raise (
+                        ValueError(
+                            "Adding noise from condition only works for highdose images as data"
+                        )
+                    )
 
-            # Store loss weights
-            if self.training:
-                for key, weight in loss_weights.items():
-                    if not torch.is_tensor(weight):
-                        weight = torch.tensor(weight)
-                    self.log(f"weights/{key}", weight.float().mean())
+            # Try whether the model learns fibers and therefore has a subject model
+            try:
+                # There might be no subject model
+                c1 = self.subject_model.encode(x_random_sm)
+                c_sm = torch.empty(x_random.shape[0], 0).to(x_random.device)
+                if jac_sm is not None:
+                    loss_values["jac_fiber_loss"] = self._jacreduced_l2(
+                        c_random, c1, jac_sm, epsilon=0.01
+                    )
+                loss_values["fiber_loss"] = self._reduced_rec_loss(c_random, c1)
+            except Exception as e:
+                warn("Error in computing fiber loss, setting to nan. Error: " + str(e))
+                loss_values["fiber_loss"] = float("nan") * torch.ones(z_random.shape[0])
+            try:
+                # Sanity checks might fail for random data
+                z1_random = self.encode(x_random, c_random)
+                if isinstance(z1_random, tuple):
+                    z1_random, _ = z1_random
+                loss_values["z_sample_reconstruction"] = self._reconstruction_loss(
+                    z_dense_random, z1_random
+                )
+            except Exception as e:
+                warn(
+                    "Error in computing z_sample_reconstruction, setting to nan. Error: "
+                    + str(e)
+                )
+                loss_values["z_sample_reconstruction"] = float("nan") * torch.ones(
+                    z_random.shape[0]
+                )
 
-            # Check finite loss
-            if not torch.isfinite(metrics["loss"]) and self.training:
-                self.trainer.save_checkpoint("erroneous.ckpt")
-                print(f"Encountered nan loss from: {metrics}!")
-                raise SkipBatch
-        # Log profiling information
-        print("Profiler output:")
-        print(prof.key_averages().table(sort_by="self_cpu_time_total", row_limit=10))
-        print("Profiler output end")
+        # Compute loss as weighted loss
+        metrics["loss"] = sum(
+            (weight * loss_values[key]).mean(-1)
+            for key, weight in loss_weights.items()
+            if check_keys(key) and (self.training or key in loss_values)
+        )
+
+        # Metrics are averaged, non-weighted loss_values
+        invalid_losses = []
+        for key, weight in loss_values.items():
+            # One value per key
+            if loss_values[key].shape == (x.shape[0],):
+                metrics[key] = loss_values[key].mean(-1)
+            elif loss_values[key].ndim == 0:
+                metrics[key] = loss_values[key]
+            else:
+                invalid_losses.append(key)
+        if len(invalid_losses) > 0:
+            raise ValueError(f"Invalid loss shapes for {invalid_losses}")
+
+        # Store loss weights
+        if self.training:
+            for key, weight in loss_weights.items():
+                if not torch.is_tensor(weight):
+                    weight = torch.tensor(weight)
+                self.log(f"weights/{key}", weight.float().mean())
+
+        # Check finite loss
+        if not torch.isfinite(metrics["loss"]) and self.training:
+            self.trainer.save_checkpoint("erroneous.ckpt")
+            print(f"Encountered nan loss from: {metrics}!")
+            raise SkipBatch
 
         return metrics
 
