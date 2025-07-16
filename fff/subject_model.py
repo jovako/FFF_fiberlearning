@@ -10,7 +10,7 @@ from warnings import warn
 import torch.nn.functional as F
 from fff.model.utils import guess_image_shape
 from math import prod
-from fff.data.utils import decolorize
+from fff.data.utils import decolorize, normalize_ct_image
 
 
 class SubjectModel(torch.nn.Module):
@@ -67,7 +67,7 @@ class SubjectModel(torch.nn.Module):
             if fixed_transform == "decolorize":
                 self.fixed_transform = decolorize
             elif fixed_transform == "normalize_ct_image":
-                self.fixed_transform = normalize_ct_image()
+                self.fixed_transform = normalize_ct_image
             elif callable(fixed_transform):
                 self.fixed_transform = fixed_transform
             else:
