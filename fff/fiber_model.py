@@ -93,7 +93,8 @@ class FiberModel(FreeFormBase):
 
         # Add learnable parameter for standard deviation for vae training
         self.lamb = torch.nn.Parameter(torch.ones(1), requires_grad=True)
-        if "perceptual_loss" in defaultdict(float, self.hparams.loss_weights):
+        if ("perceptual_loss" in defaultdict(float, self.hparams.loss_weights) or
+           "ae_perceptual_loss" in defaultdict(float, self.hparams.loss_weights)):
             vgg = torchmodels.vgg16(weights=torchmodels.VGG16_Weights.IMAGENET1K_V1)
             vgg.eval()
             self.vgg_features = vgg.features
@@ -539,7 +540,6 @@ class FiberModel(FreeFormBase):
             # Reconstruction of lossless latent variables z
             x1 = self.decode_lossless(z, c)
             # z = z + torch.randn_like(z) * 0.01
-
             # Losses for lossless ae:
             # Reconstruction
             if not self.training or check_keys(
@@ -693,7 +693,6 @@ class FiberModel(FreeFormBase):
                         z1 = log_prob_result.x1
                         loss_values["nll"] = -log_prob_result.log_prob - deq_vol_change
                         loss_values.update(log_prob_result.regularizations)
-
             # Diffusion model mean squared error
             if check_keys("diff_mse"):
                 if not self.density_model_type == "diffusion":
@@ -1112,3 +1111,4 @@ class FiberModel(FreeFormBase):
                          value,
                          prog_bar=key == self.hparams.loss,
                          sync_dist=self.hparams.strategy.startswith("ddp"))
+
