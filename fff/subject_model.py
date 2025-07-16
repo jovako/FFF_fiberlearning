@@ -10,9 +10,7 @@ from warnings import warn
 import torch.nn.functional as F
 from fff.model.utils import guess_image_shape
 from math import prod
-
-
-from fff.data.utils import Decolorize
+from fff.data.utils import decolorize
 
 
 class SubjectModel(torch.nn.Module):
@@ -67,7 +65,11 @@ class SubjectModel(torch.nn.Module):
 
         if fixed_transform is not None:
             if fixed_transform == "decolorize":
-                self.fixed_transform = Decolorize
+                self.fixed_transform = decolorize
+            elif fixed_transform == "normalize_ct_image":
+                self.fixed_transform = normalize_ct_image()
+            elif callable(fixed_transform):
+                self.fixed_transform = fixed_transform
             else:
                 raise NotImplementedError(
                     f"You have to implement {fixed_transform} in subject_model.py"
