@@ -3,6 +3,7 @@ mean: 481.45419786099086
 min: 0.0
 robust: false
 std: 502.18507379395044
+clip_value: 2750.0
 test_set:
 - id: C121
   input: ./LDCT-and-Projection-data/C121/12-23-2021-NA-NA-61870/1.000000-Low Dose

@@ -172,6 +172,14 @@ class LDCTMayo(Dataset):
             return (X - float(self.info["min"])) / (
                 float(self.info["max"]) - float(self.info["min"])
             )
+        elif data_norm == "clipped":
+            clipped = np.clip(
+                (X - float(self.info["min"])) / float(self.info["clip_value"]),
+                0,
+                1,
+            )
+            # Scale to [-1, 1]
+            return 2 * clipped - 1
         else:
             raise ValueError(f"Unknown normalization method {data_norm}")
 
@@ -197,9 +205,12 @@ class LDCTMayo(Dataset):
             data_norm = self.data_norm
         if data_norm == "meanstd":
             return X * self.info["std"] + self.info["mean"]
-
         elif data_norm == "minmax":
             return X * (self.info["max"] - self.info["min"]) + self.info["min"]
+        elif data_norm == "clipped":
+            return ((X + 1) / 2) * float(self.info["clip_value"]) + float(
+                self.info["min"]
+            )
         else:
             raise ValueError(f"Unknown normalization method {data_norm}")
 
