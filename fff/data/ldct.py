@@ -270,24 +270,27 @@ class LDCTMayo(Dataset):
     def _augment(self, lowdose: np.ndarray | None, highdose: np.ndarray | None):
         """Apply augmentations to lowdose and highdose images"""
         if self.use_augmentation:
+            data_norm = (
+                "minmax" if self.data_norm in ["minmax", "meanstd"] else self.data_norm
+            )
             if lowdose is not None and highdose is not None:
                 lowdose, highdose = self._normalize(
-                    lowdose, data_norm="minmax"
-                ), self._normalize(highdose, data_norm="minmax")
+                    lowdose, data_norm=data_norm
+                ), self._normalize(highdose, data_norm=data_norm)
                 augmented = self.transforms(image=lowdose, image2=highdose)
                 lowdose = augmented["image"]
                 highdose = augmented["image2"]
                 lowdose, highdose = self.denormalize(
-                    lowdose, data_norm="minmax"
-                ), self.denormalize(highdose, data_norm="minmax")
+                    lowdose, data_norm=data_norm
+                ), self.denormalize(highdose, data_norm=data_norm)
             elif lowdose is not None:
-                lowdose = self._normalize(lowdose, data_norm="minmax")
+                lowdose = self._normalize(lowdose, data_norm=data_norm)
                 lowdose = self.transforms(image=lowdose)["image"]
-                lowdose = self.denormalize(lowdose, data_norm="minmax")
+                lowdose = self.denormalize(lowdose, data_norm=data_norm)
             elif highdose is not None:
-                highdose = self._normalize(highdose, data_norm="minmax")
+                highdose = self._normalize(highdose, data_norm=data_norm)
                 highdose = self.transforms(image=highdose)["image"]
-                highdose = self.denormalize(highdose, data_norm="minmax")
+                highdose = self.denormalize(highdose, data_norm=data_norm)
         return lowdose, highdose
 
     @staticmethod
