@@ -71,7 +71,7 @@ class LosslessAE(Module):
             ), "cond_embedding_network must be specified if cond_embedding_shape is specified"
 
         model_spec = copy.deepcopy(self.hparams.model_spec)
-        if self.hparams.vae and not self.hparams.path:
+        if self.hparams.vae:
             lat_dim = self.hparams.model_spec[-1]["latent_dim"]
             model_spec[-1]["latent_dim"] = lat_dim * 2
 
