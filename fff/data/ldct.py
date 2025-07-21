@@ -270,9 +270,7 @@ class LDCTMayo(Dataset):
     def _augment(self, lowdose: np.ndarray | None, highdose: np.ndarray | None):
         """Apply augmentations to lowdose and highdose images"""
         if self.use_augmentation:
-            data_norm = (
-                "minmax" if self.data_norm in ["minmax", "meanstd"] else self.data_norm
-            )
+            data_norm = "minmax"
             if lowdose is not None and highdose is not None:
                 lowdose, highdose = self._normalize(
                     lowdose, data_norm=data_norm
