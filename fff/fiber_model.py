@@ -707,7 +707,7 @@ class FiberModel(FreeFormBase):
             t = torch.rand(z.shape[0], device=z.device)
             z_fm = self.get_latent(z.device).sample((z.shape[0],))
             # Sander's method
-            if self.density_model[0].regress_to_condition:
+            if self.density_model[0].hparams.regress_to_condition:
                 z_fm[:, : self.cond_dim] = c
             elif self.hparams.cfg:
                 p_uncond = self.hparams.cfg.get("p_unconditional", 0.1)
