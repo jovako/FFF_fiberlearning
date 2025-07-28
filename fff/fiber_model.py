@@ -44,7 +44,7 @@ ConditionedBatch = namedtuple(
 
 class FiberModelHParams(FreeFormBaseHParams):
     val_every_n_epoch: int = 1
-    cond_dim: int | None = None
+    cond_dim: int = 0
     compute_c_on_fly: bool = False
     density_model: list
     lossless_ae: dict | LosslessAEHParams | None = None

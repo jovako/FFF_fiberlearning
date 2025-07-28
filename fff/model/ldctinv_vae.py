@@ -88,20 +88,29 @@ class LDCTInvModel(nn.Module):
         return out
 
     def encode(self, x, c):
-        return self.encoder(self.cat_x_c(x, c))
+        if self.hparams.cond_dim > 0:
+            x = self.cat_x_c(x, c)
+        elif self.hparams.image_shape is not None:
+            x = x.reshape(x.shape[0], *self.hparams.image_shape)
+        else:
+            x = x.reshape(x.shape[0], *guess_image_shape(self.hparams.data_dim))
+        return self.encoder(x)
 
     def decode(self, u, c):
         if self.hparams.image_shape is not None:
             resolution = torch.Size(self.hparams.image_shape)[1:]
         else:
             resolution = guess_image_shape(self.hparams.data_dim)[1:]
-        if c.ndim == 2:
-            c = c[:, :, None, None] * torch.ones(
-                c.shape[0],
-                self.hparams.cond_dim,
-                *resolution,
-                device=c.device,
-            )
+        if self.hparams.cond_dim > 0:
+            if c.ndim == 2:
+                c = c[:, :, None, None] * torch.ones(
+                    c.shape[0],
+                    self.hparams.cond_dim,
+                    *resolution,
+                    device=c.device,
+                )
+        else:
+            c = None
         return self.decoder(u, im_cond=c).flatten(1)
 
 
