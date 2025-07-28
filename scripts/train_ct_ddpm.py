@@ -50,7 +50,7 @@ def train_ct_ddpm(
     image_size=224,
     batch_size=8,
     num_epochs=20,
-    learning_rate=1e-4,
+    learning_rate=3e-4,
     save_dir="./saved_models",
     num_train_timesteps=1000,
 ):
@@ -68,7 +68,7 @@ def train_ct_ddpm(
         sample_size=image_size,
         in_channels=1,
         out_channels=1,
-        layers_per_block=2,
+        layers_per_block=3,
         block_out_channels=(64, 128, 128, 256),
         down_block_types=("DownBlock2D",) * 4,
         up_block_types=("UpBlock2D",) * 4,
@@ -144,7 +144,7 @@ def train_ct_ddpm(
 if __name__ == "__main__":
     data_set_config = {
         "name": "ldct",
-        "root": "/home/hd/hd_hd/hd_gu452/ldct_data",
+        "root": "/mnt/SSD_2TB/ldct_data",
         "condition": "lowdose",
         "data": "highdose",
         "patchsize": 512,
