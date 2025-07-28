@@ -39,6 +39,7 @@ class FlowMatchingHParams(ResNetHParams):
     default_sampling_step_size: float = 1e-2
     default_sampling_method: str = "midpoint"
     loss_norm: str = "l2"
+    regress_to_condition: bool = False
 
 
 class FlowMatching(nn.Module):
@@ -50,6 +51,8 @@ class FlowMatching(nn.Module):
 
         self.net = self.build_model()
         self.conditional = self.hparams.conditional
+        assert not (self.hparams.conditional and self.hparams.regress_to_condition), \
+        "Cannot regress to condition and use it as extra input at the same time"
         self.path = self._get_path()
 
     def _get_path(self) -> Type[AffineProbPath]:
