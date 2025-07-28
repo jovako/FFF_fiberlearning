@@ -38,14 +38,14 @@ class LosslessAE(Module):
             ]
             hparams["cond_embedding_network"] = checkpoint["hyper_parameters"][
                 "lossless_ae"
-            ].get("cond_embedding_network")
+            ].get("cond_embedding_network", [])
             hparams["cond_embedding_shape"] = checkpoint["hyper_parameters"][
                 "lossless_ae"
-            ].get("cond_embedding_shape")
+            ].get("cond_embedding_shape", None)
             hparams["use_condition_decoder"] = checkpoint["hyper_parameters"][
                 "lossless_ae"
-            ].get("use_condition_decoder")
-            hparams["vae"] = checkpoint["hyper_parameters"]["lossless_ae"].get("vae")
+            ].get("use_condition_decoder", False)
+            hparams["vae"] = checkpoint["hyper_parameters"]["lossless_ae"].get("vae", True)
 
         if not isinstance(hparams, LosslessAEHParams):
             hparams = LosslessAEHParams(**hparams)
