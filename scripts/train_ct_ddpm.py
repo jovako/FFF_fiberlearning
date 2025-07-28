@@ -8,7 +8,7 @@ from tqdm import tqdm
 from accelerate import Accelerator
 from pathlib import Path
 from fff.data import load_dataset
-
+import numpy as np
 
 # ema.py
 class EMA:
@@ -48,10 +48,10 @@ class EMA:
 def train_ct_ddpm(
     dataset_config,
     image_size=224,
-    batch_size=8,
-    num_epochs=20,
-    learning_rate=3e-4,
-    save_dir="./saved_models",
+    batch_size=32,
+    num_epochs=50,
+    learning_rate=2e-4,
+    save_dir="./saved_models_no_clip",
     num_train_timesteps=1000,
 ):
     accelerator = Accelerator()
@@ -60,7 +60,7 @@ def train_ct_ddpm(
     # Load dataset
     train_ds, _, _ = load_dataset(**dataset_config)
     train_loader = DataLoader(
-        train_ds, batch_size=batch_size, shuffle=True, num_workers=4
+        train_ds, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True
     )
 
     # Define UNet
@@ -80,9 +80,7 @@ def train_ct_ddpm(
     )
 
     # Noise scheduler
-    noise_scheduler = DDPMScheduler(
-        num_train_timesteps=num_train_timesteps, beta_schedule="linear"
-    )
+    noise_scheduler = DDPMScheduler.from_pretrained("google/ddpm-cifar10-32") 
 
     # Optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
@@ -94,6 +92,7 @@ def train_ct_ddpm(
     model.train()
     ema = EMA(model, decay=0.999)
 
+    loss_history = []
     for epoch in range(num_epochs):
         pbar = tqdm(
             train_loader, desc=f"Epoch {epoch+1}/{num_epochs}", dynamic_ncols=True
@@ -116,11 +115,13 @@ def train_ct_ddpm(
             # Add noise to image
             noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
 
+
             # Predict the noise using UNet
             noise_pred = model(noisy_images, timesteps).sample
 
             # Loss
             loss = nn.MSELoss()(noise_pred, noise)
+            loss_history.append(loss.item())
             accelerator.backward(loss)
             # gradient clipping
             accelerator.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -129,7 +130,7 @@ def train_ct_ddpm(
             ema.update(model)
             optimizer.zero_grad()
 
-            pbar.set_postfix(loss=loss.item())
+            pbar.set_postfix(loss=np.mean(loss_history[-100:]))
 
         # Save model after each epoch
         if accelerator.is_main_process:
@@ -150,6 +151,6 @@ if __name__ == "__main__":
         "patchsize": 512,
         "resize_to": 224,
         "augment": True,
-        "data_norm": "meanstd",
+        "data_norm": "clipped",
     }
     train_ct_ddpm(data_set_config)
