@@ -1,7 +1,8 @@
 import torch
 from torch import Tensor, nn
 
-from .res_net import ResNetHParams, make_res_net
+from .res_net import ResNetHParams, ResNet
+from .unet import UNetHParams, UNet
 
 # from hydrantic.model import Model, ModelHparams  # https://github.com/hummerichsander/hydrantic
 from flow_matching.solver import ODESolver  # pip install flow-matching
@@ -17,11 +18,10 @@ from flow_matching.path.scheduler import (
     CosineScheduler,
 )
 from .utils import expand_like
-from typing import Literal, Callable, Type
-from abc import ABC
-from torch.nn import functional as F
 from functools import partial
-from fff.utils.utils import sum_except_batch
+from fff.base import ModelHParams
+from .utils import guess_image_shape
+
 
 SCHEDULER_CLASSES = {
     "linear": CondOTScheduler,
@@ -31,8 +31,13 @@ SCHEDULER_CLASSES = {
     "trigonometric": CosineScheduler,
 }
 
+INPUT_DIM_BY_ARCHITECTURE = {
+    "resnet": 2,
+    "unet": 4,
+}
 
-class FlowMatchingHParams(ResNetHParams):
+
+class FlowMatchingHParams(ModelHParams):
     interpolation_schedule: str = "linear"
     scheduler_kwargs: dict = {}
     conditional: bool = False
@@ -40,6 +45,8 @@ class FlowMatchingHParams(ResNetHParams):
     default_sampling_method: str = "midpoint"
     loss_norm: str = "l2"
     regress_to_condition: bool = False
+    network_hparams: dict = {}
+    architecture: str = "resnet"
 
 
 class FlowMatching(nn.Module):
@@ -51,11 +58,12 @@ class FlowMatching(nn.Module):
 
         self.net = self.build_model()
         self.conditional = self.hparams.conditional
-        assert not (self.hparams.conditional and self.hparams.regress_to_condition), \
-        "Cannot regress to condition and use it as extra input at the same time"
+        assert not (
+            self.hparams.conditional and self.hparams.regress_to_condition
+        ), "Cannot regress to condition and use it as extra input at the same time"
         self.path = self._get_path()
 
-    def _get_path(self) -> Type[AffineProbPath]:
+    def _get_path(self) -> AffineProbPath:
         scheduler_cls = SCHEDULER_CLASSES.get(self.hparams.interpolation_schedule)
         if scheduler_cls is None:
             raise ValueError(
@@ -66,33 +74,70 @@ class FlowMatching(nn.Module):
 
     def build_model(self) -> nn.Module:
         time_dim = 1  # no time embedding for now
-        input_dim = self.hparams.data_dim + time_dim
-        if self.hparams.conditional:
-            input_dim += self.hparams.cond_dim
         output_dim = self.hparams.data_dim
+        if self.hparams.architecture == "resnet":
+            network_hparams = ResNetHParams(
+                data_dim=self.hparams.data_dim,
+                cond_dim=self.hparams.cond_dim + time_dim,
+                latent_dim=output_dim,
+                **self.hparams.network_hparams,
+            )
+            return ResNet(network_hparams).model.encoder
+        elif self.hparams.architecture == "unet":
+            network_hparams = UNetHParams(
+                data_dim=self.hparams.data_dim,
+                cond_dim=self.hparams.cond_dim,
+                latent_dim=output_dim,
+                **self.hparams.network_hparams,
+            )
+            return UNet(network_hparams).model.encoder
+        else:
+            raise ValueError(f"Unknown architecture {self.hparams.architecture}")
 
-        net = make_res_net(
-            input_dim,
-            self.hparams.layers_spec,
-            self.hparams.activation,
-            id_init=self.hparams.id_init,
-            batch_norm=self.hparams.batch_norm,
-            dropout=self.hparams.dropout,
-        )
-        net.append(nn.Linear(input_dim, output_dim))
-        return net
+    def get_vector_field_image(self, x: Tensor, t: Tensor) -> Tensor:
+        assert (
+            x.ndim == 4
+        ), "Input must be a 4D tensor (batch_size, channels, height, width)"
+        return self.net(x, t).sample
 
-    def get_vector_field(self, x: Tensor, t: Tensor) -> Tensor:
-        t = expand_like(t, x[..., :1])
-        x = torch.cat([x, t], dim=-1)
+    def get_vector_field_flat(self, x: Tensor, t: Tensor) -> Tensor:
+        assert x.ndim == 2, "Input must be a 2D tensor (batch_size, features)"
+        t = expand_like(t, x[:, :1])
+        x = torch.cat([x, t], dim=1)
         vf = self.net(x)
         return vf
+
+    def get_vector_field(self, x: Tensor, t: Tensor) -> Tensor:
+        if INPUT_DIM_BY_ARCHITECTURE[self.hparams.architecture] == 4:
+            x = x.reshape(x.shape[0], -1, *guess_image_shape(self.hparams.data_dim)[1:])
+            return self.get_vector_field_image(x, t).flatten(1)
+        elif INPUT_DIM_BY_ARCHITECTURE[self.hparams.architecture] == 2:
+            return self.get_vector_field_flat(x, t)
+        else:
+            raise ValueError(
+                f"Unknown input dimension for architecture {self.hparams.architecture}"
+            )
 
     def get_vector_field_conditional(
         self, x: Tensor, t: Tensor, c: Tensor, reverse=False
     ) -> Tensor:
         if self.conditional:
-            x = torch.cat([x, c], dim=-1)
+            if INPUT_DIM_BY_ARCHITECTURE[self.hparams.architecture] == 4:
+                x = x.reshape(x.shape[0], *guess_image_shape(self.hparams.data_dim))
+                try:
+                    c = c.reshape(
+                        c.shape[0],
+                        self.hparams.cond_dim,
+                        *guess_image_shape(self.hparams.data_dim)[1:],
+                    )
+                except Exception as e:
+                    c = c[..., None, None] * torch.ones(
+                        x.shape[0],
+                        self.hparams.cond_dim,
+                        *x.shape[2:],
+                        device=x.device,
+                    )
+            x = torch.cat([x, c], dim=1)
         return (
             self.get_vector_field(x, t) if not reverse else -self.get_vector_field(x, t)
         )

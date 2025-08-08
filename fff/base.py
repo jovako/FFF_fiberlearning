@@ -33,6 +33,8 @@ class FreeFormBaseHParams(TrainableHParams):
     models: list = []
 
     condition_embedder: list = []
+    use_condition_decoder: bool = False
+    cond_embedding_shape: int | list[int] | None = None
 
     loss_weights: dict
     log_det_estimator: dict = dict(name="surrogate", hutchinson_samples=1)
@@ -101,12 +103,21 @@ class FreeFormBase(Trainable):
 
     def init_models(self):
         self.condition_embedder = build_model(
-            self.hparams.condition_embedder, self._data_cond_dim, 0
+            self.hparams.condition_embedder,
+            (
+                self._data_cond_dim
+                if not self.hparams.use_condition_decoder
+                else prod(self.hparams.cond_embedding_shape)
+            ),
+            0,
         )
         if self.condition_embedder is not None:
             self._data_cond_dim = self.condition_embedder[-1].hparams.latent_dim
             for model in self.condition_embedder:
-                del model.model.decoder
+                if not self.hparams.use_condition_decoder:
+                    del model.model.decoder
+                else:
+                    del model.model.encoder
         self.models = build_model(self.hparams.models, self.data_dim, self.cond_dim)
 
     def train_dataloader(self) -> DataLoader | list[DataLoader]:

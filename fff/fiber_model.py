@@ -93,8 +93,9 @@ class FiberModel(FreeFormBase):
 
         # Add learnable parameter for standard deviation for vae training
         self.lamb = torch.nn.Parameter(torch.ones(1), requires_grad=True)
-        if ("perceptual_loss" in defaultdict(float, self.hparams.loss_weights) or
-           "ae_perceptual_loss" in defaultdict(float, self.hparams.loss_weights)):
+        if "perceptual_loss" in defaultdict(
+            float, self.hparams.loss_weights
+        ) or "ae_perceptual_loss" in defaultdict(float, self.hparams.loss_weights):
             vgg = torchmodels.vgg16(weights=torchmodels.VGG16_Weights.IMAGENET1K_V1)
             vgg.eval()
             self.vgg_features = vgg.features
@@ -195,7 +196,13 @@ class FiberModel(FreeFormBase):
 
         # Build condition embedder
         self.condition_embedder = build_model(
-            self.hparams.condition_embedder, self.ae_cond_dim, 0
+            self.hparams.condition_embedder,
+            (
+                self._data_cond_dim
+                if not self.hparams.use_condition_decoder
+                else prod(self.hparams.cond_embedding_shape)
+            ),
+            0,
         )
         if self.condition_embedder is not None:
             assert not any(
@@ -205,7 +212,10 @@ class FiberModel(FreeFormBase):
                 ]
             ), "coarse_supervised loss is not applicable for a model with condition embedder."
             for model in self.condition_embedder:
-                del model.model.decoder
+                if not self.hparams.use_condition_decoder:
+                    del model.model.decoder
+                else:
+                    del model.model.encoder
 
         # Build models
         # First the lossless vae
@@ -260,7 +270,10 @@ class FiberModel(FreeFormBase):
     @property
     def cond_dim(self):
         if self.condition_embedder is not None:
-            return self.condition_embedder[-1].hparams.latent_dim
+            if self.hparams.use_condition_decoder:
+                return self.hparams.cond_embedding_shape[0]
+            else:
+                return self.condition_embedder[-1].hparams.latent_dim
         else:
             return self.ae_cond_dim
 
@@ -275,6 +288,20 @@ class FiberModel(FreeFormBase):
     def is_conditional(self):
         return self.cond_dim != 0
 
+    def embed_condition(self, c):
+        if self.condition_embedder is not None:
+            if self.hparams.use_condition_decoder:
+                for model in self.condition_embedder[::-1]:
+                    c = model.decode(
+                        c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype)
+                    )
+            else:
+                for model in self.condition_embedder:
+                    c = model.encode(
+                        c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype)
+                    )
+        return c
+
     def encode_lossless(self, x, c, return_only_x=True, return_codebook_loss=False):
         deterministic = self.hparams.ae_deterministic_encode
         if deterministic is None:
@@ -288,11 +315,7 @@ class FiberModel(FreeFormBase):
         return self.lossless_ae.encode(x, c, **kwargs)
 
     def encode_density(self, z, c, jac=False, **kwargs):
-        if self.condition_embedder is not None:
-            for model in self.condition_embedder:
-                c = model.encode(
-                    c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype)
-                )
+        c = self.embed_condition(c)
         jacs = []
         for net in self.density_model:
             z = net.encode(z, c, **kwargs)
@@ -314,12 +337,7 @@ class FiberModel(FreeFormBase):
         # c = self.unflatten_ce(c).unsqueeze(1)
         if self.density_model_type in ["diffusion"]:
             t, c = c
-        if self.condition_embedder is not None:
-            for model in self.condition_embedder:
-                # c = model(c)
-                c = model.encode(
-                    c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype)
-                )
+        c = self.embed_condition(c)
         if self.density_model_type in ["diffusion"]:
             c = t, c
         for net in self.density_model:
@@ -333,12 +351,7 @@ class FiberModel(FreeFormBase):
     def sample_density(self, z_dense, c, **kwargs):
         # Diffusion sampler we need seperate sampling function
         # c = self.unflatten_ce(c).unsqueeze(1)
-        if self.condition_embedder is not None:
-            for model in self.condition_embedder:
-                # c = model(c)
-                c = model.encode(
-                    c, torch.empty((c.shape[0], 0), device=c.device, dtype=c.dtype)
-                )
+        c = self.embed_condition(c)
         if self.hparams.cfg:
             for net in self.density_model:
                 z_dense = net.sample_with_guidance(
@@ -716,7 +729,7 @@ class FiberModel(FreeFormBase):
                     mask = torch.rand(c.shape[0], device=c.device) < p_uncond
                     c[mask] = self.get_null_condition(c[mask])
             loss_values["fm_loss"] = self.density_model[0].compute_fm_loss(
-                t, z_fm, z, c
+                t, z_fm, z, self.embed_condition(c)
             )
 
         need_z_dense = val_all_metrics or check_keys(
@@ -1089,8 +1102,9 @@ class FiberModel(FreeFormBase):
         if self.current_epoch % self.hparams.val_every_n_epoch == 0:
             metrics = self.compute_metrics(batch, batch_idx)
             for key, value in metrics.items():
-                self.log(f"validation/{key}",
-                         value,
-                         prog_bar=key == self.hparams.loss,
-                         sync_dist=self.hparams.strategy.startswith("ddp"))
-
+                self.log(
+                    f"validation/{key}",
+                    value,
+                    prog_bar=key == self.hparams.loss,
+                    sync_dist=self.hparams.strategy.startswith("ddp"),
+                )

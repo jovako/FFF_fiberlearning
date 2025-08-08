@@ -100,6 +100,9 @@ class ConvolutionalNeuralNetwork(nn.Module):
         input_dim = self.hparams.data_dim
         if self.hparams.image_shape is not None:
             input_shape = torch.Size(self.hparams.image_shape)
+            assert (
+                prod(input_shape) == input_dim
+            ), f"Input shape {input_shape} does not match data dimension {input_dim}"
         else:
             input_shape = guess_image_shape(input_dim)
         cond_dim = self.hparams.cond_dim
