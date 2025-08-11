@@ -824,7 +824,7 @@ class FiberModel(FreeFormBase):
         if check_keys("fiber_loss", "jac_fiber_loss", "z_sample_reconstruction") or (
             not self.training  # TODO: This should be val_all_metrics, but then FM/Diffusion models are not getting validated
             and (
-                self.current_epoch % self.hparams.fiber_loss_every == 0
+                (self.current_epoch + 1) % self.hparams.fiber_loss_every == 0
                 or self.current_epoch == self.hparams.max_epochs - 1
             )
         ):
