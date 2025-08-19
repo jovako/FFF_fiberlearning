@@ -87,7 +87,7 @@ def initialize_noise_latents(latent_shape, device):
             ]
             + list(latent_shape)
         )
-        .half()
+        .float()
         .to(device)
     )
 
@@ -129,7 +129,7 @@ def ldm_conditional_sample_one_mask(
     with torch.no_grad(), torch.amp.autocast("cuda"):
         # Generate random noise
         latents = initialize_noise_latents(latent_shape, device)
-        anatomy_size = torch.FloatTensor(anatomy_size).unsqueeze(0).unsqueeze(0).half().to(device)
+        anatomy_size = torch.FloatTensor(anatomy_size).unsqueeze(0).unsqueeze(0).float().to(device)
         # synthesize latents
         if isinstance(noise_scheduler, DDPMScheduler) and num_inference_steps < noise_scheduler.num_train_timesteps:
             warnings.warn(
@@ -255,7 +255,7 @@ def ldm_conditional_sample_one_image(
             )
             combine_label = torch.nn.functional.interpolate(combine_label, size=output_size, mode="nearest")
 
-        controlnet_cond_vis = binarize_labels(combine_label.as_tensor().long()).half()
+        controlnet_cond_vis = binarize_labels(combine_label.as_tensor().long()).float()
 
         # Generate random noise
         latents = initialize_noise_latents(latent_shape, device) * noise_factor
@@ -961,9 +961,9 @@ class LDMSampler:
 
         top_region_index, bottom_region_index = get_body_region_index_from_mask(combine_label_or)
 
-        spacing_tensor = torch.FloatTensor(self.spacing).unsqueeze(0).half().to(self.device) * 1e2
-        top_region_index_tensor = torch.FloatTensor(top_region_index).unsqueeze(0).half().to(self.device) * 1e2
-        bottom_region_index_tensor = torch.FloatTensor(bottom_region_index).unsqueeze(0).half().to(self.device) * 1e2
+        spacing_tensor = torch.FloatTensor(self.spacing).unsqueeze(0).float().to(self.device) * 1e2
+        top_region_index_tensor = torch.FloatTensor(top_region_index).unsqueeze(0).float().to(self.device) * 1e2
+        bottom_region_index_tensor = torch.FloatTensor(bottom_region_index).unsqueeze(0).float().to(self.device) * 1e2
 
         return combine_label_or, top_region_index_tensor, bottom_region_index_tensor, spacing_tensor
 
