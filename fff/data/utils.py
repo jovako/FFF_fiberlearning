@@ -22,7 +22,7 @@ def normalize_ct_image(x):
     """
     Normalize a CT image to the range [0, 1].
     """
-    return torch.clamp((x * 502.18507379395044 + 481.45419786099086) / 2750.0, 0, 1)
+    return torch.clamp((x * 502.18507379395044 + 481.45419786099086) / 3000.0, 0, 1)
 
 
 def decolorize(x_colored):
