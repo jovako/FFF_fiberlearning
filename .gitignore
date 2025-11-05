@@ -192,3 +192,6 @@ lossless_ae/
 notebooks/FiberModels/
 notebooks/SubjectModels/
 subject_models/
+biomedclip-pretrained-chexpert*
+flowmatching-chexpert*
+convnextv2-tiny-chexpert*
