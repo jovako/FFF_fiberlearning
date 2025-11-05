@@ -194,14 +194,16 @@ class FiberModel(FreeFormBase):
         else:
             self.subject_model = None
 
+        cond_emb_out_dim = self._data_cond_dim
+        if self.hparams.use_condition_decoder:
+            cond_emb_out_dim = prod(self.hparams.cond_embedding_shape)
+        elif self.hparams.cond_dim is not None:
+            cond_emb_out_dim = self.hparams.cond_dim
+
         # Build condition embedder
         self.condition_embedder = build_model(
             self.hparams.condition_embedder,
-            (
-                self._data_cond_dim
-                if not self.hparams.use_condition_decoder
-                else prod(self.hparams.cond_embedding_shape)
-            ),
+            cond_emb_out_dim,
             0,
         )
         if self.condition_embedder is not None:
