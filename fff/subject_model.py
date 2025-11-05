@@ -137,9 +137,7 @@ class BiomedClipModel(torch.nn.Module):
         if x.ndim == 2:
             x = x.reshape(x.shape[0], *guess_image_shape(prod(x.shape[1:])))
         if self.image_only:
-            text = self.tokenizer(["" for i in range(len(x))], context_length=0).to(
-                x.device
-            )
+            text = None
         else:
             text = self.tokenizer(c, context_length=256).to(x.device)
 
