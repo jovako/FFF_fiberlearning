@@ -137,7 +137,7 @@ class CheXpertDataset(Dataset):
                     A.RandomResizedCrop(resize_to, resize_to, scale=(0.9, 1.0))
                 )
         if to_grayscale:
-            transforms.append(A.ToGray(num_output_channels=1))
+            transforms.append(A.ToGray(num_output_channels=1, p=1.0))
             transforms.append(
                 A.Normalize(
                     mean=np.mean((0.485, 0.456, 0.406)),
@@ -201,5 +201,4 @@ class CheXpertDataset(Dataset):
         if self.transform:
             augmented = self.transform(image=image)
             image = augmented["image"]
-        print(image.shape)
         return self.prepare_return_values(image, label)
