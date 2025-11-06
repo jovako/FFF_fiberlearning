@@ -38,6 +38,7 @@ class CheXpertDataset(Dataset):
         resize_to: int | None = None,
         augment: bool = False,
         uncertain_policy="zeros",
+        to_grayscale: bool = False,
     ):
         """
         Args:
@@ -135,24 +136,38 @@ class CheXpertDataset(Dataset):
                 transforms.append(
                     A.RandomResizedCrop(resize_to, resize_to, scale=(0.9, 1.0))
                 )
-
-        transforms.append(
-            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
-        )
+        if to_grayscale:
+            transforms.append(A.ToGray(num_output_channels=1))
+            transforms.append(
+                A.Normalize(
+                    mean=np.mean((0.485, 0.456, 0.406)),
+                    std=np.mean((0.229, 0.224, 0.225)),
+                )
+            )
+            self.global_mean = np.mean((0.485, 0.456, 0.406))
+            self.global_std = np.mean((0.229, 0.224, 0.225))
+        else:
+            transforms.append(
+                A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+            )
+            self.global_mean = np.mean((0.485, 0.456, 0.406))
+            self.global_std = np.mean((0.229, 0.224, 0.225))
         transforms.append(A.pytorch.ToTensorV2())
 
         self.transform = A.Compose(transforms)
 
-    def _normalize(self, img: np.ndarray) -> np.ndarray:
-        mean = np.array([0.485, 0.456, 0.406]).reshape(1, 1, 3)
-        std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 3)
-        img = (img - mean) / std
+    def normalize(self, img, value_range=[0, 1]):
+        # Bring to 0, 1
+        img = (img + value_range[0]) / (value_range[1] - value_range[0])
+        img = (img - self.global_mean) / self.global_std
         return img
 
-    def _denormalize(self, img: np.ndarray) -> np.ndarray:
-        mean = np.array([0.485, 0.456, 0.406]).reshape(1, 1, 3)
-        std = np.array([0.229, 0.224, 0.225]).reshape(1, 1, 3)
-        img = img * std + mean
+    def denormalize(self, img, clamp=True, value_range=[0, 1]):
+        img = img * self.global_std + self.global_mean
+        # Bring into value_range
+        img = img * (value_range[1] - value_range[0]) + value_range[0]
+        if clamp:
+            img = torch.clamp(img, *value_range)
         return img
 
     def reset_seed(self):
