@@ -150,8 +150,8 @@ class CheXpertDataset(Dataset):
             transforms.append(
                 A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
             )
-            self.global_mean = np.mean((0.485, 0.456, 0.406))
-            self.global_std = np.mean((0.229, 0.224, 0.225))
+            self.global_mean = torch.tensor((0.485, 0.456, 0.406))[None, :, None, None]
+            self.global_std = torch.tensor((0.229, 0.224, 0.225))[None, :, None, None]
         transforms.append(A.pytorch.ToTensorV2())
 
         self.transform = A.Compose(transforms)
@@ -201,4 +201,5 @@ class CheXpertDataset(Dataset):
         if self.transform:
             augmented = self.transform(image=image)
             image = augmented["image"]
+        print(image.shape)
         return self.prepare_return_values(image, label)
