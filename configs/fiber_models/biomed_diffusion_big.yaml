@@ -28,13 +28,12 @@ loss_weights:
 diffusion_betas_max: 0.04
 diffusion_beta_schedule: "linear"
 
-max_epochs: 500
+max_epochs: 1000
 
 train_lossless_ae: False
 vae: True
 
-load_lossless_ae_path: /home/hd/hd_hd/hd_gu452/workspaces/gpfs/hd_gu452-biomed_clip/lightning_logs/version_24/checkpoints/last.ckpt
-# load_lossless_ae_path: /home/armand/helix_store/fiberlearning/lightning_logs/version_24/checkpoints/last.ckpt
+load_lossless_ae_path: /home/hd/hd_hd/hd_gu452/workspaces/gpfs/hd_gu452-biomed_clip/lightning_logs/version_152/checkpoints/last.ckpt
 
 lossless_ae:
   model_spec:
@@ -68,6 +67,7 @@ lossless_ae:
 condition_embedder:
   - name: fff.model.ResNet
     latent_dim: 512
+    activation: silu
     layers_spec:
       - [512, 512, 512]
       - [512, 512, 512]
@@ -77,19 +77,23 @@ density_model:
     data_dim: 3920
     num_heads: 4
     time_dim: 8
-    hidden_dim: 3920
+    hidden_dim: 512
     layers_spec:
-      - [512, 512, 512]
-      - [512, 512, 512]
-      - [512, 512, 512]
+      - [512, 512]
+      - [512, 512]
+      - [512, 512]
+      - [512, 512]
+      - [512, 512]
+      - [512, 512]
+      - [512, 512]
 
 lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
   lr: 0.0005
+  weight_decay: 0.000001
 
 batch_size: 64
-# batch_size: 2
 
 num_workers: 8
 

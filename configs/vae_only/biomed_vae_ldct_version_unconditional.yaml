@@ -1,10 +1,9 @@
 model: fff.FiberModel
 
 val_every_n_epoch: 5
-cond_dim: 512
 compute_c_on_fly: True
-noise: 0.
-ae_conditional: True
+noise: 0.002
+ae_conditional: False
 load_subject_model: True
 latent_distribution:
   name: "normal"
@@ -18,52 +17,40 @@ data_set:
   resize_to: 224
   subject_model_type: PrecompiledModel
   subject_model_path: notebooks/SubjectModels/saved_models/BiomedClip.pt
+  augment: True
 
 eval_all: True
 loss_weights:
-  codebook_loss: 1
-  ae_noisy_l1_reconstruction: 1
-  perceptual_loss: 1
+  ae_elbo: 0.00001
+  ae_noisy_l1_reconstruction: 10
+  ae_perceptual_loss: 1
+
+sm_input_transform: normalize_ct_image
   
 max_epochs: 500
 
 train_lossless_ae: True
-vae: False
+vae: True
 lossless_ae:
   model_spec:
-    - name: fff.model.VQModel
-      latent_dim: 12544
-  cond_embedding_shape: 512
-  cond_embedding_network:
-    - name: fff.model.ResNet
-      latent_dim: 512
-      layers_spec:
-        - [512, 512]
-        - [512, 512]
-  use_condition_decoder: False
+    - name: fff.model.LDCTInvModel
+      latent_dim: 3920
+      ch_factor: 48
+      latent_image: True
+  use_condition_decoder: True
 
-
+gradient_clip: 1.0
 
 density_model:
   - name: fff.model.Identity
 
-
-condition_embedder:
-  - name: fff.model.ResNet
-    latent_dim: 512
-    layers_spec:
-      - [512, 512, 512]
-
-
-lr_scheduler:
-  name: onecyclelr
-
+lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
-  lr: 0.0002
+  lr: 0.0005
 
-batch_size: 16
-
+batch_size: 64
+# batch_size: 2
 
 num_workers: 8
 

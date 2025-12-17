@@ -3,7 +3,7 @@ model: fff.FiberModel
 val_every_n_epoch: 5
 cond_dim: 512
 compute_c_on_fly: True
-noise: 0.
+noise: 0.002
 ae_conditional: True
 load_subject_model: True
 latent_distribution:
@@ -18,12 +18,15 @@ data_set:
   resize_to: 224
   subject_model_type: PrecompiledModel
   subject_model_path: notebooks/SubjectModels/saved_models/BiomedClip.pt
+  augment: True
 
 eval_all: True
 loss_weights:
-  # ae_elbo: 0.1
-  ae_noisy_l1_reconstruction: 1
-  perceptual_loss: 120
+  ae_elbo: 0.000001
+  ae_noisy_l1_reconstruction: 10
+  ae_perceptual_loss: 1
+
+sm_input_transform: normalize_ct_image
   
 max_epochs: 500
 
@@ -51,24 +54,17 @@ lossless_ae:
         - [32, 4, 2, 1, 0]    # 32 → 64
         - [16, 4, 2, 1, 0]    # 64 → 128
     - name: fff.model.ResNet
+      normalize: True
       latent_dim: 512
       layers_spec:
         - [512, 512]
         - [512, 512]
   use_condition_decoder: True
 
-
+gradient_clip: 1.0
 
 density_model:
   - name: fff.model.Identity
-
-
-condition_embedder:
-  - name: fff.model.ResNet
-    latent_dim: 512
-    layers_spec:
-      - [512, 512, 512]
-
 
 lr_scheduler: "onecyclelr"
 optimizer:

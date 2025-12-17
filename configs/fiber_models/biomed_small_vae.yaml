@@ -1,13 +1,12 @@
 model: fff.FiberModel
 
 val_every_n_epoch: 5
-fiber_loss_every: 20
 cond_dim: 512
 compute_c_on_fly: True
 noise: 0.001
 ae_conditional: True
 load_subject_model: True
-eval_all: False
+
 
 latent_distribution:
   name: "normal"
@@ -22,24 +21,23 @@ data_set:
   subject_model_type: PrecompiledModel
   subject_model_path: notebooks/SubjectModels/saved_models/BiomedClip.pt
 
+eval_all: True
 loss_weights:
-  diff_mse: 1
-
-diffusion_betas_max: 0.04
-diffusion_beta_schedule: "linear"
+  nll: 1.0
+  fiber_loss: 0.0
+  latent_l1_reconstruction: 10.0 
 
 max_epochs: 500
 
 train_lossless_ae: False
 vae: True
 
-load_lossless_ae_path: /home/hd/hd_hd/hd_gu452/workspaces/gpfs/hd_gu452-biomed_clip/lightning_logs/version_145/checkpoints/last.ckpt
-# load_lossless_ae_path: /home/armand/helix_store/fiberlearning/lightning_logs/version_24/checkpoints/last.ckpt
+load_lossless_ae_path: /home/hd/hd_hd/hd_gu452/workspaces/gpfs/hd_gu452-biomed_clip/lightning_logs/version_88/checkpoints/last.ckpt
 
 lossless_ae:
   model_spec:
     - name: fff.model.LDCTInvModel
-      latent_dim: 3920
+      latent_dim: 980
       ch_factor: 48
       latent_image: True
   cond_embedding_shape: [16, 224, 224]
@@ -73,15 +71,13 @@ condition_embedder:
       - [512, 512, 512]
 
 density_model:
-  - name: fff.model.DiffusionModel
-    data_dim: 3920
-    num_heads: 4
-    time_dim: 8
-    hidden_dim: 64
+  - name: fff.model.ResNet
+    latent_dim: 980
     layers_spec:
       - [512, 512, 512]
       - [512, 512, 512]
       - [512, 512, 512]
+
 
 lr_scheduler: "onecyclelr"
 optimizer:

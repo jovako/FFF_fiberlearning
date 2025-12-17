@@ -5,7 +5,7 @@ fiber_loss_every: 20
 cond_dim: 512
 compute_c_on_fly: True
 noise: 0.001
-ae_conditional: True
+ae_conditional: False
 load_subject_model: True
 eval_all: False
 
@@ -21,20 +21,19 @@ data_set:
   resize_to: 224
   subject_model_type: PrecompiledModel
   subject_model_path: notebooks/SubjectModels/saved_models/BiomedClip.pt
+  augment: True
 
 loss_weights:
-  diff_mse: 1
+  fm_loss: 1
 
-diffusion_betas_max: 0.04
-diffusion_beta_schedule: "linear"
+sm_input_transform: normalize_ct_image
 
-max_epochs: 500
+max_epochs: 1000
 
 train_lossless_ae: False
 vae: True
 
-load_lossless_ae_path: /home/hd/hd_hd/hd_gu452/workspaces/gpfs/hd_gu452-biomed_clip/lightning_logs/version_145/checkpoints/last.ckpt
-# load_lossless_ae_path: /home/armand/helix_store/fiberlearning/lightning_logs/version_24/checkpoints/last.ckpt
+load_lossless_ae_path: /home/hd/hd_hd/hd_gu452/workspaces/gpfs/hd_gu452-biomed_clip/lightning_logs/version_322/checkpoints/last.ckpt
 
 lossless_ae:
   model_spec:
@@ -42,42 +41,21 @@ lossless_ae:
       latent_dim: 3920
       ch_factor: 48
       latent_image: True
-  cond_embedding_shape: [16, 224, 224]
-  cond_embedding_network:
-    - name: fff.model.ConvolutionalNeuralNetwork
-      latent_dim: &latent_dim 512
-      ch_factor: 1
-      image_shape: [16, 224, 224]
-      encoder_spec: []
-      decoder_spec:
-        - [128, 3]
-        - [128, 4, 2, 1, 1]   # 2 → 4
-        - [64, 4, 2, 1, 0]   # 4 → 8
-        - [64, 4, 2, 1, 0]   # 8 → 16
-        - [32, 4, 2, 1, 0]    # 16 → 32
-        - [32, 4, 2, 1, 0]    # 32 → 64
-        - [16, 4, 2, 1, 0]    # 64 → 128
-    - name: fff.model.ResNet
-      latent_dim: 512
-      layers_spec:
-        - [512, 512]
-        - [512, 512]
   use_condition_decoder: True
-
 
 condition_embedder:
   - name: fff.model.ResNet
     latent_dim: 512
+    activation: silu
     layers_spec:
       - [512, 512, 512]
       - [512, 512, 512]
 
 density_model:
-  - name: fff.model.DiffusionModel
+  - name: fff.model.FlowMatching
+    conditional: True
     data_dim: 3920
-    num_heads: 4
-    time_dim: 8
-    hidden_dim: 64
+    interpolation_schedule: linear
     layers_spec:
       - [512, 512, 512]
       - [512, 512, 512]
@@ -87,9 +65,9 @@ lr_scheduler: "onecyclelr"
 optimizer:
   name: adam
   lr: 0.0005
+  weight_decay: 0.000001
 
 batch_size: 64
-# batch_size: 2
 
 num_workers: 8
 

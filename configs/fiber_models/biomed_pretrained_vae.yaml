@@ -20,19 +20,22 @@ data_set:
   resize_to: 224
   subject_model_type: PrecompiledModel
   subject_model_path: notebooks/SubjectModels/saved_models/BiomedClip.pt
+  augment: True
+
+sm_input_transform: normalize_ct_image
 
 eval_all: True
 loss_weights:
-  nll: 1.0
-  fiber_loss: 1.0
-  latent_l1_reconstruction: 10.0 
+  nll: 0.1
+  fiber_loss: 0.0
+  latent_l1_reconstruction: 100.0 
 
 max_epochs: 500
 
 train_lossless_ae: False
 vae: True
 
-load_lossless_ae_path: /home/hd/hd_hd/hd_gu452/workspaces/gpfs/hd_gu452-biomed_clip/lightning_logs/version_24/checkpoints/last.ckpt
+load_lossless_ae_path: /home/hd/hd_hd/hd_gu452/workspaces/gpfs/hd_gu452-biomed_clip/lightning_logs/version_307/checkpoints/last.ckpt
 
 lossless_ae:
   model_spec:
@@ -56,6 +59,7 @@ lossless_ae:
         - [32, 4, 2, 1, 0]    # 32 → 64
         - [16, 4, 2, 1, 0]    # 64 → 128
     - name: fff.model.ResNet
+      normalize: True
       latent_dim: 512
       layers_spec:
         - [512, 512]
@@ -66,6 +70,8 @@ lossless_ae:
 condition_embedder:
   - name: fff.model.ResNet
     latent_dim: 512
+    activation: silu
+    normalize: True
     layers_spec:
       - [512, 512, 512]
       - [512, 512, 512]
@@ -73,11 +79,14 @@ condition_embedder:
 density_model:
   - name: fff.model.ResNet
     latent_dim: 3920
+    activation: silu
+    normalize: True
     layers_spec:
       - [512, 512, 512]
       - [512, 512, 512]
       - [512, 512, 512]
 
+gradient_clip: 1.0
 
 lr_scheduler: "onecyclelr"
 optimizer:

@@ -1,0 +1,68 @@
+model: fff.FiberModel
+
+val_every_n_epoch: 5
+fiber_loss_every: 20
+compute_c_on_fly: True
+noise: 0.001
+ae_conditional: False
+load_subject_model: True
+eval_all: False
+
+latent_distribution:
+  name: "normal"
+data_set:
+  name: ldct
+  root: /home/hd/hd_hd/hd_gu452/ldct_data
+  # root: /mnt/SSD_2TB/ldct_data
+  condition: lowdose
+  data: highdose
+  patchsize: 512
+  resize_to: 224
+  subject_model_type: PrecompiledModel
+  subject_model_path: notebooks/SubjectModels/saved_models/BiomedClip.pt
+  augment: True
+
+loss_weights:
+  fm_loss: 1
+
+sm_input_transform: normalize_ct_image
+
+max_epochs: 1000
+
+train_lossless_ae: False
+vae: True
+
+load_lossless_ae_path: /home/hd/hd_hd/hd_gu452/workspaces/gpfs/hd_gu452-biomed_clip/lightning_logs/version_322/checkpoints/last.ckpt
+
+lossless_ae:
+  model_spec:
+    - name: fff.model.LDCTInvModel
+      latent_dim: 3920
+      ch_factor: 48
+      latent_image: True
+  use_condition_decoder: True
+
+density_model:
+  - name: fff.model.FlowMatching
+    conditional: False
+    data_dim: 3920
+    interpolation_schedule: linear
+    layers_spec:
+      - [512, 512, 512, 512]
+      - [512, 512, 512, 512]
+      - [512, 512, 512, 512]
+      - [512, 512, 512, 512]
+
+lr_scheduler: "onecyclelr"
+optimizer:
+  name: adam
+  lr: 0.0005
+  weight_decay: 0.000001
+
+batch_size: 64
+
+num_workers: 8
+
+model_checkpoint:
+  monitor: auto
+  save_last: true
