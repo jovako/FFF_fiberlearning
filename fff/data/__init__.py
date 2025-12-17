@@ -99,6 +99,15 @@ def load_dataset(name: str, **kwargs) -> TrainValTest:
         from .chexpert import get_chexpert_dataset
 
         return get_chexpert_dataset(**kwargs)
+    elif name == "imagenet":
+        from .imagenet import get_imagenet_dataset
+
+        return get_imagenet_dataset(**kwargs)
+    elif name == "cue_conflict":
+        from .cue_conflict import get_cue_conflict_dataset
+
+        return get_cue_conflict_dataset(**kwargs)
+
     else:
         from .toy import make_toy_data
 
