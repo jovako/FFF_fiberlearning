@@ -1,7 +1,7 @@
 {
     "num_output_samples": 1,
-    "body_region": ["chest"],
-    "anatomy_list": ["lung tumor"],
+    "body_region": ["head"],
+    "anatomy_list": [],
     "controllable_anatomy_size": [],
     "num_inference_steps": 30,
     "mask_generation_num_inference_steps": 1000,

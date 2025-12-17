@@ -25,7 +25,7 @@ import torch.distributed as dist
 from monai.bundle import ConfigParser
 from monai.config import DtypeLike, NdarrayOrTensor
 from monai.data import CacheDataset, DataLoader, partition_dataset
-from monai.transforms import Compose, EnsureTyped, Lambdad, LoadImaged, Orientationd
+from monai.transforms import Compose, EnsureTyped, Lambdad, LoadImaged, Orientationd, MapTransform, Resize
 from monai.transforms.utils_morphological_ops import dilate, erode
 from monai.utils import TransformBackends, convert_data_type, convert_to_dst_type, get_equivalent_dtype
 from scipy import stats
@@ -725,3 +725,17 @@ def dynamic_infer(inferer, model, images):
         output = inferer(network=model, inputs=images)
         inferer.roi_size = orig_roi
         return output
+
+
+class ResizeMaskToImage(MapTransform):
+    def __init__(self, keys=("image", "mask")):
+        super().__init__(keys)
+
+    def __call__(self, data):
+        d = dict(data)
+        img = d["image"]
+        mask = d["mask"]
+        img_size = img.shape[-3:]  # assume channel-first
+        d["mask"] = Resize(spatial_size=img_size, mode="trilinear")(mask)
+        return d
+

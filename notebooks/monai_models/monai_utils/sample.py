@@ -87,7 +87,7 @@ def initialize_noise_latents(latent_shape, device):
             ]
             + list(latent_shape)
         )
-        .half()
+        .float()
         .to(device)
     )
 
@@ -129,7 +129,7 @@ def ldm_conditional_sample_one_mask(
     with torch.no_grad(), torch.amp.autocast("cuda"):
         # Generate random noise
         latents = initialize_noise_latents(latent_shape, device)
-        anatomy_size = torch.FloatTensor(anatomy_size).unsqueeze(0).unsqueeze(0).half().to(device)
+        anatomy_size = torch.FloatTensor(anatomy_size).unsqueeze(0).unsqueeze(0).float().to(device)
         # synthesize latents
         if isinstance(noise_scheduler, DDPMScheduler) and num_inference_steps < noise_scheduler.num_train_timesteps:
             warnings.warn(
@@ -255,7 +255,7 @@ def ldm_conditional_sample_one_image(
             )
             combine_label = torch.nn.functional.interpolate(combine_label, size=output_size, mode="nearest")
 
-        controlnet_cond_vis = binarize_labels(combine_label.as_tensor().long()).half()
+        controlnet_cond_vis = binarize_labels(combine_label.as_tensor().long()).float()
 
         # Generate random noise
         latents = initialize_noise_latents(latent_shape, device) * noise_factor
@@ -438,25 +438,25 @@ def check_input(
         ValueError: If any input parameter is invalid.
     """
     # check output_size and spacing format
-    if output_size[0] != output_size[1]:
-        raise ValueError(f"The first two components of output_size need to be equal, yet got {output_size}.")
-    if (output_size[0] not in [256, 384, 512]) or (output_size[2] not in [128, 256, 384, 512, 640, 768]):
-        raise ValueError(
-            f"The output_size[0] have to be chosen from [256, 384, 512], and output_size[2] have to be chosen from [128, 256, 384, 512, 640, 768], yet got {output_size}."
-        )
+    #if output_size[0] != output_size[1]:
+    #    raise ValueError(f"The first two components of output_size need to be equal, yet got {output_size}.")
+    #if (output_size[0] not in [256, 384, 512]) or (output_size[2] not in [128, 256, 384, 512, 640, 768]):
+    #    raise ValueError(
+    #        f"The output_size[0] have to be chosen from [256, 384, 512], and output_size[2] have to be chosen from [128, 256, 384, 512, 640, 768], yet got {output_size}."
+    #    )
 
-    if spacing[0] != spacing[1]:
-        raise ValueError(f"The first two components of spacing need to be equal, yet got {spacing}.")
-    if spacing[0] < 0.5 or spacing[0] > 3.0 or spacing[2] < 0.5 or spacing[2] > 5.0:
-        raise ValueError(
-            f"spacing[0] have to be between 0.5 and 3.0 mm, spacing[2] have to be between 0.5 and 5.0 mm, yet got {spacing}."
-        )
+    #if spacing[0] != spacing[1]:
+    #    raise ValueError(f"The first two components of spacing need to be equal, yet got {spacing}.")
+    #if spacing[0] < 0.5 or spacing[0] > 3.0 or spacing[2] < 0.5 or spacing[2] > 5.0:
+    #    raise ValueError(
+    #        f"spacing[0] have to be between 0.5 and 3.0 mm, spacing[2] have to be between 0.5 and 5.0 mm, yet got {spacing}."
+    #    )
 
-    if output_size[0] * spacing[0] < 256:
-        FOV = [output_size[axis] * spacing[axis] for axis in range(3)]
-        raise ValueError(
-            f"`'spacing'({spacing}mm) and 'output_size'({output_size}) together decide the output field of view (FOV). The FOV will be {FOV}mm. We recommend the FOV in x and y axis to be at least 256mm for head, and at least 384mm for other body regions like abdomen. There is no such restriction for z-axis."
-        )
+    #if output_size[0] * spacing[0] < 256:
+    #    FOV = [output_size[axis] * spacing[axis] for axis in range(3)]
+    #    raise ValueError(
+    #        f"`'spacing'({spacing}mm) and 'output_size'({output_size}) together decide the output field of view (FOV). The FOV will be {FOV}mm. We recommend the FOV in x and y axis to be at least 256mm for head, and at least 384mm for other body regions like abdomen. There is no such restriction for z-axis."
+    #    )
 
     if controllable_anatomy_size == None:
         logging.info(f"`controllable_anatomy_size` is not provided.")
@@ -961,9 +961,9 @@ class LDMSampler:
 
         top_region_index, bottom_region_index = get_body_region_index_from_mask(combine_label_or)
 
-        spacing_tensor = torch.FloatTensor(self.spacing).unsqueeze(0).half().to(self.device) * 1e2
-        top_region_index_tensor = torch.FloatTensor(top_region_index).unsqueeze(0).half().to(self.device) * 1e2
-        bottom_region_index_tensor = torch.FloatTensor(bottom_region_index).unsqueeze(0).half().to(self.device) * 1e2
+        spacing_tensor = torch.FloatTensor(self.spacing).unsqueeze(0).float().to(self.device) * 1e2
+        top_region_index_tensor = torch.FloatTensor(top_region_index).unsqueeze(0).float().to(self.device) * 1e2
+        bottom_region_index_tensor = torch.FloatTensor(bottom_region_index).unsqueeze(0).float().to(self.device) * 1e2
 
         return combine_label_or, top_region_index_tensor, bottom_region_index_tensor, spacing_tensor
 
