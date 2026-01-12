@@ -75,6 +75,27 @@ class DiffusionSchedule:
         alpha_t = self.alpha(t).view(-1, 1, 1, 1)
         return (xt - et * (1 - alpha_t).sqrt()) / alpha_t.sqrt()
 
+    @torch.no_grad()
+    def noise_image(self, x0, t):
+        """
+        x0: clean image, shape (B, C, H, W)
+        t: integer or tensor of shape (B,)
+        """
+        alpha_t = self.alpha(t).view(-1, 1, 1, 1)
+
+        # Reshape for broadcasting
+        while alpha_t.ndim < x0.ndim:
+            alpha_t = alpha_t.view(-1, *([1] * (x0.ndim - 1)))
+    
+        eps = torch.randn_like(x0)
+    
+        xt = (
+            alpha_t.sqrt() * x0
+            + (1.0 - alpha_t).sqrt() * eps
+        )
+    
+        return xt
+
 class DiffusionModel:
     def __init__(self, model: nn.Module, diffusion_schedule: object, class_cond_diffusion_model=False):
         self.model = model
@@ -110,7 +131,7 @@ class Additive(Combine_fn):
 
 @dataclass
 class NDTMConfig:
-    eta: float = 0.1
+    eta: float = 1.0
     N: int = 2  # Number of optimization steps
     gamma_t: float = 4.0  # u_t weight
     u_lr: float = 0.01  # learning rate for u_t
@@ -125,6 +146,7 @@ class NDTMConfig:
     clip_images: bool = True  # If True, clip images
     clip_range: list = field(default_factory=lambda: [-1, 1])  # Range to clip images
     variance_type: str = "small"
+    compute_target_per_timestep: bool = False
 
 class NDTM:
     def __init__(self, generative_model, subject_model, hparams):
@@ -147,7 +169,7 @@ class NDTM:
         if scheme == "zero":
             return torch.tensor([0.0], device=alpha_s.device)
         elif scheme == "ones":
-            return torch.tensor([1.0], device=alpha_s.device) * 1.e-4
+            return torch.tensor([1.0], device=alpha_s.device) * 2.e-5
         elif scheme == "ddpm":
             return (beta_t**2) / (alpha_t_im * (1 - alpha_t))
         elif scheme == "ddim":
@@ -157,7 +179,8 @@ class NDTM:
             c2 = ((1 - alpha_s) - c1**2).sqrt()
             c2_ = ((alpha_s / alpha_t) * (1 - alpha_t)).sqrt()
             return (c2 - c2_) ** 2
-
+        elif isinstance(scheme, float):
+            return scheme
         else:
             raise ValueError(f"Unknown scheme: {scheme}")
 
@@ -175,6 +198,8 @@ class NDTM:
             return 1 / alpha_t_im
         elif scheme == "ddim":
             return alpha_t / alpha_s
+        elif isinstance(scheme, float):
+            return scheme
         else:
             raise ValueError(f"Unknown scheme: {scheme}")
 
@@ -208,11 +233,19 @@ class NDTM:
         u_t = torch.zeros_like(xt)
         pbar = tqdm(enumerate(zip(reversed(ts), reversed(ss))), total=len(ts), leave=False)
         for i, (ti, si) in pbar:
-
             t = torch.ones(bs).to(x.device).long() * ti
             s = torch.ones(bs).to(x.device).long() * si
             alpha_t = self.diffusion.alpha(t).view(-1, 1, 1, 1)
             alpha_s = self.diffusion.alpha(s).view(-1, 1, 1, 1)
+            if self.hparams.compute_target_per_timestep:
+                with torch.no_grad():
+                    noised_x_gt = self.diffusion.noise_image(y_0, t)
+                    et_gt = self.generative_model(noised_x_gt, y, t).detach()
+                    approx_x_gt = self.diffusion.predict_x_from_eps(noised_x_gt, et_gt, t)
+                    approx_x_gt = torch.clamp(approx_x_gt, self.hparams.clip_range[0], self.hparams.clip_range[1])
+                    y_t = self.subject_model(approx_x_gt)
+            else:
+                y_t = y_0
             if self.hparams.variance_type == "small":
                 c1 = (
                     (1 - alpha_t / alpha_s) * (1 - alpha_s) / (1 - alpha_t)
@@ -221,6 +254,13 @@ class NDTM:
             elif self.hparams.variance_type == "large":
                 c1 = (1 - alpha_t / alpha_s).sqrt() * self.hparams.eta
                 c2 = ((1 - alpha_s) - ((1 - alpha_s) / (1 - alpha_t))*c1**2).sqrt()
+            elif self.hparams.variance_type == "learned_range":
+                c1_small = (
+                    (1 - alpha_t / alpha_s) * (1 - alpha_s) / (1 - alpha_t)
+                ).sqrt() * self.hparams.eta
+                c1_large = (1 - alpha_t / alpha_s).sqrt() * self.hparams.eta
+
+                c2 = ((1 - alpha_s) - c1_small**2).sqrt()
 
             # Initialize control and the optimizer
             u_t = self.initialize_ut(u_t, i)
@@ -274,8 +314,7 @@ class NDTM:
                 c_control = w_control * control_loss * (gamma_t**2)
 
                 # Terminal Cost
-                # c_terminal = ((y_0 - self.subject_model(x0_pred)) ** 2).reshape(bs, -1).sum(dim=1)
-                c_terminal = torch.norm((y_0 - self.subject_model(x0_pred)), p=2, dim=-1).reshape(bs, -1).sum(dim=1)
+                c_terminal = torch.norm((y_t - self.subject_model(x0_pred)), p=2, dim=-1).reshape(bs, -1).sum(dim=1)
                 c_terminal = w_terminal * c_terminal
 
                 # Aggregate Cost and optimize
@@ -289,6 +328,9 @@ class NDTM:
 
                 optimizer.zero_grad()
                 c_t.sum().backward()
+                g = ut_clone.grad
+                norms = g.flatten(1).norm(dim=1, keepdim=True)
+                g.mul_(torch.clamp(1.0 / (norms + 1e-6), max=1.0).view(-1, *[1]*(g.dim()-1)))
                 optimizer.step()
             if self.hparams.N > 0 and gamma_t != 0:
                 pbar.set_description(
@@ -339,8 +381,12 @@ class NDTM:
                         noise = torch.randn_like(xt) * (0.5*model_log_variance).exp()
                         xt = xt + noise
                 else:
-                    
-                    et_control = self.generative_model(cxt, y, t)
+                    if self.hparams.variance_type == "learned_range":
+                        et_control, log_var = self.generative_model(cxt, y, t, predict_variance=True)
+                        frac = (log_var + 1) / 2
+                        c1 = (c1_large.log() * frac + c1_small.log() * (1 - frac)).exp()
+                    else:
+                        et_control = self.generative_model(cxt, y, t)
                     x0_pred = self.diffusion.predict_x_from_eps(cxt, et_control, t)
                     if self.hparams.clip_images:
                         x0_pred = torch.clamp(x0_pred, self.hparams.clip_range[0], self.hparams.clip_range[1])
@@ -618,3 +664,75 @@ class StableDiffusionInterface(nn.Module):
         # Assuming y is not used in this case
         noise_pred = self.model(x, t).sample
         return noise_pred
+
+def get_gamma_t_fct(anchorpoints, max_timesteps=1000):
+    def gamma_t(t):
+        if isinstance(t, torch.Tensor) and t.ndim > 0:
+            assert torch.all(torch.abs(t - t[0]) < 1e-6)
+            t = t[0]
+        for start, end, t_start, t_end in anchorpoints:
+            if t > t_start or t < t_end:
+                continue
+            t_max =  t_start - t_end
+            t_cur = t_start - t
+            return end + 0.5*(start - end)*(1 + torch.cos(np.pi*t_cur/t_max))
+        raise(ValueError("Anchorpoints do not cover entire interval from 0, 1"))
+    return gamma_t
+
+class NearestNeighborSearch:
+    def __init__(self, train_ds, val_ds, test_ds, subject_model, batch_size=32):
+        self.train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=False, num_workers=4)
+        self.val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=4)
+        self.test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=4)
+        self.subject_model = subject_model
+
+    @torch.no_grad()
+    def find_nearest_neighbor(self, original, use_datasets="all", identity_thresh=1e-5):
+        if isinstance(use_datasets, str):
+            use_train = use_datasets in ["train", "all"]
+            use_val = use_datasets in ["val", "all"]
+            use_test = use_datasets in ["test", "all"]
+        elif isinstance(use_datasets, (list, tuple)):
+            use_train = "train" in use_datasets
+            use_val = "val" in use_datasets
+            use_test = "test" in use_datasets
+
+        best_dist = torch.inf
+        best_sample = None
+        if use_train:
+            print("Searching train dataset...")
+            best_dist, best_sample = self.search_in_dataset(original, 
+                                                       self.train_loader, 
+                                                       best_dist, 
+                                                       best_sample,
+                                                       identity_thresh=identity_thresh)
+        if use_val:
+            print("Searching val dataset...")
+            best_dist, best_sample = self.search_in_dataset(original, 
+                                                       self.val_loader, 
+                                                       best_dist, 
+                                                       best_sample,
+                                                       identity_thresh=identity_thresh)
+        if use_test:
+            print("Searching test dataset...")
+            best_dist, best_sample = self.search_in_dataset(original, 
+                                                       self.test_loader, 
+                                                       best_dist, 
+                                                       best_sample,
+                                                       identity_thresh=identity_thresh)
+        return best_dist, best_sample
+
+    @torch.no_grad()
+    def search_in_dataset(self, original, loader, best_dist, best_sample, identity_thresh=1e-5):
+        original_embedding = self.subject_model(original).detach()
+        for batch in tqdm(loader):
+            sample = batch[0].to(device).reshape(-1, *original.shape[1:])
+            sample_embedding = self.subject_model(sample).detach()
+            dist = torch.norm(original_embedding - sample_embedding, p=2, dim=1)
+            dist, sample = dist[dist > identity_thresh], sample[dist > identity_thresh]
+            min_in_batch = torch.argmin(dist)
+            dist, sample = dist[min_in_batch], sample[min_in_batch]
+            if dist < best_dist:
+                best_dist = dist
+                best_sample = sample
+        return best_dist, best_sample

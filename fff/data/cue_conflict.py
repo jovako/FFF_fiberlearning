@@ -25,7 +25,7 @@ class CueConflictDataset(Dataset):
                 shape_texture_*.png
     """
 
-    def __init__(self, mode, root, resize_to=None, return_tuple=True):
+    def __init__(self, mode, root, resize_to=None, normalize=True, return_tuple=True):
         if mode in ["valid", "test"]:
             warn("Currently no splits are implemented, returning full dataset every time. Use train set to ignore this warning")
 
@@ -55,9 +55,11 @@ class CueConflictDataset(Dataset):
         transforms = []
         if resize_to is not None:
             transforms.append(A.Resize(resize_to, resize_to))
-        transforms.append(
-            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
-        )
+        if normalize:
+            transforms.append(
+                A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+            )
+
         transforms.append(A.pytorch.ToTensorV2())
 
         self.transform = A.Compose(transforms)
@@ -87,7 +89,7 @@ class CueConflictDataset(Dataset):
 
         img = np.array(Image.open(sample["path"]).convert("RGB"))
         if self.transform:
-            img = self.transform(image=img)["image"]
+            img = self.transform(image=img)["image"].float()
 
         if not self.return_tuple:
             return {

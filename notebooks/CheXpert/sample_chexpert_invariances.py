@@ -12,7 +12,7 @@ from transformers.modeling_outputs import ModelOutput
 from safetensors.torch import load_file
 import sys
 sys.path.append("/home/hd/hd_hd/hd_gu452/FFF_fiberlearning/scripts/")
-from fff.ndtm import NDTMConfig, NDTMTimestepCompatability, DiffusionScheduleConfig, StableDiffusionInterface, DiffusionSchedule, DiffusionModel, NDTM
+from fff.ndtm import NDTMConfig, NDTMTimestepCompatability, DiffusionScheduleConfig, StableDiffusionInterface, DiffusionSchedule, DiffusionModel, NDTM, get_gamma_t_fct
 sys.path.append("/home/hd/hd_hd/hd_gu452/oc-guidance/")
 from utils.functions import get_timesteps
 import torch
@@ -193,17 +193,18 @@ if __name__ == "__main__":
     timestep_config = NDTMTimestepCompatability()
     diffusion_schedule_config = DiffusionScheduleConfig()
     NDTM_config = NDTMConfig(N=4, 
-                             gamma_t= lambda t: 10 if any(t < 400) else 0.2 / (t[0].item()/600), # torch.sigmoid((800 - t)/400) * 20.0, 
-                             u_lr=0.002, 
-                             w_terminal=3.0, 
+                             gamma_t= get_gamma_t_fct([(0, 0, 1000, 500), (0, 10, 500, 0)], max_timesteps=1000),
+                             u_lr=0.002,
+                             w_terminal=1.0, 
                              eta=0.5,
                              u_lr_scheduler="linear",
                              w_score_scheme="zero",
-                             w_control_scheme="ones",
+                             w_control_scheme="zero",
                              clip_images=True,
                              clip_range=value_range,
+                             variance_type="large",
                              ancestral_sampling=False,
-                             variance_type="large")
+                             compute_target_per_timestep=True)
     data_set_config = {
         "name": "chexpert",
         "root": "/home/hd/hd_hd/hd_gu452/workspaces/gpfs/hd_gu452-chexpert",
@@ -223,9 +224,11 @@ if __name__ == "__main__":
     subject_model_convnext = ConvNextClassfierSubjectModel().to(device)
     subject_model_biomed = BiomedClipSubjectModel().to(device)
 
+    g = torch.Generator()
+    g.manual_seed(0)
     # Dataset
     _, val_ds, _ = load_dataset(**data_set_config)
-    dataloader = torch.utils.data.DataLoader(val_ds, batch_size=batch_size, shuffle=True)
+    dataloader = torch.utils.data.DataLoader(val_ds, batch_size=batch_size, shuffle=True, generator=g)
 
     #Guidance
     ndtm_convnext = NDTM(
@@ -273,7 +276,7 @@ if __name__ == "__main__":
         original_biomed_embeddings.append(test_image_embedding_biomed)
         
         ts = get_timesteps(NDTMTimestepCompatability())
-        imgs_noised, imgs_approximated = ndtm_convnext.sample(x, None, ts, y_0 = test_image_embedding_convnext.to(device))
+        imgs_noised, imgs_approximated = ndtm_convnext.sample(x, None, ts, y_0=x)
         invariances_convnext.append(imgs_noised[0])
         with torch.no_grad():
             invariances_convnext_embeddings.append(subject_model_convnext(imgs_noised[0].to(device)))
@@ -281,7 +284,7 @@ if __name__ == "__main__":
     
         
         ts = get_timesteps(NDTMTimestepCompatability())
-        imgs_noised, imgs_approximated = ndtm_biomed.sample(x, None, ts, y_0 = test_image_embedding_biomed.to(device))
+        imgs_noised, imgs_approximated = ndtm_biomed.sample(x, None, ts, y_0=x)
         invariances_biomed.append(imgs_noised[0])
         with torch.no_grad():
             invariances_biomed_embeddings.append(subject_model_biomed(imgs_noised[0].to(device)))

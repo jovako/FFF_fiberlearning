@@ -99,6 +99,10 @@ def load_dataset(name: str, **kwargs) -> TrainValTest:
         from .chexpert import get_chexpert_dataset
 
         return get_chexpert_dataset(**kwargs)
+    elif name == "mura":
+        from .mura import get_mura_dataset
+
+        return get_mura_dataset(**kwargs)
     elif name == "imagenet":
         from .imagenet import get_imagenet_dataset
 
